@@ -163,6 +163,27 @@ var Qu=Object.defineProperty;var eh=(i,e,t)=>e in i?Qu(i,e,{enumerable:!0,config
       <div class="space-y-5" id="field-list">
         ${p.map(T=>`<div>${vh(T)}</div>`).join("")}
       </div>
+      <div class="mt-6 mb-2">
+        <label class="block text-sm font-semibold text-slate-200 mb-2">Match Length</label>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5" id="round-select-grid">
+          <button type="button" data-rounds="3" class="round-chip px-3 py-2.5 rounded-xl border text-xs font-semibold text-left border-ink-700 bg-ink-900 text-slate-300 hover:border-slate-500 transition-all">
+            <span class="block text-sm text-white font-bold">⚡ 3 Rounds</span>
+            <span class="text-[10px] text-slate-400">Quick Spar</span>
+          </button>
+          <button type="button" data-rounds="6" class="round-chip px-3 py-2.5 rounded-xl border text-xs font-semibold text-left border-accent-500 bg-accent-500/10 text-white transition-all">
+            <span class="block text-sm text-accent-300 font-bold">🥊 6 Rounds</span>
+            <span class="text-[10px] text-slate-300">Standard Bout</span>
+          </button>
+          <button type="button" data-rounds="10" class="round-chip px-3 py-2.5 rounded-xl border text-xs font-semibold text-left border-ink-700 bg-ink-900 text-slate-300 hover:border-slate-500 transition-all">
+            <span class="block text-sm text-white font-bold">🏛️ 10 Rounds</span>
+            <span class="text-[10px] text-slate-400">Full Debate</span>
+          </button>
+          <button type="button" data-rounds="0" class="round-chip px-3 py-2.5 rounded-xl border text-xs font-semibold text-left border-ink-700 bg-ink-900 text-slate-300 hover:border-slate-500 transition-all">
+            <span class="block text-sm text-white font-bold">♾️ Open</span>
+            <span class="text-[10px] text-slate-400">Freestyle</span>
+          </button>
+        </div>
+      </div>
 
       <label class="mt-6 flex gap-4 items-start rounded-2xl border border-ink-700 bg-ink-900 p-5 cursor-pointer hover:border-accent-500/50 transition-colors">
         <input type="checkbox" id="judge-toggle" class="mt-1 h-5 w-5 shrink-0 accent-red-500" />
@@ -182,7 +203,7 @@ var Qu=Object.defineProperty;var eh=(i,e,t)=>e in i?Qu(i,e,{enumerable:!0,config
         <div class="mb-3 text-accent-400 [&>svg]:w-7 [&>svg]:h-7">${A.icon}</div>
         <div class="font-semibold text-white text-lg">${dt(A.name)}</div>
         <div class="text-accent-400 text-xs font-medium uppercase tracking-wide mt-0.5 mb-2">${dt(A.tagline)}</div>
-        <p class="text-sm text-slate-400 leading-relaxed">${dt(A.description)}</p>`,L.addEventListener("click",()=>{o=A,T.querySelectorAll(".persona-card").forEach(M=>M.setAttribute("aria-pressed","false")),L.setAttribute("aria-pressed","true")}),T.appendChild(L)}}const _=t.querySelector("#figure-grid");h();const m=()=>t.querySelector("#setup-figureId"),f=T=>{c=T,_?.querySelectorAll(".figure-card").forEach(L=>{L.setAttribute("aria-pressed",L.getAttribute("data-figure-id")===T?"true":"false")});const A=m();A&&T&&A.value!==T&&(A.value=T),h()};if(_){const T=()=>t.querySelector('[data-key="topic"]');_.addEventListener("click",A=>{const L=A.target.closest("[data-suggest]");if(L){const y=u.get(L.getAttribute("data-suggest")??""),C=T();y&&C&&(C.value=y.suggestedTopic,C.focus());return}const M=A.target.closest(".figure-card");M&&f(M.getAttribute("data-figure-id"))}),m()?.addEventListener("change",A=>{f(A.target.value||null)}),_.addEventListener("keydown",A=>{if(A.key!=="Enter"&&A.key!==" ")return;const L=A.target.closest(".figure-card");L&&(A.preventDefault(),L.click())})}const E=(T,A,L)=>{T?.querySelectorAll("button").forEach(M=>{const y=M.getAttribute(A)===L;M.setAttribute("aria-pressed",y?"true":"false"),M.classList.toggle("border-accent-500",y),M.classList.toggle("bg-accent-500/10",y),M.classList.toggle("text-white",y),M.classList.toggle("border-ink-700",!y),M.classList.toggle("text-slate-300",!y)})};if(a){const T=t.querySelector("#rel-grid"),A=t.querySelector("#present-grid"),L=()=>t.querySelector("#setup-otherParty");E(T,"data-rel",l),E(A,"data-present",d);const M=vs.find(C=>C.id===l),y=L();y&&M&&!y.value.trim()&&(y.value=M.otherParty),T?.addEventListener("click",C=>{const X=C.target.closest("[data-rel]");if(!X)return;l=X.getAttribute("data-rel"),E(T,"data-rel",l);const O=vs.find(V=>V.id===l),q=L();q&&O&&!q.value.trim()&&(q.value=O.otherParty)}),A?.addEventListener("click",C=>{const X=C.target.closest("[data-present]");X&&(d=X.getAttribute("data-present"),E(A,"data-present",d))})}const S=t.querySelector("#start-btn"),x=t.querySelector("#setup-error"),R=t.querySelector("#quota-slot");S.addEventListener("click",async()=>{x.classList.add("hidden");const T={};let A=null;for(const V of p){const G=(t.querySelector(`#setup-${CSS.escape(V.key)}`)?.value??"").trim();T[V.key]=G,V.required&&!G&&!A&&(A=`Please fill in “${V.label}”.`)}if(s.figures&&s.figures.length>0&&!c&&!A){const V=t.querySelector("#setup-figureId");V?.value&&f(V.value)}if(s.figures&&s.figures.length>0&&!c&&!A&&(A="Pick a figure to spar with first."),A){x.textContent=A,x.classList.remove("hidden");return}c&&(T.figureId=c);const L=r?o.id:T.persona||void 0;let M;s.figures&&s.figures.length>0&&c?M=hh(c):a?M=ph(l,d):r?M=_h(o.id):M=xh(s.id),T.personaVisual=M;const y=dh(M);let C;if(r)C=o.name;else if(c&&u.get(c))C=u.get(c).name;else if(a){const V=vs.find(I=>I.id===l);C=V?`Your ${V.label.toLowerCase()}`:y.label}else s.id==="rapbattle"?C=String(T.mcName||"").trim()||"Verse Vice":s.id==="witness"?C=String(T.who||"").trim()||s.name:C=s.name;let O=T.topic??"";if(!O){if(s.id==="difficult")O=String(T.situation||"").slice(0,300);else if(s.id==="historical"){const V=u.get(c??"");O=(V?.suggestedTopic||(V?`Debate with ${V.name}`:"Historical debate")).slice(0,300)}else if(s.id==="rapbattle"){const V=String(T.theme||"").trim();O=(V?`Rap battle: ${V}`:"Open rap battle").slice(0,300)}else if(s.id==="witness"){const V=String(T.who||"").trim();O=(V?`Sharing the gospel with ${V}`:"Sharing the gospel").slice(0,300)}}const q=t.querySelector("#judge-toggle")?.checked??!1;S.disabled=!0,S.textContent="Setting up your session…";try{const{debateId:V}=await zt("/api/debate/start",{mode:s.id,persona:L,topic:O,setup:T,judge:q});bh(V,{modeId:s.id,modeName:s.name,modeIcon:s.icon,topic:O,personaLabel:C,judgeEnabled:q,personaVisual:y.model}),location.hash=`#/session/${encodeURIComponent(V)}`}catch(V){V instanceof Bt&&V.status===402?(R.replaceChildren(sd()),S.classList.add("hidden")):(x.textContent="Could not start the session. Please try again.",x.classList.remove("hidden"),S.disabled=!1,S.textContent="Start session")}})}const Sh="modulepreload",Eh=function(i){return"/app/"+i},Pc={},gr=function(e,t,n){let s=Promise.resolve();if(t&&t.length>0){let a=function(l){return Promise.all(l.map(d=>Promise.resolve(d).then(u=>({status:"fulfilled",value:u}),u=>({status:"rejected",reason:u}))))};document.getElementsByTagName("link");const o=document.querySelector("meta[property=csp-nonce]"),c=o?.nonce||o?.getAttribute("nonce");s=a(t.map(l=>{if(l=Eh(l),l in Pc)return;Pc[l]=!0;const d=l.endsWith(".css"),u=d?'[rel="stylesheet"]':"";if(document.querySelector(`link[href="${l}"]${u}`))return;const h=document.createElement("link");if(h.rel=d?"stylesheet":Sh,d||(h.as="script"),h.crossOrigin="",h.href=l,c&&h.setAttribute("nonce",c),document.head.appendChild(h),d)return new Promise((p,g)=>{h.addEventListener("load",p),h.addEventListener("error",()=>g(new Error(`Unable to preload CSS for ${l}`)))})}))}function r(a){const o=new Event("vite:preloadError",{cancelable:!0});if(o.payload=a,window.dispatchEvent(o),!o.defaultPrevented)throw a}return s.then(a=>{for(const o of a||[])o.status==="rejected"&&r(o.reason);return e().catch(r)})};/**
+        <p class="text-sm text-slate-400 leading-relaxed">${dt(A.description)}</p>`,L.addEventListener("click",()=>{o=A,T.querySelectorAll(".persona-card").forEach(M=>M.setAttribute("aria-pressed","false")),L.setAttribute("aria-pressed","true")}),T.appendChild(L)}}const _=t.querySelector("#figure-grid");h();const m=()=>t.querySelector("#setup-figureId"),f=T=>{c=T,_?.querySelectorAll(".figure-card").forEach(L=>{L.setAttribute("aria-pressed",L.getAttribute("data-figure-id")===T?"true":"false")});const A=m();A&&T&&A.value!==T&&(A.value=T),h()};if(_){const T=()=>t.querySelector('[data-key="topic"]');_.addEventListener("click",A=>{const L=A.target.closest("[data-suggest]");if(L){const y=u.get(L.getAttribute("data-suggest")??""),C=T();y&&C&&(C.value=y.suggestedTopic,C.focus());return}const M=A.target.closest(".figure-card");M&&f(M.getAttribute("data-figure-id"))}),m()?.addEventListener("change",A=>{f(A.target.value||null)}),_.addEventListener("keydown",A=>{if(A.key!=="Enter"&&A.key!==" ")return;const L=A.target.closest(".figure-card");L&&(A.preventDefault(),L.click())})}const E=(T,A,L)=>{T?.querySelectorAll("button").forEach(M=>{const y=M.getAttribute(A)===L;M.setAttribute("aria-pressed",y?"true":"false"),M.classList.toggle("border-accent-500",y),M.classList.toggle("bg-accent-500/10",y),M.classList.toggle("text-white",y),M.classList.toggle("border-ink-700",!y),M.classList.toggle("text-slate-300",!y)})};if(a){const T=t.querySelector("#rel-grid"),A=t.querySelector("#present-grid"),L=()=>t.querySelector("#setup-otherParty");E(T,"data-rel",l),E(A,"data-present",d);const M=vs.find(C=>C.id===l),y=L();y&&M&&!y.value.trim()&&(y.value=M.otherParty),T?.addEventListener("click",C=>{const X=C.target.closest("[data-rel]");if(!X)return;l=X.getAttribute("data-rel"),E(T,"data-rel",l);const O=vs.find(V=>V.id===l),q=L();q&&O&&!q.value.trim()&&(q.value=O.otherParty)}),A?.addEventListener("click",C=>{const X=C.target.closest("[data-present]");X&&(d=X.getAttribute("data-present"),E(A,"data-present",d))})}const _rg=t.querySelector("#round-select-grid");if(_rg){_rg.querySelectorAll(".round-chip").forEach(ch=>{ch.addEventListener("click",()=>{_rg.querySelectorAll(".round-chip").forEach(o=>{o.classList.remove("border-accent-500","bg-accent-500/10","text-white");o.classList.add("border-ink-700","bg-ink-900","text-slate-300");});ch.classList.remove("border-ink-700","bg-ink-900","text-slate-300");ch.classList.add("border-accent-500","bg-accent-500/10","text-white");})});}const S=t.querySelector("#start-btn"),x=t.querySelector("#setup-error"),R=t.querySelector("#quota-slot");S.addEventListener("click",async()=>{x.classList.add("hidden");const T={};let A=null;for(const V of p){const G=(t.querySelector(`#setup-${CSS.escape(V.key)}`)?.value??"").trim();T[V.key]=G,V.required&&!G&&!A&&(A=`Please fill in “${V.label}”.`)}if(s.figures&&s.figures.length>0&&!c&&!A){const V=t.querySelector("#setup-figureId");V?.value&&f(V.value)}if(s.figures&&s.figures.length>0&&!c&&!A&&(A="Pick a figure to spar with first."),A){x.textContent=A,x.classList.remove("hidden");return}c&&(T.figureId=c);const L=r?o.id:T.persona||void 0;let M;s.figures&&s.figures.length>0&&c?M=hh(c):a?M=ph(l,d):r?M=_h(o.id):M=xh(s.id),T.personaVisual=M;const y=dh(M);let C;if(r)C=o.name;else if(c&&u.get(c))C=u.get(c).name;else if(a){const V=vs.find(I=>I.id===l);C=V?`Your ${V.label.toLowerCase()}`:y.label}else s.id==="rapbattle"?C=String(T.mcName||"").trim()||"Verse Vice":s.id==="witness"?C=String(T.who||"").trim()||s.name:C=s.name;let O=T.topic??"";if(!O){if(s.id==="difficult")O=String(T.situation||"").slice(0,300);else if(s.id==="historical"){const V=u.get(c??"");O=(V?.suggestedTopic||(V?`Debate with ${V.name}`:"Historical debate")).slice(0,300)}else if(s.id==="rapbattle"){const V=String(T.theme||"").trim();O=(V?`Rap battle: ${V}`:"Open rap battle").slice(0,300)}else if(s.id==="witness"){const V=String(T.who||"").trim();O=(V?`Sharing the gospel with ${V}`:"Sharing the gospel").slice(0,300)}}const q=t.querySelector("#judge-toggle")?.checked??!1;S.disabled=!0,S.textContent="Setting up your session…";try{const _selRounds=Number(t.querySelector("#round-select-grid .border-accent-500")?.getAttribute("data-rounds")??6);const{debateId:V}=await zt("/api/debate/start",{mode:s.id,persona:L,topic:O,setup:T,judge:q,targetRounds:_selRounds});bh(V,{modeId:s.id,modeName:s.name,modeIcon:s.icon,topic:O,personaLabel:C,judgeEnabled:q,personaVisual:y.model,targetRounds:_selRounds}),location.hash=`#/session/${encodeURIComponent(V)}`}catch(V){V instanceof Bt&&V.status===402?(R.replaceChildren(sd()),S.classList.add("hidden")):(x.textContent="Could not start the session. Please try again.",x.classList.remove("hidden"),S.disabled=!1,S.textContent="Start session")}})}const Sh="modulepreload",Eh=function(i){return"/app/"+i},Pc={},gr=function(e,t,n){let s=Promise.resolve();if(t&&t.length>0){let a=function(l){return Promise.all(l.map(d=>Promise.resolve(d).then(u=>({status:"fulfilled",value:u}),u=>({status:"rejected",reason:u}))))};document.getElementsByTagName("link");const o=document.querySelector("meta[property=csp-nonce]"),c=o?.nonce||o?.getAttribute("nonce");s=a(t.map(l=>{if(l=Eh(l),l in Pc)return;Pc[l]=!0;const d=l.endsWith(".css"),u=d?'[rel="stylesheet"]':"";if(document.querySelector(`link[href="${l}"]${u}`))return;const h=document.createElement("link");if(h.rel=d?"stylesheet":Sh,d||(h.as="script"),h.crossOrigin="",h.href=l,c&&h.setAttribute("nonce",c),document.head.appendChild(h),d)return new Promise((p,g)=>{h.addEventListener("load",p),h.addEventListener("error",()=>g(new Error(`Unable to preload CSS for ${l}`)))})}))}function r(a){const o=new Event("vite:preloadError",{cancelable:!0});if(o.payload=a,window.dispatchEvent(o),!o.defaultPrevented)throw a}return s.then(a=>{for(const o of a||[])o.status==="rejected"&&r(o.reason);return e().catch(r)})};/**
  * @license
  * Copyright 2010-2024 Three.js Authors
  * SPDX-License-Identifier: MIT
@@ -4039,14 +4060,24 @@ error=${e||"(none)"}`+r+a},500)}function Xu(i){return i==null?"—":i.toFixed(1)
         <div class="flex gap-2 mt-3">
           <button id="replay-btn" disabled class="flex-1 px-3 py-2 rounded-xl border border-ink-700 text-sm text-slate-300 hover:border-slate-500 disabled:opacity-40">↻ Replay</button>
           <button id="stop-btn" disabled class="flex-1 px-3 py-2 rounded-xl border border-ink-700 text-sm text-slate-300 hover:border-slate-500 disabled:opacity-40">■ Stop</button>
-          <button id="end-btn" class="flex-1 px-3 py-2 rounded-xl bg-red-900/60 border border-red-800 text-sm text-red-200 hover:bg-red-900">End session</button>
+          <button id="end-btn" class="flex-1 px-3 py-2 rounded-xl bg-red-900/60 border border-red-800 text-sm text-red-200 hover:bg-red-900 font-semibold">End &amp; Grade</button>
         </div>
       </div>
 
       <div class="flex flex-col lg:min-h-[60vh]">
         <div class="mb-4">
-          <p class="text-accent-400 text-xs font-semibold uppercase tracking-widest">${xt(t.modeName)}</p>
+          <div class="flex items-center justify-between flex-wrap gap-2">
+            <p class="text-accent-400 text-xs font-semibold uppercase tracking-widest">${xt(t.modeName)}</p>
+            <div class="flex items-center gap-2">
+              <span id="spar-round-badge" class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-accent-500/15 border border-accent-500/30 text-accent-300">🥊 Round <span id="spar-cur-round">1</span>${t.targetRounds ? " / " + t.targetRounds : " (Freestyle)"}</span>
+              <span id="spar-wallet-badge" class="px-2 py-0.5 rounded-full text-[11px] font-medium bg-ink-800 border border-ink-700 text-slate-400"></span>
+            </div>
+          </div>
           <h1 class="font-display text-xl sm:text-2xl text-white mt-1">${xt(t.topic||"Live session")}</h1>
+          <div id="spar-target-reached-banner" class="hidden mt-2 p-2.5 rounded-xl bg-accent-500/15 border border-accent-500/30 text-accent-300 text-xs flex items-center justify-between">
+            <span>🎯 Target rounds completed! Ready for your verdict, or keep sparring freely.</span>
+            <button type="button" id="banner-score-btn" class="underline font-bold ml-2 cursor-pointer">Get Scorecard →</button>
+          </div>
         </div>
         <div id="transcript" class="transcript-scroll flex-1 overflow-y-auto space-y-3 pr-1 max-h-[46vh] lg:max-h-[52vh] min-h-0 lg:min-h-[200px]"></div>
         <div id="quota-slot"></div>
@@ -4060,7 +4091,7 @@ error=${e||"(none)"}`+r+a},500)}function Xu(i){return i==null?"—":i.toFixed(1)
           <p id="mic-hint" class="hidden text-xs text-slate-500 mt-2">Listening… speak now, then tap the mic again to stop.</p>
         </div>
       </div>
-    </div>`;const n=new K0(i.querySelector("#avatar-canvas"),t.personaVisual||void 0);window.addEventListener("hashchange",()=>n.dispose(),{once:!0});const s=i.querySelector("#transcript"),r=i.querySelector("#msg-input"),a=i.querySelector("#send-btn"),o=i.querySelector("#mic-btn"),c=i.querySelector("#mic-hint"),l=i.querySelector("#replay-btn"),d=i.querySelector("#stop-btn"),u=i.querySelector("#end-btn"),h=i.querySelector("#voice-note"),p=i.querySelector("#quota-slot");(async()=>{try{const I=await Ut(`/api/debates/${encodeURIComponent(e)}`);for(const G of I.turns??[])G.role==="user"?L("you",G.text):G.role==="assistant"&&L("opponent",G.text)}catch{}})();const g=[];let _=null;window.__qaExtra=()=>{const I=window.__sdkActive>0,G=!!_&&!_.paused;return`sdkPlaying=${I}
+    </div>`;const n=new K0(i.querySelector("#avatar-canvas"),t.personaVisual||void 0);window.addEventListener("hashchange",()=>n.dispose(),{once:!0});const s=i.querySelector("#transcript"),r=i.querySelector("#msg-input"),a=i.querySelector("#send-btn"),o=i.querySelector("#mic-btn"),c=i.querySelector("#mic-hint"),l=i.querySelector("#replay-btn"),d=i.querySelector("#stop-btn"),u=i.querySelector("#end-btn"),h=i.querySelector("#voice-note"),p=i.querySelector("#quota-slot");(async()=>{try{const I=await Ut(`/api/debates/${encodeURIComponent(e)}`);for(const G of I.turns??[])G.role==="user"?L("you",G.text):G.role==="assistant"&&L("opponent",G.text)}catch{}})();let _sparCurRound=1;const g=[];let _=null;window.__qaExtra=()=>{const I=window.__sdkActive>0,G=!!_&&!_.paused;return`sdkPlaying=${I}
 mp3Playing=${G}
 overlap=${I&&G?"YES-DOUBLE-AUDIO":"no"}`};let m=null,f=null,E=null,S=!1,x=0,R=null;const T=I=>t.modeId==="rapbattle"?I.replace(/\b(f+u+c+k+|s+h+i+t+|b+i+t+c+h+|a+s+s+(h+o+l+e+)?|d+a+m+n+|d+i+c+k+|p+u+s+s+y+|c+u+n+t+|w+h+o+r+e+|s+l+u+t+|n+i+g+g+[aeiou]+|f+a+g+(g+o+t+)?|t+i+t+s+|b+o+o+b+s?|p+e+n+i+s+|v+a+g+i+n+a+|c+l+i+t+|o+r+g+a+s+m+)\b/gi,"****"):I;function A(){s.scrollTop=s.scrollHeight}function L(I,G){g.push({role:I,text:G});const B=document.createElement("div");return B.className=I==="you"?"flex justify-end":"flex justify-start",B.innerHTML=`
       <div class="max-w-[85%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${I==="you"?"bg-accent-500/15 border border-accent-500/30 text-slate-100 rounded-br-md":"bg-ink-800 border border-ink-700 text-slate-200 rounded-bl-md"}">
@@ -4073,7 +4104,11 @@ overlap=${I&&G?"YES-DOUBLE-AUDIO":"no"}`};let m=null,f=null,E=null,S=!1,x=0,R=nu
         <span class="typing-dot w-2 h-2 rounded-full bg-slate-400"></span>
         <span class="typing-dot w-2 h-2 rounded-full bg-slate-400"></span>
         <span class="typing-dot w-2 h-2 rounded-full bg-slate-400"></span>
-      </div>`,s.appendChild(I),A(),I}function y(){try{R?.()}catch{}R=null;_&&(_.pause(),_.currentTime=0,_=null),m&&(m.stop(),m=null),n.stop(),d.disabled=!0,l.disabled=!f&&!E}function C(I){if(window.__audioPath="mp3",y(),!I.audioBase64){n.nod(),h.classList.remove("hidden"),l.disabled=!0;return}f={audioBase64:I.audioBase64,timings:I.timings},_=new Audio(`data:audio/mp3;base64,${I.audioBase64}`),n.setSpeakingFromAudio(_),d.disabled=!1,l.disabled=!1,_.onended=()=>y(),_.onerror=()=>{y(),h.textContent="Audio playback failed — text only for this reply.",h.classList.remove("hidden")},_.play().catch(()=>{y(),h.textContent="Audio was blocked by your browser — tap Replay to hear it.",h.classList.remove("hidden"),l.disabled=!1})}function X(){if(s.querySelector("[data-est-note]"))return;const I=document.createElement("p");I.setAttribute("data-est-note","1"),I.className="text-[11px] text-slate-600 text-center",I.textContent="Lip-sync timing is estimated for this session.",s.appendChild(I)}async function O(I){h.classList.add("hidden"),y();const G=++x,B=window;if(I.ttsVoice&&Io())try{const{speakWithVisemes:ne}=await gr(async()=>{const{speakWithVisemes:re}=await Promise.resolve().then(()=>fo);return{speakWithVisemes:re}},void 0);if(G!==x)return;const Q=await ne(T(I.reply),{voice:I.ttsVoice,style:I.ttsStyle,styleDegree:I.ttsStyleDegree},n);if(G!==x){Q.stop();return}m=Q,B.__audioPath="sdk",E={text:I.reply,voice:I.ttsVoice,style:I.ttsStyle??null,styleDegree:I.ttsStyleDegree??null},d.disabled=!1,l.disabled=!1,Q.done.then(()=>{m===Q&&y()},()=>{m===Q&&(m=null,X(),C(I))});return}catch{}I.audioBase64&&X(),C(I)}async function q(){try{const{warmAudio:ce}=await gr(async()=>{const{warmAudio:ye}=await Promise.resolve().then(()=>fo);return{warmAudio:ye}},void 0);ce()}catch{}const I=r.value.trim();if(!I||S)return;S=!0,a.disabled=!0,r.value="",y(),++x,R=null;const G=x;L("you",I);const B=M(),ne=L("opponent","");let Q="",re="",Re=null,se=!Io(),W=null;const Z=[];let fe=!1,ie=!1,Ae=!1,pe=0,we=!1;R=()=>{we=!0};const ze=()=>{const ce=/[.!?…]["'”’)(\]]?\s+/g;let ye,ve=0;for(;(ye=ce.exec(re))!==null;)ve=ye.index+ye[0].length;if(ve>0){const Ve=re.slice(0,ve).trim();re=re.slice(ve),Ve&&Z.push(Ve)}if(re.length>500){const Ve=re.lastIndexOf(" ",400),ge=Ve>200?Ve:400,w=re.slice(0,ge).trim();re=re.slice(ge).trimStart(),w&&Z.push(w)}},Pe=async()=>{if(fe||se||we||!Re||G!==x)return;fe=!0;const ce=Re;let ye=null;try{const ve=await gr(()=>Promise.resolve().then(()=>fo),void 0),Ve=ge=>{if(ge||Z.length===0||se||we||G!==x)return ge;const w=Z.shift();return ve.synthesizeWithVisemes(T(w),ce,W)};if(!W&&G===x&&!se&&!we)try{W=await ve.fetchSpeechToken()}catch{se=!0}for(;!se&&!we&&G===x;){ye=Ve(ye);const ge=ye;if(!ge)break;ye=null;let w;try{w=await ge.prep}catch{se=!0;break}if(we||G!==x||se)break;ye=Ve(ye);const v=ve.playSynthesized(w,n,void 0);if(G!==x||we){v.stop();break}m=v,window.__audioPath="sdk",d.disabled=!1,v.done.then(()=>{m===v&&(m=null,n.stop())},()=>{m===v&&(m=null),se=!0}),await v.done}}finally{if(ye&&ye.cancel(),ye=null,fe=!1,G!==x)return;we&&(Z.length=0),ie&&Z.length===0?(d.disabled=!0,R=null):Z.length>0&&!se&&!we&&Pe()}},Ye=()=>{const ce=performance.now();ce-pe>48&&(ne.textContent=Q,A(),pe=ce)},D=ce=>{if(G===x){if(ce.t==="hello"){ce.ttsVoice?Re={voice:ce.ttsVoice,style:ce.ttsStyle??null,styleDegree:ce.ttsStyleDegree??null}:se=!0,Pe();return}if(ce.t==="tok"){Ae||(Ae=!0,B.remove()),Q+=ce.c??"",re+=ce.c??"",Ye(),ze(),Z.length>0&&Pe();return}if(ce.t==="done"){ie=!0,Ae||B.remove(),ne.textContent=Q,A();const ye=re.trim();re="",ye&&Z.push(ye),Re&&(E={text:Q,voice:Re.voice,style:Re.style,styleDegree:Re.styleDegree}),ce.audioBase64&&(f={audioBase64:ce.audioBase64,timings:ce.timings??[]}),se||!Re?C({audioBase64:ce.audioBase64??null,timings:ce.timings??[]}):(l.disabled=!1,Pe()),S=!1,a.disabled=r.disabled;return}if(ce.t==="err"){B.remove(),ne.textContent="";const ye=document.createElement("p");ye.className="text-sm text-red-300 text-center",ye.textContent=ce.message||"Your message didn’t go through. Try sending again.",s.appendChild(ye),A(),S=!1,a.disabled=r.disabled}}},vt=()=>{B.remove(),ne.textContent="";const ce=document.createElement("p");ce.className="text-sm text-red-300 text-center",ce.textContent="Your message didn’t go through. Try sending again.",s.appendChild(ce),A()};try{const ce=await fetch("/api/debate/turn-stream",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({debateId:e,text:I})}),ye=ce.headers.get("content-type")||"";if(!ce.ok||!ye.includes("text/event-stream")){let w={};try{w=await ce.json()}catch{}if(ce.status===402){B.remove(),p.replaceChildren(sd()),r.disabled=!0,a.disabled=!0;return}throw new Error(w.error||`http ${ce.status}`)}const ve=ce.body?.getReader();if(!ve)throw new Error("no stream body");const Ve=new TextDecoder;let ge="";for(;;){const{done:w,value:v}=await ve.read();if(w)break;ge+=Ve.decode(v,{stream:!0});const k=ge.split(`
+      </div>`,s.appendChild(I),A(),I}function y(){try{R?.()}catch{}R=null;_&&(_.pause(),_.currentTime=0,_=null),m&&(m.stop(),m=null),n.stop(),d.disabled=!0,l.disabled=!f&&!E}function C(I){if(window.__audioPath="mp3",y(),!I.audioBase64){n.nod(),h.classList.remove("hidden"),l.disabled=!0;return}f={audioBase64:I.audioBase64,timings:I.timings},_=new Audio(`data:audio/mp3;base64,${I.audioBase64}`),n.setSpeakingFromAudio(_),d.disabled=!1,l.disabled=!1,_.onended=()=>y(),_.onerror=()=>{y(),h.textContent="Audio playback failed — text only for this reply.",h.classList.remove("hidden")},_.play().catch(()=>{y(),h.textContent="Audio was blocked by your browser — tap Replay to hear it.",h.classList.remove("hidden"),l.disabled=!1})}function X(){if(s.querySelector("[data-est-note]"))return;const I=document.createElement("p");I.setAttribute("data-est-note","1"),I.className="text-[11px] text-slate-600 text-center",I.textContent="Lip-sync timing is estimated for this session.",s.appendChild(I)}async function O(I){h.classList.add("hidden"),y();const G=++x,B=window;if(I.ttsVoice&&Io())try{const{speakWithVisemes:ne}=await gr(async()=>{const{speakWithVisemes:re}=await Promise.resolve().then(()=>fo);return{speakWithVisemes:re}},void 0);if(G!==x)return;const Q=await ne(T(I.reply),{voice:I.ttsVoice,style:I.ttsStyle,styleDegree:I.ttsStyleDegree},n);if(G!==x){Q.stop();return}m=Q,B.__audioPath="sdk",E={text:I.reply,voice:I.ttsVoice,style:I.ttsStyle??null,styleDegree:I.ttsStyleDegree??null},d.disabled=!1,l.disabled=!1,Q.done.then(()=>{m===Q&&y()},()=>{m===Q&&(m=null,X(),C(I))});return}catch{}I.audioBase64&&X(),C(I)}async function q(){try{const{warmAudio:ce}=await gr(async()=>{const{warmAudio:ye}=await Promise.resolve().then(()=>fo);return{warmAudio:ye}},void 0);ce()}catch{}const I=r.value.trim();if(!I||S)return;S=!0,a.disabled=!0,r.value="",y(),++x,R=null;const G=x;L("you",I);const B=M(),ne=L("opponent","");let Q="",re="",Re=null,se=!Io(),W=null;const Z=[];let fe=!1,ie=!1,Ae=!1,pe=0,we=!1;R=()=>{we=!0};const ze=()=>{const ce=/[.!?…]["'”’)(\]]?\s+/g;let ye,ve=0;for(;(ye=ce.exec(re))!==null;)ve=ye.index+ye[0].length;if(ve>0){const Ve=re.slice(0,ve).trim();re=re.slice(ve),Ve&&Z.push(Ve)}if(re.length>500){const Ve=re.lastIndexOf(" ",400),ge=Ve>200?Ve:400,w=re.slice(0,ge).trim();re=re.slice(ge).trimStart(),w&&Z.push(w)}},Pe=async()=>{if(fe||se||we||!Re||G!==x)return;fe=!0;const ce=Re;let ye=null;try{const ve=await gr(()=>Promise.resolve().then(()=>fo),void 0),Ve=ge=>{if(ge||Z.length===0||se||we||G!==x)return ge;const w=Z.shift();return ve.synthesizeWithVisemes(T(w),ce,W)};if(!W&&G===x&&!se&&!we)try{W=await ve.fetchSpeechToken()}catch{se=!0}for(;!se&&!we&&G===x;){ye=Ve(ye);const ge=ye;if(!ge)break;ye=null;let w;try{w=await ge.prep}catch{se=!0;break}if(we||G!==x||se)break;ye=Ve(ye);const v=ve.playSynthesized(w,n,void 0);if(G!==x||we){v.stop();break}m=v,window.__audioPath="sdk",d.disabled=!1,v.done.then(()=>{m===v&&(m=null,n.stop())},()=>{m===v&&(m=null),se=!0}),await v.done}}finally{if(ye&&ye.cancel(),ye=null,fe=!1,G!==x)return;we&&(Z.length=0),ie&&Z.length===0?(d.disabled=!0,R=null):Z.length>0&&!se&&!we&&Pe()}},Ye=()=>{const ce=performance.now();ce-pe>48&&(ne.textContent=Q,A(),pe=ce)},D=ce=>{if(G===x){if(ce.t==="hello"){ce.ttsVoice?Re={voice:ce.ttsVoice,style:ce.ttsStyle??null,styleDegree:ce.ttsStyleDegree??null}:se=!0,Pe();return}if(ce.t==="tok"){Ae||(Ae=!0,B.remove()),Q+=ce.c??"",re+=ce.c??"",Ye(),ze(),Z.length>0&&Pe();return}if(ce.t==="done"){ie=!0,Ae||B.remove(),ne.textContent=Q,A();
+_sparCurRound++;
+const _crEl=i.querySelector("#spar-cur-round");if(_crEl)_crEl.textContent=_sparCurRound;
+const _wbEl=i.querySelector("#spar-wallet-badge");if(_wbEl&&ce.remainingRounds!==undefined){_wbEl.textContent=ce.remainingRounds>=999999?"Unlimited rounds":ce.remainingRounds+" rds left";}
+if(t.targetRounds&&_sparCurRound>t.targetRounds){const _trb=i.querySelector("#spar-target-reached-banner");if(_trb)_trb.classList.remove("hidden");const _bsb=i.querySelector("#banner-score-btn");if(_bsb)_bsb.onclick=()=>u.click();}const ye=re.trim();re="",ye&&Z.push(ye),Re&&(E={text:Q,voice:Re.voice,style:Re.style,styleDegree:Re.styleDegree}),ce.audioBase64&&(f={audioBase64:ce.audioBase64,timings:ce.timings??[]}),se||!Re?C({audioBase64:ce.audioBase64??null,timings:ce.timings??[]}):(l.disabled=!1,Pe()),S=!1,a.disabled=r.disabled;return}if(ce.t==="err"){B.remove(),ne.textContent="";const ye=document.createElement("p");ye.className="text-sm text-red-300 text-center",ye.textContent=ce.message||"Your message didn’t go through. Try sending again.",s.appendChild(ye),A(),S=!1,a.disabled=r.disabled}}},vt=()=>{B.remove(),ne.textContent="";const ce=document.createElement("p");ce.className="text-sm text-red-300 text-center",ce.textContent="Your message didn’t go through. Try sending again.",s.appendChild(ce),A()};try{const ce=await fetch("/api/debate/turn-stream",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({debateId:e,text:I})}),ye=ce.headers.get("content-type")||"";if(!ce.ok||!ye.includes("text/event-stream")){let w={};try{w=await ce.json()}catch{}if(ce.status===402){B.remove(),p.replaceChildren(sd()),r.disabled=!0,a.disabled=!0;return}throw new Error(w.error||`http ${ce.status}`)}const ve=ce.body?.getReader();if(!ve)throw new Error("no stream body");const Ve=new TextDecoder;let ge="";for(;;){const{done:w,value:v}=await ve.read();if(w)break;ge+=Ve.decode(v,{stream:!0});const k=ge.split(`
 
 `);ge=k.pop()??"";for(const Y of k){const J=Y.trim();if(J.startsWith("data:"))try{D(JSON.parse(J.slice(5).trim()))}catch{}}if(G!==x){try{await ve.cancel()}catch{}break}}}catch{G===x&&vt()}finally{G===x&&(B.remove(),S=!1,a.disabled=r.disabled)}}a.addEventListener("click",()=>void q()),r.addEventListener("keydown",I=>{I.key==="Enter"&&!I.shiftKey&&(I.preventDefault(),q())}),l.addEventListener("click",()=>{if(E){O({reply:E.text,audioBase64:f?.audioBase64??null,timings:f?.timings??[],timingsEstimated:!1,ttsVoice:E.voice,ttsStyle:E.style,ttsStyleDegree:E.styleDegree});return}f&&O({reply:"",audioBase64:f.audioBase64,timings:f.timings,timingsEstimated:!1})}),d.addEventListener("click",()=>{R?.(),R=null,y()}),u.addEventListener("click",async()=>{if(confirm("End this session and get your scores?")){u.disabled=!0,u.textContent="Scoring…",y();try{const{scores:I}=await zt("/api/debate/end",{debateId:e});sx(i,n,t,e,g,I)}catch{u.disabled=!1,u.textContent="End session";const I=document.createElement("p");I.className="text-sm text-red-300",I.textContent="Could not fetch scores. Try again.",s.appendChild(I)}}});const V=window.SpeechRecognition??window.webkitSpeechRecognition;if(V){o.classList.remove("hidden"),o.classList.add("flex");let I=null,G=!1;o.addEventListener("click",()=>{if(G){I?.stop();return}const B=V;I=new B,I.lang="en-US",I.interimResults=!1,I.onresult=Q=>{const re=Q.results[Q.results.length-1][0].transcript;r.value=(r.value?r.value+" ":"")+re.trim()};const ne=Q=>{G=!1,o.classList.remove("mic-live"),o.innerHTML=it.mic,Q?(c.textContent=Q,c.classList.remove("hidden"),c.classList.add("text-red-400"),window.setTimeout(()=>{c.classList.add("hidden"),c.classList.remove("text-red-400"),c.textContent="Listening… speak now, then tap the mic again to stop."},5e3)):c.classList.add("hidden")};I.onend=()=>ne(),I.onerror=Q=>{const re=Q?.error||"unknown";ne(re==="not-allowed"||re==="service-not-allowed"?"Microphone blocked — allow mic access for this site in your browser settings, then try again.":re==="audio-capture"?"No microphone found on this device.":re==="no-speech"?"Didn't catch that — tap the mic and speak clearly.":re==="network"?"Speech recognition needs a network connection — check yours and retry.":"Voice input failed — please try again or type instead.")};try{I.start(),G=!0,o.classList.add("mic-live"),c.classList.remove("hidden"),o.innerHTML=it.stop}catch{ne()}})}}function $u(i,e,t=10){const n=e==null?0:Math.max(0,Math.min(100,e/t*100));return`
     <div>
@@ -4216,22 +4251,124 @@ overlap=${I&&G?"YES-DOUBLE-AUDIO":"no"}`};let m=null,f=null,E=null,S=!1,x=0,R=nu
 
     <div class="card card-lift p-6">
       <div class="eyebrow mb-2">Usage this month</div>
-      ${t.usage.quota<0?`<div class="text-white font-semibold text-display-sm">Unlimited <span class="text-slate-500 text-body-md font-normal">sessions</span></div>
-           <p class="text-body-sm text-slate-400 mt-2">Owner access — no limits, nothing is billed.</p>`:`<div class="text-white font-semibold text-display-sm">${t.usage.debates_used}<span class="text-slate-500 text-body-md font-normal"> / ${t.usage.quota} sessions</span></div>
-      <div class="h-2.5 rounded-full bg-ink-800 overflow-hidden mt-3" role="progressbar" aria-valuenow="${Math.round(r)}" aria-valuemin="0" aria-valuemax="100" aria-label="Monthly session usage">
+      ${t.usage.quota<0?`<div class="text-white font-semibold text-display-sm">Unlimited <span class="text-slate-500 text-body-md font-normal">rounds</span></div>
+           <p class="text-body-sm text-slate-400 mt-2">Owner / VIP access — unlimited sparring rounds.</p>`:`<div class="text-white font-semibold text-display-sm">${t.usage.debates_used}<span class="text-slate-500 text-body-md font-normal"> / ${t.usage.quota} rounds</span></div>
+      <div class="h-2.5 rounded-full bg-ink-800 overflow-hidden mt-3" role="progressbar" aria-valuenow="${Math.round(r)}" aria-valuemin="0" aria-valuemax="100" aria-label="Monthly round usage">
         <div class="score-fill h-full rounded-full bg-gradient-to-r from-accent-600 to-accent-400" style="width:${r}%"></div>
       </div>`}
       <div class="grid grid-cols-2 gap-3 mt-5 text-sm">
         <div class="rounded-xl bg-ink-800/60 border border-ink-700/60 p-3">
-          <div class="eyebrow !text-[0.65rem]">Credit balance</div>
-          <div class="text-white font-semibold mt-1">${t.creditBalance} credits</div>
+          <div class="eyebrow !text-[0.65rem]">Round Wallet</div>
+          <div class="text-white font-semibold mt-1">${t.creditBalance} rounds</div>
         </div>
         <div class="rounded-xl bg-ink-800/60 border border-ink-700/60 p-3">
           <div class="eyebrow !text-[0.65rem]">Free trial</div>
-          <div class="text-white font-semibold mt-1">${t.trialUsed?"Used":"Available"}</div>
+          <div class="text-white font-semibold mt-1">${t.trialUsed>=15?"Used":((15-t.trialUsed)+" rds left")}</div>
         </div>
       </div>
-    </div>`,e.appendChild(c);const l=document.createElement("section");l.className="mb-10",l.innerHTML=`
+    </div>`,e.appendChild(c);
+    const _promoBox=document.createElement("div");
+    _promoBox.className="card card-lift p-6 mb-10";
+    _promoBox.innerHTML=`
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-2">
+          <span class="text-xl">🎟️</span>
+          <h2 class="font-display text-lg text-white font-semibold">Have a Promo or VIP Code?</h2>
+        </div>
+        ${t.isLifetime?'<span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300">👑 Lifetime VIP Active</span>':''}
+      </div>
+      <p class="text-slate-400 text-body-sm mb-4">Enter your Friends &amp; Family code for free lifetime Champion access or bonus sparring rounds.</p>
+      <form id="promo-redeem-form" class="flex flex-wrap gap-2 max-w-md">
+        <input type="text" id="promo-code-input" placeholder="e.g. FAMILYVIP" class="field flex-1 uppercase tracking-wider font-mono text-sm px-4 py-2.5 rounded-xl bg-ink-900 border border-ink-700 text-white focus:outline-none focus:border-accent-400" />
+        <button type="submit" id="promo-redeem-btn" class="btn-primary px-5 py-2.5 rounded-xl font-semibold text-sm">Redeem</button>
+      </form>
+      <div id="promo-feedback" class="hidden mt-3 text-sm p-3 rounded-xl"></div>`;
+    e.appendChild(_promoBox);
+
+    setTimeout(()=>{
+      const _pf=_promoBox.querySelector("#promo-redeem-form");
+      const _pi=_promoBox.querySelector("#promo-code-input");
+      const _pb=_promoBox.querySelector("#promo-redeem-btn");
+      const _pmsg=_promoBox.querySelector("#promo-feedback");
+      if(_pf){
+        _pf.addEventListener("submit",async(ev)=>{
+          ev.preventDefault();
+          const cd=(_pi.value||"").trim().toUpperCase();
+          if(!cd)return;
+          _pb.disabled=true;_pb.textContent="Checking…";
+          _pmsg.className="hidden mt-3 text-sm p-3 rounded-xl";
+          try{
+            const res=await fetch("/api/account/promo/redeem",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({code:cd})});
+            const data=await res.json();
+            if(res.ok&&data.ok){
+              _pmsg.className="mt-3 text-sm p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-200 block";
+              _pmsg.textContent=data.message;
+              _pi.value="";
+              setTimeout(()=>qu(i),2000);
+            }else{
+              _pmsg.className="mt-3 text-sm p-3 rounded-xl bg-red-500/15 border border-red-500/30 text-red-200 block";
+              _pmsg.textContent=data.error||"Invalid code.";
+            }
+          }catch(err){
+            _pmsg.className="mt-3 text-sm p-3 rounded-xl bg-red-500/15 border border-red-500/30 text-red-200 block";
+            _pmsg.textContent="Network error. Try again.";
+          }finally{
+            _pb.disabled=false;_pb.textContent="Redeem";
+          }
+        });
+      }
+    },0);
+
+    if(t.isOwner){
+      const _adminVip=document.createElement("div");
+      _adminVip.className="card card-lift p-6 mb-10 border border-amber-500/30 bg-amber-500/5";
+      _adminVip.innerHTML=`
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-xl">👑</span>
+          <h2 class="font-display text-lg text-amber-300 font-semibold">Admin: Grant Lifetime VIP</h2>
+        </div>
+        <p class="text-slate-300 text-body-sm mb-4">Instantly upgrade any registered email to Lifetime Champion VIP with 100,000 rounds.</p>
+        <form id="admin-grant-form" class="flex flex-wrap gap-2 max-w-md">
+          <input type="email" id="admin-grant-email" placeholder="family@gmail.com" class="field flex-1 text-sm px-4 py-2.5 rounded-xl bg-ink-900 border border-ink-700 text-white focus:outline-none focus:border-accent-400" />
+          <button type="submit" id="admin-grant-btn" class="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm">Grant VIP</button>
+        </form>
+        <div id="admin-grant-feedback" class="hidden mt-3 text-sm p-3 rounded-xl"></div>`;
+      e.appendChild(_adminVip);
+
+      setTimeout(()=>{
+        const _af=_adminVip.querySelector("#admin-grant-form");
+        const _ai=_adminVip.querySelector("#admin-grant-email");
+        const _ab=_adminVip.querySelector("#admin-grant-btn");
+        const _amsg=_adminVip.querySelector("#admin-grant-feedback");
+        if(_af){
+          _af.addEventListener("submit",async(ev)=>{
+            ev.preventDefault();
+            const em=(_ai.value||"").trim();
+            if(!em)return;
+            _ab.disabled=true;_ab.textContent="Granting…";
+            _amsg.className="hidden mt-3 text-sm p-3 rounded-xl";
+            try{
+              const res=await fetch("/api/account/admin/grant-vip",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:em})});
+              const data=await res.json();
+              if(res.ok&&data.ok){
+                _amsg.className="mt-3 text-sm p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-200 block";
+                _amsg.textContent=data.message;
+                _ai.value="";
+              }else{
+                _amsg.className="mt-3 text-sm p-3 rounded-xl bg-red-500/15 border border-red-500/30 text-red-200 block";
+                _amsg.textContent=data.error||"Could not grant VIP.";
+              }
+            }catch(err){
+              _amsg.className="mt-3 text-sm p-3 rounded-xl bg-red-500/15 border border-red-500/30 text-red-200 block";
+              _amsg.textContent="Network error. Try again.";
+            }finally{
+              _ab.disabled=false;_ab.textContent="Grant VIP";
+            }
+          });
+        }
+      },0);
+    }
+const l=document.createElement("section");l.className="mb-10",l.innerHTML=`
     <h2 class="font-display text-display-md text-white mb-1">Schools &amp; education</h2>
     <p class="text-slate-400 text-body-sm mb-5">Create a school, invite students with a link, and pay centrally — $6 per seat per month.</p>
     <div class="card card-lift p-6">
@@ -4254,12 +4391,12 @@ overlap=${I&&G?"YES-DOUBLE-AUDIO":"no"}`};let m=null,f=null,E=null,S=!1,x=0,R=nu
       <div class="font-semibold text-white text-lg">${Lt(xs(x.name))}</div>
       <div class="mt-2 mb-1"><span class="font-display text-display-md text-accent-400">${Lt(Kl(x.price,x.currency))}</span>
       <span class="text-slate-500 text-body-sm">/${Lt(x.interval)}</span></div>
-      <p class="text-body-sm text-slate-400 mb-1">${x.debates} sessions per month</p>
+      <p class="text-body-sm text-slate-400 mb-1">${x.rounds || x.debates} sparring rounds per month</p>
       ${x.description?`<p class="text-body-sm text-slate-500 mb-4">${Lt(xs(x.description))}</p>`:'<div class="mb-4"></div>'}
       <button class="${R?"btn-primary":"btn-ghost"} mt-auto px-4 py-2.5 text-sm">Choose ${Lt(xs(x.name))}</button>`;const A=T.querySelector("button");A.addEventListener("click",()=>void f("subscription",x.id,A)),_.appendChild(T)}n.tiers.length===0&&(_.innerHTML='<p class="text-body-sm text-slate-500 col-span-full">No subscription tiers are available right now.</p>');for(const x of n.packs){const R=document.createElement("div");R.className="card p-6 flex flex-col transition-all duration-200 ease-out-expo hover:-translate-y-1 hover:shadow-lift",R.innerHTML=`
       <div class="font-semibold text-white text-lg">${Lt(xs(x.name))}</div>
       <div class="mt-2 mb-1"><span class="font-display text-display-md text-white">${Lt(Kl(x.price,x.currency))}</span></div>
-      <p class="text-body-sm text-slate-400 mb-1">${x.credits} sessions · credits never expire</p>
+      <p class="text-body-sm text-slate-400 mb-1">${x.rounds || x.credits} rounds · credits never expire</p>
       ${x.description?`<p class="text-body-sm text-slate-500 mb-4">${Lt(xs(x.description))}</p>`:'<div class="mb-4"></div>'}
       <button class="btn-ghost mt-auto px-4 py-2.5 text-sm">Buy pack</button>`;const T=R.querySelector("button");T.addEventListener("click",()=>void f("pack",x.id,T)),m.appendChild(R)}n.packs.length===0&&(m.innerHTML='<p class="text-body-sm text-slate-500 col-span-full">No session packs are available right now.</p>');const S=e.querySelector("#portal-btn");S&&S.addEventListener("click",async()=>{S.disabled=!0,S.innerHTML='<span class="spinner" aria-hidden="true"></span><span>Opening…</span>';try{const{url:x}=await zt("/api/billing/portal");window.location.href=x}catch{S.disabled=!1,S.textContent="Manage billing",alert("Could not open the billing portal. Please try again.")}})}function mr(i,e){i.className="error-box mb-5 animate-fade-in",i.setAttribute("role","alert"),i.innerHTML=`<span aria-hidden="true" class="shrink-0 mt-0.5 text-danger">${ha}</span><span></span>`,i.querySelector("span:last-child").textContent=e}function mo(i,e){const t=e?.error;return t==="code_exhausted"||i===410?"This invite link has reached its maximum number of uses. Ask your teacher for a new one.":t==="code_expired"?"This invite link has expired. Ask your teacher for a new one.":t==="already_member"?"You are already a member of this school.":t==="seats_exhausted"||t==="subscription_inactive"?"This school has filled all of its seats. Ask your teacher or school admin to purchase more seats, then try again.":t==="email_taken"||i===409?"An account with that email already exists. Log in first, then open the invite link again to join.":i===404?"We couldn't find that invite. Check the link and try again.":"Something went wrong. Please try again."}async function hx(i,e){const t=document.createElement("div");t.className="w-full max-w-md animate-fade-up",i.appendChild(vr("fixed top-4 right-4 z-30 border border-ink-700 bg-ink-900/80 backdrop-blur")),i.appendChild(t),t.innerHTML=`
     <div class="text-center mb-8">
@@ -4317,11 +4454,11 @@ overlap=${I&&G?"YES-DOUBLE-AUDIO":"no"}`};let m=null,f=null,E=null,S=!1,x=0,R=nu
       </div>
       <div class="rounded-xl bg-ink-800/60 border border-ink-700/60 p-3">
         <div class="eyebrow !text-[0.65rem]">Per seat</div>
-        <div class="text-white font-semibold mt-1">30/mo</div>
+        <div class="text-white font-semibold mt-1">300 rds/mo</div>
       </div>
     </div>`,t.appendChild(d),a){const x=document.createElement("div");x.className="card card-lift p-6 mb-6",x.innerHTML=`
       <h2 class="font-display text-display-md text-white mb-1">Billing</h2>
-      <p class="text-slate-400 text-body-sm mb-5">$6 per seat per month. Each seat adds 30 shared sessions per month. Students never pay.</p>
+      <p class="text-slate-400 text-body-sm mb-5">$6 per seat per month. Each seat adds 300 shared sparring rounds per month. Students never pay.</p>
       <div class="flex flex-wrap items-end gap-3">
         <div>
           <label class="block text-body-sm font-medium text-slate-300 mb-1.5" for="seats-input">Seats</label>

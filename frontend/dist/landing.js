@@ -23,10 +23,10 @@ const PRICING = {
       name: 'Debater',
       price: 12,
       per: '/mo',
-      headline: '30 sessions per month',
+      headline: '300 sparring rounds per month',
       cta: 'Start free trial',
       features: [
-        '30 sessions per month',
+        '300 sparring rounds per month',
         'All 10 practice modes',
         'Voice or text sessions',
         'Session history'
@@ -36,11 +36,11 @@ const PRICING = {
       name: 'Coach',
       price: 29,
       per: '/mo',
-      headline: '150 sessions per month',
+      headline: '1,000 sparring rounds per month',
       badge: 'Most popular',
       cta: 'Start free trial',
       features: [
-        '150 sessions per month',
+        '1,000 sparring rounds per month',
         'Everything in Debater',
         'Coaching analytics & scores',
         'Weakness tracking',
@@ -49,11 +49,11 @@ const PRICING = {
     }
   ],
   packs: [
-    { credits: 10, price: 9 },
-    { credits: 25, price: 19 },
-    { credits: 60, price: 39 }
+    { credits: 100, price: 9 },
+    { credits: 250, price: 19 },
+    { credits: 600, price: 39 }
   ],
-  packsNote: 'One-time purchase. Credits never expire.'
+  packsNote: 'One-time purchase. Rounds in wallet never expire.'
 };
 
 const SIGNUP_URL = '/app/#/signup';
@@ -75,10 +75,10 @@ function adaptLivePrices(data) {
       name: trial.name || 'Trial',
       price: 0,
       per: '',
-      headline: (trial.debates || 3) + ' full sessions, free',
+      headline: (trial.rounds || trial.debates || 15) + ' sparring rounds, free',
       cta: 'Start free',
       features: [
-        (trial.debates || 3) + ' sessions on us',
+        (trial.rounds || trial.debates || 15) + ' sparring rounds on us',
         'All 10 practice modes',
         'Voice or text sessions',
         'No credit card to start'
@@ -88,10 +88,10 @@ function adaptLivePrices(data) {
       name: debater.name || 'Debater',
       price: typeof debater.priceMonthly === 'number' ? debater.priceMonthly : 12,
       per: '/mo',
-      headline: (debater.debatesPerMonth || 30) + ' sessions per month',
+      headline: (debater.roundsPerMonth || debater.rounds || debater.debates || 300) + ' sparring rounds per month',
       cta: 'Start free trial',
       features: [
-        (debater.debatesPerMonth || 30) + ' sessions per month',
+        (debater.roundsPerMonth || debater.rounds || debater.debates || 300) + ' sparring rounds per month',
         'All 10 practice modes',
         'Voice or text sessions',
         'Session history'
@@ -101,11 +101,11 @@ function adaptLivePrices(data) {
       name: coach.name || 'Coach',
       price: typeof coach.priceMonthly === 'number' ? coach.priceMonthly : 29,
       per: '/mo',
-      headline: (coach.debatesPerMonth || 150) + ' sessions per month',
+      headline: (coach.roundsPerMonth || coach.rounds || coach.debates || 1000) + ' sparring rounds per month',
       badge: 'Most popular',
       cta: 'Start free trial',
       features: [
-        (coach.debatesPerMonth || 150) + ' sessions per month',
+        (coach.roundsPerMonth || coach.rounds || coach.debates || 1000) + ' sparring rounds per month',
         'Everything in Debater',
         'Coaching analytics & scores',
         'Weakness tracking',
@@ -115,7 +115,7 @@ function adaptLivePrices(data) {
   ];
 
   const livePacks = Array.isArray(packs) && packs.length
-    ? packs.map(function (p) { return { credits: p.debates || p.credits, price: p.price }; })
+    ? packs.map(function (p) { return { credits: p.rounds || p.debates || p.credits, price: Math.round((p.price || 0) / 100) || p.price }; })
     : PRICING.packs;
 
   return { trial: plans[0], plans: [plans[1], plans[2]], packs: livePacks, packsNote: PRICING.packsNote };
@@ -222,7 +222,7 @@ function renderPricing(pricing) {
   packsEl.innerHTML = pricing.packs.map(function (pack) {
     return '' +
       '<div class="pack">' +
-      '<div><div class="pack-credits">' + pack.credits + ' <small>sessions</small></div>' +
+      '<div><div class="pack-credits">' + pack.credits + ' <small>rounds</small></div>' +
       '<div class="pack-price">$' + pack.price + ' one-time</div></div>' +
       '<a class="btn btn-ghost" href="' + SIGNUP_URL + '">Get pack</a>' +
       '</div>';

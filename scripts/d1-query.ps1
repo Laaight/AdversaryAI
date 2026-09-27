@@ -13,4 +13,9 @@ $res = Invoke-RestMethod -Uri "https://api.cloudflare.com/client/v4/accounts/c7c
   "Content-Type" = "application/json"
 } -Body $body
 
-$res.result[0].results | Format-Table -AutoSize
+if ($res.result[0].results.Count -gt 0) {
+  $res.result[0].results | Format-List
+} else {
+  Write-Host "No rows returned."
+}
+

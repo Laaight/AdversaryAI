@@ -47,21 +47,22 @@ var init_config = __esm({
   "worker/src/config.ts"() {
     "use strict";
     TIERS = {
-      trial: { name: "Trial", debates: 3, lifetime: true, price: 0 },
-      debater: { name: "Debater", priceMonthly: 12, debatesPerMonth: 30, blurb: "The essential sparring partner." },
-      coach: { name: "Coach", priceMonthly: 29, debatesPerMonth: 150, analytics: true, blurb: "Deeper sessions plus coaching analytics." },
-      champion: { name: "Champion", priceMonthly: 49, debatesPerMonth: 25, premiumModel: true, blurb: "Our smartest debate brain (DeepSeek V4 Pro) \u2014 the ultimate sparring partner." }
+      trial: { name: "Trial", debates: 15, rounds: 15, lifetime: true, price: 0 },
+      debater: { name: "Debater", priceMonthly: 12, debatesPerMonth: 300, roundsPerMonth: 300, blurb: "300 sparring rounds per month." },
+      coach: { name: "Coach", priceMonthly: 29, debatesPerMonth: 1000, roundsPerMonth: 1000, analytics: true, blurb: "1,000 sparring rounds per month plus coaching analytics." },
+      champion: { name: "Champion", priceMonthly: 49, debatesPerMonth: 800, roundsPerMonth: 800, premiumModel: true, blurb: "800 sparring rounds per month with DeepSeek-V4-Pro & photorealistic avatars." }
     };
     PACKS = [
-      { id: "pack10", name: "10 debates", debates: 10, price: 9 },
-      { id: "pack25", name: "25 debates", debates: 25, price: 19 },
-      { id: "pack60", name: "60 debates", debates: 60, price: 39 }
+      { id: "pack10", name: "100 Rounds", debates: 100, rounds: 100, price: 9 },
+      { id: "pack25", name: "250 Rounds", debates: 250, rounds: 250, price: 19 },
+      { id: "pack60", name: "600 Rounds", debates: 600, rounds: 600, price: 39 }
     ];
     EDU = {
       /** Displayed price per seat per month (USD). Stripe price configured via STRIPE_PRICE_EDU_SEAT. */
       pricePerSeatMonthly: 6,
-      /** Monthly debate sessions each paid seat contributes to the org pool. */
-      sessionsPerSeat: 30
+      /** Monthly debate rounds each paid seat contributes to the org pool. */
+      sessionsPerSeat: 300,
+      roundsPerSeat: 300
     };
     PERSONALITY_VOICES = {
       prosecutor: "en-US-DavisNeural",
@@ -2540,7 +2541,7 @@ billingRouter.post("/api/billing/portal", async (c) => {
 });
 billingRouter.get("/api/billing/prices", (c) => {
   const tiers = Object.entries(TIERS).filter(([id]) => id !== "trial").map(([id, t]) => {
-    const debates = Number(t.debatesPerMonth ?? t.debates ?? 0);
+    const debates = Number(t.roundsPerMonth ?? t.debatesPerMonth ?? t.rounds ?? t.debates ?? 0);
     return {
       id,
       name: String(t.name ?? id),
@@ -2548,6 +2549,7 @@ billingRouter.get("/api/billing/prices", (c) => {
       currency: "usd",
       interval: "month",
       debates,
+      rounds: debates,
       credits: debates,
       description: String(t.blurb ?? "")
     };
@@ -2558,6 +2560,7 @@ billingRouter.get("/api/billing/prices", (c) => {
     price: Math.round(p.price * 100),
     currency: "usd",
     credits: p.debates,
+    rounds: p.debates,
     debates: p.debates
   }));
   return c.json({ tiers, packs });
@@ -3798,7 +3801,7 @@ async function getTierQuotas() {
     if (tiers && typeof tiers === "object") {
       for (const [key, value] of Object.entries(tiers)) {
         const v = value;
-        const n = Number(v?.debatesPerMonth ?? v?.debates ?? v?.quota ?? v);
+        const n = Number(v?.roundsPerMonth ?? v?.debatesPerMonth ?? v?.rounds ?? v?.debates ?? v?.quota ?? v);
         if (Number.isFinite(n) && n > 0) quotas[key] = n;
       }
     }
@@ -3807,10 +3810,37 @@ async function getTierQuotas() {
   return quotas;
 }
 __name(getTierQuotas, "getTierQuotas");
-async function enforceUsage(c, userId, email) {
+async function checkRoundsAvailable(c, userId, email) {
   const db = c.env.DB;
   const month = currentMonth();
-  if (isOwnerEmail(email, c.env)) return true;
+  if (isOwnerEmail(email, c.env)) return { ok: true, remaining: 999999, source: "owner" };
+  const activeOrgs = await getUserActiveOrgs(db, userId);
+  for (const org of activeOrgs) {
+    const pool = org.seat_count * EDU.sessionsPerSeat;
+    if (pool <= 0) continue;
+    const used = await getOrgMonthlyUsage(db, org.id, month);
+    if (used < pool) return { ok: true, remaining: pool - used, source: "org", orgId: org.id };
+  }
+  const quotas = await getTierQuotas();
+  const sub = await getSubscription(db, userId);
+  if (isSubscriptionActive(sub)) {
+    const quota = quotas[sub.tier] ?? 0;
+    const used = await getMonthlyUsage(db, userId, month);
+    if (used < quota) return { ok: true, remaining: quota - used, source: "subscription", tier: sub.tier };
+  }
+  const creds = await creditBalance(db, userId);
+  if (creds > 0) return { ok: true, remaining: creds, source: "credit" };
+  const trialQuota = quotas["trial"] ?? 15;
+  const user = await db.prepare("SELECT trial_debates_used FROM users WHERE id = ?").bind(userId).first();
+  const trialUsed = user?.trial_debates_used ?? 0;
+  if (trialUsed < trialQuota) return { ok: true, remaining: trialQuota - trialUsed, source: "trial" };
+  return { ok: false, remaining: 0, source: "none" };
+}
+__name(checkRoundsAvailable, "checkRoundsAvailable");
+async function consumeRound(c, userId, email) {
+  const db = c.env.DB;
+  const month = currentMonth();
+  if (isOwnerEmail(email, c.env)) return { allowed: true, remaining: 999999, source: "owner" };
   const activeOrgs = await getUserActiveOrgs(db, userId);
   for (const org of activeOrgs) {
     const pool = org.seat_count * EDU.sessionsPerSeat;
@@ -3818,7 +3848,7 @@ async function enforceUsage(c, userId, email) {
     const used = await getOrgMonthlyUsage(db, org.id, month);
     if (used < pool) {
       await incrementOrgMonthlyUsage(db, org.id, month);
-      return true;
+      return { allowed: true, remaining: pool - used - 1, source: "org" };
     }
   }
   const quotas = await getTierQuotas();
@@ -3828,20 +3858,27 @@ async function enforceUsage(c, userId, email) {
     const used = await getMonthlyUsage(db, userId, month);
     if (used < quota) {
       await incrementMonthlyUsage(db, userId, month);
-      return true;
+      return { allowed: true, remaining: quota - used - 1, source: "subscription" };
     }
   }
-  if (await creditBalance(db, userId) > 0) {
-    await db.prepare("INSERT INTO credit_ledger (user_id, delta, reason, created_at) VALUES (?, -1, ?, ?)").bind(userId, "debate", nowIso()).run();
-    return true;
+  const creds = await creditBalance(db, userId);
+  if (creds > 0) {
+    await db.prepare("INSERT INTO credit_ledger (user_id, delta, reason, created_at) VALUES (?, -1, 'round', ?)").bind(userId, nowIso()).run();
+    return { allowed: true, remaining: creds - 1, source: "credit" };
   }
-  const trialQuota = quotas["trial"] ?? 3;
+  const trialQuota = quotas["trial"] ?? 15;
   const user = await db.prepare("SELECT trial_debates_used FROM users WHERE id = ?").bind(userId).first();
-  if (user && user.trial_debates_used < trialQuota) {
+  const trialUsed = user?.trial_debates_used ?? 0;
+  if (trialUsed < trialQuota) {
     await db.prepare("UPDATE users SET trial_debates_used = trial_debates_used + 1 WHERE id = ?").bind(userId).run();
-    return true;
+    return { allowed: true, remaining: trialQuota - trialUsed - 1, source: "trial" };
   }
-  return false;
+  return { allowed: false, remaining: 0, source: "none" };
+}
+__name(consumeRound, "consumeRound");
+async function enforceUsage(c, userId, email) {
+  const av = await checkRoundsAvailable(c, userId, email);
+  return av.ok;
 }
 __name(enforceUsage, "enforceUsage");
 async function isPremium(c, userId, email) {
@@ -3980,13 +4017,15 @@ debateRouter.post("/start", async (c) => {
     actorId = fig.id;
     setup.figureId = fig.id;
   }
-  const allowed = await enforceUsage(c, user.id, user.email);
-  if (!allowed) return c.json({ error: "quota_exhausted" }, 402);
+  const availability = await checkRoundsAvailable(c, user.id, user.email);
+  if (!availability.ok) return c.json({ error: "quota_exhausted", message: "You have no rounds remaining in your wallet. Please select a plan or top-up pack to continue." }, 402);
+  const targetRounds = Math.max(0, Math.min(100, Math.floor(Number(body.targetRounds ?? rawSetup.targetRounds ?? 0)) || 0));
+  setup.targetRounds = String(targetRounds);
   const debateId = newId();
   await c.env.DB.prepare(
     "INSERT INTO debates (id, user_id, personality, topic, mode, setup_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
   ).bind(debateId, user.id, actorId, topic, mode.id, JSON.stringify(setup), nowIso()).run();
-  return c.json({ debateId }, 201);
+  return c.json({ debateId, targetRounds, remainingRounds: availability.remaining }, 201);
 });
 debateRouter.post("/turn", async (c) => {
   const user = await getSessionUser(c);
@@ -3999,6 +4038,8 @@ debateRouter.post("/turn", async (c) => {
   const debate = await getOwnedDebate(c, debateId, user.id);
   if (!debate) return c.json({ error: "debate_not_found" }, 404);
   if (debate.ended_at) return c.json({ error: "debate_ended" }, 400);
+  const consumption = await consumeRound(c, user.id, user.email);
+  if (!consumption.allowed) return c.json({ error: "quota_exhausted", message: "You have used all rounds in your wallet." }, 402);
   await c.env.DB.prepare("INSERT INTO turns (debate_id, role, text, created_at) VALUES (?, ?, ?, ?)").bind(debateId, "user", text, nowIso()).run();
   const mode = getMode(debate.mode);
   const setup = parseSetup(debate.setup_json);
@@ -4041,7 +4082,8 @@ Respond to the user's latest message.`,
     audioFailed: !tts.audioBase64,
     ttsVoice: voiceInfo?.voice ?? null,
     ttsStyle: voiceInfo?.style ?? null,
-    ttsStyleDegree: voiceInfo?.styledegree ?? null
+    ttsStyleDegree: voiceInfo?.styledegree ?? null,
+    remainingRounds: consumption.remaining
   });
 });
 debateRouter.post("/turn-stream", async (c) => {
@@ -4055,6 +4097,8 @@ debateRouter.post("/turn-stream", async (c) => {
   const debate = await getOwnedDebate(c, debateId, user.id);
   if (!debate) return c.json({ error: "debate_not_found" }, 404);
   if (debate.ended_at) return c.json({ error: "debate_ended" }, 400);
+  const consumption = await consumeRound(c, user.id, user.email);
+  if (!consumption.allowed) return c.json({ error: "quota_exhausted", message: "You have used all rounds in your wallet." }, 402);
   await c.env.DB.prepare("INSERT INTO turns (debate_id, role, text, created_at) VALUES (?, ?, ?, ?)").bind(debateId, "user", text, nowIso()).run();
   const mode = getMode(debate.mode);
   const setup = parseSetup(debate.setup_json);
@@ -4080,9 +4124,7 @@ Respond to the user's latest message.`;
     async start(controller) {
       const send = /* @__PURE__ */ __name((obj) => {
         try {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}
-
-`));
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
         } catch {
         }
       }, "send");
@@ -4114,7 +4156,8 @@ Respond to the user's latest message.`;
           audioBase64: tts.audioBase64,
           timings: tts.timings,
           timingsEstimated: tts.timingsEstimated,
-          audioFailed: !tts.audioBase64
+          audioFailed: !tts.audioBase64,
+          remainingRounds: consumption.remaining
         });
       } catch (err) {
         console.error("turn-stream failed:", err instanceof Error ? err.message : err);
@@ -4341,11 +4384,129 @@ debatesRouter.get("/:id", async (c) => {
   const turns = await c.env.DB.prepare(
     "SELECT id, role, text, created_at FROM turns WHERE debate_id = ? ORDER BY id ASC"
   ).bind(debate.id).all();
-  return c.json({ debate, turns: turns.results ?? [] });
+  const setup = parseSetup(debate.setup_json);
+  const targetRounds = parseInt(setup.targetRounds ?? "0", 10) || 0;
+  const availability = await checkRoundsAvailable(c, user.id, user.email);
+  return c.json({
+    debate: { ...debate, targetRounds },
+    turns: turns.results ?? [],
+    targetRounds,
+    remainingRounds: availability.remaining
+  });
 });
 
 // worker/src/account.ts
 init_config();
+async function handlePromoRedeem(c) {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  const body = await c.req.json().catch(() => ({}));
+  const code = String(body.code ?? "").trim().toUpperCase();
+  if (!code) return c.json({ error: "Promo code is required." }, 400);
+
+  const db = c.env.DB;
+  const promo = await db.prepare("SELECT * FROM promo_codes WHERE code = ?").bind(code).first();
+  if (!promo) return c.json({ error: "Invalid promo code. Please check the code and try again." }, 404);
+
+  if (promo.max_redemptions > 0 && promo.times_redeemed >= promo.max_redemptions) {
+    return c.json({ error: "This promo code has reached its maximum redemptions." }, 410);
+  }
+
+  const already = await db.prepare("SELECT 1 FROM promo_redemptions WHERE user_id = ? AND code = ?").bind(user.id, code).first();
+  if (already) {
+    return c.json({ error: "You have already redeemed this promo code on your account." }, 409);
+  }
+
+  if (promo.type === "lifetime_vip") {
+    const subId = newId();
+    await db.prepare(
+      `INSERT INTO subscriptions (id, user_id, tier, status, current_period_start, current_period_end)
+       VALUES (?, ?, 'champion', 'active', ?, '2099-12-31T23:59:59Z')
+       ON CONFLICT(user_id) DO UPDATE SET
+         tier = 'champion',
+         status = 'active',
+         current_period_end = '2099-12-31T23:59:59Z'`
+    ).bind(subId, user.id, nowIso()).run();
+
+    const bonusRounds = promo.value > 0 ? promo.value : 100000;
+    await db.prepare(
+      "INSERT INTO credit_ledger (user_id, delta, reason, created_at) VALUES (?, ?, 'promo_lifetime_vip', ?)"
+    ).bind(user.id, bonusRounds, nowIso()).run();
+
+    await db.prepare(
+      "INSERT INTO promo_redemptions (user_id, code, redeemed_at) VALUES (?, ?, ?)"
+    ).bind(user.id, code, nowIso()).run();
+    await db.prepare("UPDATE promo_codes SET times_redeemed = times_redeemed + 1 WHERE code = ?").bind(code).run();
+
+    return c.json({
+      ok: true,
+      type: "lifetime_vip",
+      message: "🎉 Welcome to Lifetime VIP! Your account has been upgraded to Champion Free for Life with 100,000 sparring rounds, DeepSeek-V4-Pro brain, and Ultra Photorealistic 3D personas."
+    });
+  } else if (promo.type === "rounds") {
+    const roundsToAdd = promo.value > 0 ? promo.value : 50;
+    await db.prepare(
+      "INSERT INTO credit_ledger (user_id, delta, reason, created_at) VALUES (?, ?, 'promo_rounds', ?)"
+    ).bind(user.id, roundsToAdd, nowIso()).run();
+
+    await db.prepare(
+      "INSERT INTO promo_redemptions (user_id, code, redeemed_at) VALUES (?, ?, ?)"
+    ).bind(user.id, code, nowIso()).run();
+    await db.prepare("UPDATE promo_codes SET times_redeemed = times_redeemed + 1 WHERE code = ?").bind(code).run();
+
+    return c.json({
+      ok: true,
+      type: "rounds",
+      roundsAdded: roundsToAdd,
+      message: `🎉 Success! ${roundsToAdd} bonus sparring rounds have been added to your Round Wallet.`
+    });
+  }
+  return c.json({ error: "Unsupported promo code type." }, 400);
+}
+__name(handlePromoRedeem, "handlePromoRedeem");
+
+async function handleAdminGrantVip(c) {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  if (!isOwnerEmail(user.email, c.env)) return c.json({ error: "forbidden" }, 403);
+  const body = await c.req.json().catch(() => ({}));
+  const email = String(body.email ?? "").trim().toLowerCase();
+  if (!email || !email.includes("@")) return c.json({ error: "Valid email is required." }, 400);
+
+  const db = c.env.DB;
+  const targetUser = await db.prepare("SELECT * FROM users WHERE LOWER(email) = LOWER(?)").bind(email).first();
+  if (!targetUser) {
+    return c.json({
+      ok: false,
+      error: `No user with email "${email}" has signed up yet. Have them create an account, or share promo code FAMILYVIP with them.`
+    }, 404);
+  }
+
+  const subId = newId();
+  await db.prepare(
+    `INSERT INTO subscriptions (id, user_id, tier, status, current_period_start, current_period_end)
+     VALUES (?, ?, 'champion', 'active', ?, '2099-12-31T23:59:59Z')
+     ON CONFLICT(user_id) DO UPDATE SET
+       tier = 'champion',
+       status = 'active',
+       current_period_end = '2099-12-31T23:59:59Z'`
+  ).bind(subId, targetUser.id, nowIso()).run();
+
+  await db.prepare(
+    "INSERT INTO credit_ledger (user_id, delta, reason, created_at) VALUES (?, 100000, 'admin_grant_lifetime_vip', ?)"
+  ).bind(targetUser.id, nowIso()).run();
+
+  await db.prepare(
+    "INSERT OR IGNORE INTO promo_redemptions (user_id, code, redeemed_at) VALUES (?, 'ADMIN_GRANT', ?)"
+  ).bind(targetUser.id, nowIso()).run();
+
+  return c.json({
+    ok: true,
+    message: `Successfully granted Lifetime Champion VIP to ${targetUser.email} with 100,000 rounds!`
+  });
+}
+__name(handleAdminGrantVip, "handleAdminGrantVip");
+
 var accountRouter = new Hono2();
 accountRouter.get("/", async (c) => {
   const user = await getSessionUser(c);
@@ -4363,15 +4524,24 @@ accountRouter.get("/", async (c) => {
     quota = quotas[sub.tier] ?? 0;
   }
   const adminMode = owner ? (getCookie(c, "adversaryai_admin_mode") || "premium") : null;
+  const availability = await checkRoundsAvailable(c, user.id, email);
+  const isLifetime = !!(sub && isSubscriptionActive(sub) && (sub.current_period_end || "").startsWith("2099"));
+  const redemptions = (await db.prepare("SELECT code, redeemed_at FROM promo_redemptions WHERE user_id = ? ORDER BY redeemed_at DESC").bind(user.id).all())?.results ?? [];
+
   return c.json({
     email,
-    plan: owner ? "owner" : resolvePlan(sub),
+    plan: owner ? "owner" : (isLifetime ? "Champion (Lifetime VIP)" : resolvePlan(sub)),
     isOwner: owner,
+    isLifetime,
     adminMode,
-    subscription: sub ? { tier: sub.tier, status: sub.status, current_period_end: sub.current_period_end } : null,
-    usage: { month, debates_used: debatesUsed, quota: owner ? -1 : quota },
+    subscription: sub ? { tier: sub.tier, status: sub.status, current_period_end: sub.current_period_end, isLifetime } : null,
+    usage: { month, debates_used: debatesUsed, quota: owner ? -1 : quota, rounds_used: debatesUsed, rounds_quota: owner ? -1 : quota },
     creditBalance: await creditBalance(db, user.id),
-    trialUsed: fullUser?.trial_debates_used ?? 0
+    roundsBalance: await creditBalance(db, user.id),
+    totalRoundsRemaining: availability.remaining,
+    trialUsed: fullUser?.trial_debates_used ?? 0,
+    trialQuota: (await getTierQuotas())["trial"] ?? 15,
+    promoRedemptions: redemptions
   });
 });
 accountRouter.post("/admin-mode", async (c) => {
@@ -4388,6 +4558,21 @@ accountRouter.post("/admin-mode", async (c) => {
     httpOnly: false
   });
   return c.json({ ok: true, adminMode: mode });
+});
+accountRouter.post("/promo/redeem", handlePromoRedeem);
+accountRouter.post("/admin/grant-vip", handleAdminGrantVip);
+accountRouter.get("/admin/promo-list", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  if (!isOwnerEmail(user.email, c.env)) return c.json({ error: "forbidden" }, 403);
+  const db = c.env.DB;
+  const promos = (await db.prepare("SELECT * FROM promo_codes ORDER BY created_at DESC").all())?.results ?? [];
+  const redemptions = (await db.prepare(
+    `SELECT r.code, r.redeemed_at, u.email
+     FROM promo_redemptions r JOIN users u ON u.id = r.user_id
+     ORDER BY r.redeemed_at DESC LIMIT 100`
+  ).all())?.results ?? [];
+  return c.json({ promos, redemptions });
 });
 
 // worker/src/webhooks.ts
@@ -4643,6 +4828,7 @@ app.route("/api/debate", debateRouter);
 app.route("/api/debates", debatesRouter);
 app.route("/api/modes", modesRouter);
 app.route("/api/account", accountRouter);
+app.post("/api/promo/redeem", handlePromoRedeem);
 app.route("/api/speech", speechRouter);
 app.route("/api/orgs", orgsRouter);
 app.route("/", billingRouter);
