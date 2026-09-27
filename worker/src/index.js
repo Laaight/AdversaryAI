@@ -4194,7 +4194,7 @@ debateRouter.post("/start", async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const rawMode = String(body.mode ?? "");
   const legacyPersonality = String(body.personality ?? "");
-  const topic = String(body.topic ?? "").trim();
+  let topic = String(body.topic ?? "").trim();
   const rawSetup = body.setup && typeof body.setup === "object" ? body.setup : {};
   if (rawMode && !MODES[rawMode]) return c.json({ error: "invalid_mode" }, 400);
   const mode = getMode(rawMode || void 0);
