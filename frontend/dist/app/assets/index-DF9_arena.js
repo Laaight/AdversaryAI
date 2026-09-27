@@ -21,7 +21,7 @@ var Qu=Object.defineProperty;var eh=(i,e,t)=>e in i?Qu(i,e,{enumerable:!0,config
     <h2 class="text-display-md text-white mb-2">You're out of sessions</h2>
     <p class="text-body-sm text-slate-400 mb-7">
       Your free rounds are used up. Upgrade your plan or grab a one-time pack
-      to keep practicing — packs never expire.
+      to keep practicing — credits roll over and never expire.
     </p>
     <div class="flex flex-col sm:flex-row gap-3 justify-center">
       <a href="#/account" class="btn-primary">View plans</a>
@@ -4507,21 +4507,21 @@ const l=document.createElement("section");l.className="mb-10",l.innerHTML=`
           </span>
           <span class="ml-auto text-accent-400 text-body-sm">Open →</span>`,d.appendChild(T)}}catch{d.innerHTML=`<p class="text-body-sm text-slate-500">Couldn't load your schools.</p>`}}u();const h=l.querySelector("[data-create-school]");h.addEventListener("click",async()=>{const x=prompt("School name:");if(!(!x||!x.trim())){h.disabled=!0;try{const{org:R}=await zt("/api/orgs",{name:x.trim()});location.hash=`#/org/${R.id}`}catch{h.disabled=!1,alert("Could not create the school. Please try again.")}}});const p=document.createElement("section");p.innerHTML=`
     <h2 class="font-display text-display-md text-white mb-1">Upgrade your plan</h2>
-    <p class="text-slate-400 text-body-sm mb-5">Subscriptions renew monthly and include a fresh round quota.</p>
+    <p class="text-slate-400 text-body-sm mb-5">Subscriptions renew monthly with fresh rounds, and unused credits roll over month-to-month.</p>
     <div class="grid sm:grid-cols-3 gap-4 mb-10" id="tier-grid"></div>`,e.appendChild(p);const g=document.createElement("section");g.innerHTML=`
     <h2 class="font-display text-display-md text-white mb-1">Round packs</h2>
-    <p class="text-slate-400 text-body-sm mb-5">One-time top-ups. Credits never expire and are spent when your plan quota runs out.</p>
+    <p class="text-slate-400 text-body-sm mb-5">One-time top-ups. Credits roll over and never expire — spent automatically when your plan quota runs out.</p>
     <div class="grid sm:grid-cols-3 gap-4" id="pack-grid"></div>`,e.appendChild(g);const _=e.querySelector("#tier-grid"),m=e.querySelector("#pack-grid");async function f(x,R,T){T.disabled=!0;const A=T.textContent;T.innerHTML='<span class="spinner" aria-hidden="true"></span><span>Redirecting…</span>';try{const{url:L}=await zt("/api/billing/checkout",{kind:x,item:R});window.location.href=L}catch{T.disabled=!1,T.textContent=A??"",alert("Could not start checkout. Please try again.")}}const E=n.tiers.find(x=>x.name.toLowerCase()==="coach");for(const x of n.tiers){const R=E?x.id===E.id:!1,T=document.createElement("div");T.className=`card p-6 flex flex-col transition-all duration-200 ease-out-expo hover:-translate-y-1 hover:shadow-lift ${R?"border-accent-600/60 shadow-glow":""}`,T.innerHTML=`
       ${R?'<span class="self-start mb-3 text-caption font-bold uppercase tracking-widest text-[#fff] bg-accent-400 rounded-full px-3 py-1">Most popular</span>':""}
       <div class="font-semibold text-white text-lg">${Lt(xs(x.name))}</div>
       <div class="mt-2 mb-1"><span class="font-display text-display-md text-accent-400">${Lt(Kl(x.price,x.currency))}</span>
       <span class="text-slate-500 text-body-sm">/${Lt(x.interval)}</span></div>
-      <p class="text-body-sm text-accent-400 font-semibold mb-2">${(x.rounds || x.debates).toLocaleString()} sparring rounds per month</p>
+      <p class="text-body-sm text-accent-400 font-semibold mb-2">${(x.rounds || x.debates).toLocaleString()} sparring rounds per month · Credits roll over</p>
       ${x.description?`<p class="text-body-sm text-slate-400 mb-4">${Lt(x.description)}</p>`:'<div class="mb-4"></div>'}
       <button class="${R?"btn-primary":"btn-ghost"} mt-auto px-4 py-2.5 text-sm">Choose ${Lt(xs(x.name))}</button>`;const A=T.querySelector("button");A.addEventListener("click",()=>void f("subscription",x.id,A)),_.appendChild(T)}n.tiers.length===0&&(_.innerHTML='<p class="text-body-sm text-slate-500 col-span-full">No subscription tiers are available right now.</p>');for(const x of n.packs){const R=document.createElement("div");R.className="card p-6 flex flex-col transition-all duration-200 ease-out-expo hover:-translate-y-1 hover:shadow-lift",R.innerHTML=`
       <div class="font-semibold text-white text-lg">${Lt(xs(x.name))}</div>
       <div class="mt-2 mb-1"><span class="font-display text-display-md text-white">${Lt(Kl(x.price,x.currency))}</span></div>
-      <p class="text-body-sm text-slate-300 mb-3">${(x.rounds || x.credits).toLocaleString()} sparring rounds · credits never expire</p>
+      <p class="text-body-sm text-slate-300 mb-3">${(x.rounds || x.credits).toLocaleString()} sparring rounds · Credits roll over & never expire</p>
       <button class="btn-ghost mt-auto px-4 py-2.5 text-sm">Buy pack</button>`;const T=R.querySelector("button");T.addEventListener("click",()=>void f("pack",x.id,T)),m.appendChild(R)}n.packs.length===0&&(m.innerHTML='<p class="text-body-sm text-slate-500 col-span-full">No round packs are available right now.</p>');const S=e.querySelector("#portal-btn");S&&S.addEventListener("click",async()=>{S.disabled=!0,S.innerHTML='<span class="spinner" aria-hidden="true"></span><span>Opening…</span>';try{const{url:x}=await zt("/api/billing/portal");window.location.href=x}catch{S.disabled=!1,S.textContent="Manage billing",alert("Could not open the billing portal. Please try again.")}})}function mr(i,e){i.className="error-box mb-5 animate-fade-in",i.setAttribute("role","alert"),i.innerHTML=`<span aria-hidden="true" class="shrink-0 mt-0.5 text-danger">${ha}</span><span></span>`,i.querySelector("span:last-child").textContent=e}function mo(i,e){const t=e?.error;return t==="code_exhausted"||i===410?"This invite link has reached its maximum number of uses. Ask your teacher for a new one.":t==="code_expired"?"This invite link has expired. Ask your teacher for a new one.":t==="already_member"?"You are already a member of this school.":t==="seats_exhausted"||t==="subscription_inactive"?"This school has filled all of its seats. Ask your teacher or school admin to purchase more seats, then try again.":t==="email_taken"||i===409?"An account with that email already exists. Log in first, then open the invite link again to join.":i===404?"We couldn't find that invite. Check the link and try again.":"Something went wrong. Please try again."}async function hx(i,e){const t=document.createElement("div");t.className="w-full max-w-md animate-fade-up",i.appendChild(vr("fixed top-4 right-4 z-30 border border-ink-700 bg-ink-900/80 backdrop-blur")),i.appendChild(t),t.innerHTML=`
     <div class="text-center mb-8">
       <div class="text-5xl mb-4" aria-hidden="true">🏫</div>

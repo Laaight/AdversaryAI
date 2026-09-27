@@ -67,7 +67,7 @@ const PRICING = {
     { credits: 250, price: 19 },
     { credits: 600, price: 39 }
   ],
-  packsNote: 'One-time purchase. Rounds in wallet never expire.'
+  packsNote: 'One-time purchase. Credits roll over and never expire.'
 };
 
 const SIGNUP_URL = '/app/#/signup';
