@@ -5375,6 +5375,46 @@ webhookRouter.post("/api/webhooks/stripe", async (c) => {
 
 // worker/src/speech.ts
 var speechRouter = new Hono2();
+speechRouter.get("/diag", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user || !isOwnerEmail(user.email, c.env)) return c.json({ error: "forbidden" }, 403);
+  const region = c.env.AZURE_SPEECH_REGION;
+  const key = c.env.AZURE_SPEECH_KEY;
+  if (!region || !key) {
+    return c.json({ ok: false, error: "missing_credentials", region: !!region, key: !!key });
+  }
+  let tokenStatus = null, tokenError = null;
+  try {
+    const res = await fetch(`https://${region}.api.cognitive.microsoft.com/sts/v1.0/issueToken`, {
+      method: "POST",
+      headers: { "Ocp-Apim-Subscription-Key": key, "User-Agent": "AdversaryAI/1.0", "Content-Type": "application/x-www-form-urlencoded" },
+      body: ""
+    });
+    tokenStatus = res.status;
+    if (!res.ok) tokenError = await res.text();
+  } catch (e) {
+    tokenError = e instanceof Error ? e.message : String(e);
+  }
+  let ttsStatus = null, ttsError = null;
+  try {
+    const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-US"><voice name="en-US-RyanMultilingualNeural">Testing voice.</voice></speak>`;
+    const res = await fetch(`https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`, {
+      method: "POST",
+      headers: {
+        "Ocp-Apim-Subscription-Key": key,
+        "Content-Type": "application/ssml+xml",
+        "X-Microsoft-OutputFormat": "audio-24khz-96kbitrate-mono-mp3",
+        "User-Agent": "AdversaryAI/1.0"
+      },
+      body: ssml
+    });
+    ttsStatus = res.status;
+    if (!res.ok) ttsError = await res.text();
+  } catch (e) {
+    ttsError = e instanceof Error ? e.message : String(e);
+  }
+  return c.json({ ok: true, region, keyConfigured: true, tokenStatus, tokenError, ttsStatus, ttsError });
+});
 speechRouter.post("/token", async (c) => {
   const user = await getSessionUser(c);
   if (!user) return c.json({ error: "unauthorized" }, 401);
