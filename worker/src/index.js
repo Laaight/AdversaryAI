@@ -4207,8 +4207,34 @@ debateRouter.post("/start", async (c) => {
   if (typeof pBody === "string" && pBody.trim()) persona = pBody.trim();
   else if (typeof pSetup === "string" && pSetup.trim()) persona = pSetup.trim();
   else if (legacyPersonality.trim()) persona = legacyPersonality.trim();
+  if (!topic) {
+    if (mode.id === "thesis") {
+      topic = `Thesis: ${rawSetup.thesisStatement || ""}${rawSetup.field ? ` (${rawSetup.field})` : ""}`.trim();
+    } else if (mode.id === "acting") {
+      topic = `Acting: ${rawSetup.yourRole || "Scene"}${rawSetup.sceneContext ? ` - ${rawSetup.sceneContext}` : ""}`.trim();
+    } else if (mode.id === "interview") {
+      topic = `Interview: ${rawSetup.jobTitle || "Role"}${rawSetup.company ? ` at ${rawSetup.company}` : ""}`.trim();
+    } else if (mode.id === "negotiation") {
+      topic = `Negotiation: ${rawSetup.scenario || rawSetup.yourGoal || "Deal"}`.trim();
+    } else if (mode.id === "sales") {
+      topic = `Pitch: ${rawSetup.product || "Product"}${rawSetup.buyerPersona ? ` to ${rawSetup.buyerPersona}` : ""}`.trim();
+    } else if (mode.id === "difficult") {
+      topic = String(rawSetup.situation || (rawSetup.otherParty ? `Conversation with ${rawSetup.otherParty}` : "Difficult conversation")).trim();
+    } else if (mode.id === "witness") {
+      topic = rawSetup.who ? `Sharing the gospel with ${rawSetup.who}`.trim() : "Sharing the gospel";
+    } else if (mode.id === "rapbattle") {
+      topic = rawSetup.theme ? `Rap battle: ${rawSetup.theme}`.trim() : "Open rap battle";
+    } else if (mode.id === "historical" && rawSetup.figureId) {
+      const fig = figureById(rawSetup.figureId);
+      topic = fig ? (fig.suggestedTopic || `Debate with ${fig.name}`) : "Historical debate";
+    } else if (mode.id === "expert") {
+      topic = String(rawSetup.topic || (rawSetup.profession ? `Expert: ${rawSetup.profession}` : "Domain Expert")).trim();
+    } else if (mode.name) {
+      topic = `${mode.name} Session`;
+    }
+  }
   if (!topic) return c.json({ error: "topic_required" }, 400);
-  if (topic.length > 300) return c.json({ error: "topic_too_long" }, 400);
+  if (topic.length > 300) topic = topic.slice(0, 300);
   const setup = {};
   for (const [k, v] of Object.entries(rawSetup)) {
     if (typeof v === "string" && v.length <= 2e3) setup[k] = v;
