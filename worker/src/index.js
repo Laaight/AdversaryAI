@@ -4365,12 +4365,28 @@ ${transcript}`,
   ).run();
   return c.json({ verdict, cached: false });
 });
+debateRouter.post("/toggle-public", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  const body = await c.req.json().catch(() => ({}));
+  const debateId = String(body.debateId ?? "");
+  const isPublic = body.isPublic ? 1 : 0;
+  const debate = await getOwnedDebate(c, debateId, user.id);
+  if (!debate) return c.json({ error: "debate_not_found" }, 404);
+  await c.env.DB.prepare("UPDATE debates SET is_public = ? WHERE id = ?").bind(isPublic, debateId).run();
+  const origin = c.req.header("origin") || c.env.APP_URL || "https://getadversaryai.com";
+  return c.json({
+    ok: true,
+    isPublic: isPublic === 1,
+    shareUrl: `${origin}/app/#/watch/${debateId}`
+  });
+});
 var debatesRouter = new Hono2();
 debatesRouter.get("/", async (c) => {
   const user = await getSessionUser(c);
   if (!user) return c.json({ error: "unauthorized" }, 401);
   const rows = await c.env.DB.prepare(
-    "SELECT id, personality, topic, mode, ended_at, created_at, setup_json FROM debates WHERE user_id = ? ORDER BY created_at DESC"
+    "SELECT id, personality, topic, mode, ended_at, created_at, setup_json, is_public, views FROM debates WHERE user_id = ? ORDER BY created_at DESC"
   ).bind(user.id).all();
   const debates = (rows.results ?? []).map((r) => {
     let judgeEnabled = false;
@@ -4390,7 +4406,7 @@ debatesRouter.get("/", async (c) => {
       if (fig) personaLabel = fig.name;
     }
     const { setup_json: _omitted, ...rest } = r;
-    return { ...rest, judgeEnabled, personaVisual, personaLabel };
+    return { ...rest, judgeEnabled, personaVisual, personaLabel, isPublic: Boolean(r.is_public), views: r.views ?? 0 };
   });
   return c.json({ debates });
 });
@@ -4402,16 +4418,332 @@ debatesRouter.get("/:id", async (c) => {
   const turns = await c.env.DB.prepare(
     "SELECT id, role, text, created_at FROM turns WHERE debate_id = ? ORDER BY id ASC"
   ).bind(debate.id).all();
+  const verdictRow = await c.env.DB.prepare("SELECT * FROM verdicts WHERE debate_id = ?").bind(debate.id).first();
+  let verdict = null;
+  if (verdictRow) {
+    let scores = {};
+    try { scores = JSON.parse(verdictRow.scores_json || "{}"); } catch {}
+    verdict = {
+      winner: verdictRow.winner,
+      assessment: verdictRow.assessment,
+      scores,
+      you: scores.you || {},
+      opponent: scores.opponent || {},
+      reasoning: verdictRow.reasoning,
+      turningPoint: verdictRow.turning_point,
+      createdAt: verdictRow.created_at
+    };
+  }
+  const votesRes = await c.env.DB.prepare("SELECT vote, COUNT(*) as count FROM debate_votes WHERE debate_id = ? GROUP BY vote").bind(debate.id).all();
+  const votes = { you: 0, opponent: 0, draw: 0, total: 0 };
+  for (const v of (votesRes.results ?? [])) {
+    const cnt = Number(v.count) || 0;
+    if (v.vote === "you" || v.vote === "user") votes.you += cnt;
+    else if (v.vote === "opponent") votes.opponent += cnt;
+    else if (v.vote === "draw") votes.draw += cnt;
+    votes.total += cnt;
+  }
   const setup = parseSetup(debate.setup_json);
   const targetRounds = parseInt(setup.targetRounds ?? "0", 10) || 0;
   const availability = await checkRoundsAvailable(c, user.id, user.email);
   return c.json({
-    debate: { ...debate, targetRounds },
+    debate: { ...debate, targetRounds, isPublic: Boolean(debate.is_public), views: debate.views ?? 0 },
     turns: turns.results ?? [],
+    verdict,
+    votes,
     targetRounds,
     remainingRounds: availability.remaining
   });
 });
+
+async function getVoterKey(c) {
+  const ip = c.req.header("cf-connecting-ip") || c.req.header("x-forwarded-for") || "anon";
+  const ua = c.req.header("user-agent") || "none";
+  const cookie = c.req.header("cookie") || "";
+  const match = cookie.match(/adv_voter=([a-zA-Z0-9_-]+)/);
+  if (match) return match[1];
+  const enc = new TextEncoder().encode(ip + "|" + ua);
+  const buf = await crypto.subtle.digest("SHA-256", enc);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("").slice(0, 32);
+}
+
+var publicRouter = new Hono2();
+
+publicRouter.get("/debates", async (c) => {
+  const rows = await c.env.DB.prepare(
+    `SELECT d.id, d.personality, d.topic, d.mode, d.ended_at, d.created_at, d.views, d.setup_json,
+            v.winner, v.assessment, v.reasoning, v.turning_point, v.scores_json
+     FROM debates d
+     LEFT JOIN verdicts v ON d.id = v.debate_id
+     WHERE d.is_public = 1
+     ORDER BY d.created_at DESC
+     LIMIT 50`
+  ).all();
+
+  const debateIds = (rows.results ?? []).map(r => r.id);
+  const votesMap = {};
+  if (debateIds.length > 0) {
+    const placeholders = debateIds.map(() => "?").join(",");
+    const votesRows = await c.env.DB.prepare(
+      `SELECT debate_id, vote, COUNT(*) as count FROM debate_votes WHERE debate_id IN (${placeholders}) GROUP BY debate_id, vote`
+    ).bind(...debateIds).all();
+    for (const v of (votesRows.results ?? [])) {
+      if (!votesMap[v.debate_id]) votesMap[v.debate_id] = { you: 0, opponent: 0, draw: 0, total: 0 };
+      const cnt = Number(v.count) || 0;
+      if (v.vote === "you" || v.vote === "user") votesMap[v.debate_id].you += cnt;
+      else if (v.vote === "opponent") votesMap[v.debate_id].opponent += cnt;
+      else if (v.vote === "draw") votesMap[v.debate_id].draw += cnt;
+      votesMap[v.debate_id].total += cnt;
+    }
+  }
+
+  const debates = (rows.results ?? []).map(r => {
+    let setup = {};
+    try { setup = JSON.parse(r.setup_json ?? "{}"); } catch {}
+    let personaLabel = PERSONALITY_NAMES[r.personality] ?? r.personality;
+    if (r.mode === "historical") {
+      const fig = figureById(typeof setup.figureId === "string" ? setup.figureId : "");
+      if (fig) personaLabel = fig.name;
+    }
+    const votes = votesMap[r.id] || { you: 0, opponent: 0, draw: 0, total: 0 };
+    let scores = null;
+    if (r.scores_json) {
+      try { scores = JSON.parse(r.scores_json); } catch {}
+    }
+    return {
+      id: r.id,
+      topic: r.topic,
+      mode: r.mode,
+      personality: r.personality,
+      personaLabel,
+      endedAt: r.ended_at,
+      createdAt: r.created_at,
+      views: r.views ?? 0,
+      winner: r.winner,
+      assessment: r.assessment,
+      turningPoint: r.turning_point,
+      scores,
+      votes
+    };
+  });
+
+  return c.json({ debates });
+});
+
+publicRouter.get("/debate/:id", async (c) => {
+  const debateId = c.req.param("id");
+  const debate = await c.env.DB.prepare(
+    "SELECT * FROM debates WHERE id = ? AND is_public = 1"
+  ).bind(debateId).first();
+
+  if (!debate) {
+    return c.json({ error: "not_found", message: "This debate is private or does not exist." }, 404);
+  }
+
+  c.executionCtx?.waitUntil?.(
+    c.env.DB.prepare("UPDATE debates SET views = views + 1 WHERE id = ?").bind(debateId).run()
+  );
+
+  const [turnsRes, verdictRes, votesRes, reactionsRes] = await Promise.all([
+    c.env.DB.prepare("SELECT id, role, text, created_at FROM turns WHERE debate_id = ? ORDER BY id ASC").bind(debateId).all(),
+    c.env.DB.prepare("SELECT * FROM verdicts WHERE debate_id = ?").bind(debateId).first(),
+    c.env.DB.prepare("SELECT vote, COUNT(*) as count FROM debate_votes WHERE debate_id = ? GROUP BY vote").bind(debateId).all(),
+    c.env.DB.prepare("SELECT reaction, COUNT(*) as count FROM debate_reactions WHERE debate_id = ? GROUP BY reaction").bind(debateId).all()
+  ]);
+
+  const voterKey = await getVoterKey(c);
+  const userVoteRow = await c.env.DB.prepare(
+    "SELECT vote FROM debate_votes WHERE debate_id = ? AND voter_key = ?"
+  ).bind(debateId, voterKey).first();
+
+  const userReactionsRows = await c.env.DB.prepare(
+    "SELECT reaction FROM debate_reactions WHERE debate_id = ? AND reactor_key = ?"
+  ).bind(debateId, voterKey).all();
+
+  const votes = { you: 0, opponent: 0, draw: 0, total: 0 };
+  for (const v of (votesRes.results ?? [])) {
+    const cnt = Number(v.count) || 0;
+    if (v.vote === "you" || v.vote === "user") votes.you += cnt;
+    else if (v.vote === "opponent") votes.opponent += cnt;
+    else if (v.vote === "draw") votes.draw += cnt;
+    votes.total += cnt;
+  }
+
+  const reactions = {};
+  for (const r of (reactionsRes.results ?? [])) {
+    reactions[r.reaction] = Number(r.count) || 0;
+  }
+
+  let setup = {};
+  try { setup = JSON.parse(debate.setup_json ?? "{}"); } catch {}
+  let personaLabel = PERSONALITY_NAMES[debate.personality] ?? debate.personality;
+  if (debate.mode === "historical") {
+    const fig = figureById(typeof setup.figureId === "string" ? setup.figureId : "");
+    if (fig) personaLabel = fig.name;
+  }
+
+  let verdict = null;
+  if (verdictRes) {
+    let scores = {};
+    try { scores = JSON.parse(verdictRes.scores_json || "{}"); } catch {}
+    verdict = {
+      winner: verdictRes.winner,
+      assessment: verdictRes.assessment,
+      scores,
+      you: scores.you || {},
+      opponent: scores.opponent || {},
+      reasoning: verdictRes.reasoning,
+      turningPoint: verdictRes.turning_point,
+      createdAt: verdictRes.created_at
+    };
+  }
+
+  return c.json({
+    debate: {
+      id: debate.id,
+      topic: debate.topic,
+      mode: debate.mode,
+      personality: debate.personality,
+      personaLabel,
+      endedAt: debate.ended_at,
+      createdAt: debate.created_at,
+      views: (debate.views ?? 0) + 1
+    },
+    turns: turnsRes.results ?? [],
+    verdict,
+    votes,
+    userVote: userVoteRow?.vote ?? null,
+    reactions,
+    userReactions: (userReactionsRows.results ?? []).map(r => r.reaction)
+  });
+});
+
+publicRouter.post("/debate/:id/vote", async (c) => {
+  const debateId = c.req.param("id");
+  const debate = await c.env.DB.prepare(
+    "SELECT id FROM debates WHERE id = ? AND is_public = 1"
+  ).bind(debateId).first();
+
+  if (!debate) {
+    return c.json({ error: "not_found", message: "This debate is not public or does not exist." }, 404);
+  }
+
+  const body = await c.req.json().catch(() => ({}));
+  const rawVote = String(body.vote ?? "").toLowerCase().trim();
+  const vote = rawVote === "user" ? "you" : rawVote;
+  if (!["you", "opponent", "draw"].includes(vote)) {
+    return c.json({ error: "invalid_vote", message: "Vote must be 'you', 'opponent', or 'draw'." }, 400);
+  }
+
+  const voterKey = await getVoterKey(c);
+  await c.env.DB.prepare(
+    `INSERT INTO debate_votes (debate_id, voter_key, vote, created_at)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(debate_id, voter_key) DO UPDATE SET vote = excluded.vote`
+  ).bind(debateId, voterKey, vote, nowIso()).run();
+
+  const votesRes = await c.env.DB.prepare(
+    "SELECT vote, COUNT(*) as count FROM debate_votes WHERE debate_id = ? GROUP BY vote"
+  ).bind(debateId).all();
+
+  const votes = { you: 0, opponent: 0, draw: 0, total: 0 };
+  for (const v of (votesRes.results ?? [])) {
+    const cnt = Number(v.count) || 0;
+    if (v.vote === "you" || v.vote === "user") votes.you += cnt;
+    else if (v.vote === "opponent") votes.opponent += cnt;
+    else if (v.vote === "draw") votes.draw += cnt;
+    votes.total += cnt;
+  }
+
+  return c.json({ ok: true, vote, votes });
+});
+
+publicRouter.post("/debate/:id/react", async (c) => {
+  const debateId = c.req.param("id");
+  const debate = await c.env.DB.prepare(
+    "SELECT id FROM debates WHERE id = ? AND is_public = 1"
+  ).bind(debateId).first();
+
+  if (!debate) {
+    return c.json({ error: "not_found", message: "This debate is not public." }, 404);
+  }
+
+  const body = await c.req.json().catch(() => ({}));
+  const reaction = String(body.reaction ?? "").toLowerCase().trim();
+  const validReactions = ["fire", "skull", "brain", "flag", "clap"];
+  if (!validReactions.includes(reaction)) {
+    return c.json({ error: "invalid_reaction" }, 400);
+  }
+
+  const voterKey = await getVoterKey(c);
+  const existing = await c.env.DB.prepare(
+    "SELECT 1 FROM debate_reactions WHERE debate_id = ? AND reactor_key = ? AND reaction = ?"
+  ).bind(debateId, voterKey, reaction).first();
+
+  let active = false;
+  if (existing) {
+    await c.env.DB.prepare(
+      "DELETE FROM debate_reactions WHERE debate_id = ? AND reactor_key = ? AND reaction = ?"
+    ).bind(debateId, voterKey, reaction).run();
+    active = false;
+  } else {
+    await c.env.DB.prepare(
+      "INSERT INTO debate_reactions (debate_id, reactor_key, reaction, created_at) VALUES (?, ?, ?, ?)"
+    ).bind(debateId, voterKey, reaction, nowIso()).run();
+    active = true;
+  }
+
+  const reactionsRes = await c.env.DB.prepare(
+    "SELECT reaction, COUNT(*) as count FROM debate_reactions WHERE debate_id = ? GROUP BY reaction"
+  ).bind(debateId).all();
+
+  const reactions = {};
+  for (const r of (reactionsRes.results ?? [])) {
+    reactions[r.reaction] = Number(r.count) || 0;
+  }
+
+  return c.json({ ok: true, reaction, active, reactions });
+});
+
+async function handlePublicDebateOg(c) {
+  const debateId = c.req.param("id");
+  const debate = await c.env.DB.prepare(
+    "SELECT id, topic, personality, mode, is_public FROM debates WHERE id = ?"
+  ).bind(debateId).first();
+
+  const topic = debate ? debate.topic : "AI Sparring Match";
+  const persona = debate ? (PERSONALITY_NAMES[debate.personality] ?? debate.personality) : "AdversaryAI";
+  const esc = (s) => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const title = `${esc(topic)} — Human vs ${esc(persona)} | AdversaryAI Arena`;
+  const desc = `Watch this intense real-time AI sparring bout on AdversaryAI. Who made the stronger arguments? See the AI judge's breakdown and cast your vote!`;
+  const url = `https://getadversaryai.com/debate/${debateId}`;
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>${title}</title>
+  <meta name="description" content="${desc}">
+  <meta property="og:title" content="${title}">
+  <meta property="og:description" content="${desc}">
+  <meta property="og:image" content="https://getadversaryai.com/img/og-image.jpg">
+  <meta property="og:url" content="${url}">
+  <meta property="og:type" content="article">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${title}">
+  <meta name="twitter:description" content="${desc}">
+  <meta name="twitter:image" content="https://getadversaryai.com/img/og-image.jpg">
+  <meta http-equiv="refresh" content="0;url=/app/#/watch/${debateId}">
+  <script>window.location.replace("/app/#/watch/${debateId}");</script>
+</head>
+<body style="background:#0a0c10;color:#fff;font-family:system-ui,sans-serif;padding:40px;text-align:center;">
+  <h2>Entering AdversaryAI Arena…</h2>
+  <p><a href="/app/#/watch/${debateId}" style="color:#e8392e;font-weight:bold;">Click here if not redirected automatically.</a></p>
+</body>
+</html>`;
+  return c.html(html);
+}
+
 
 // worker/src/account.ts
 init_config();
@@ -4841,6 +5173,9 @@ app.onError((err, c) => {
 });
 app.get("/health", (c) => c.json({ ok: true }));
 app.get("/app", (c) => c.redirect("/app/", 301));
+app.get("/arena", (c) => c.redirect("/app/#/arena", 301));
+app.get("/debate/:id", handlePublicDebateOg);
+app.route("/api/public", publicRouter);
 app.route("/api/auth", authRouter);
 app.route("/api/debate", debateRouter);
 app.route("/api/debates", debatesRouter);
