@@ -4398,7 +4398,59 @@ error=${e||"(none)"}`+r+a},500)}function Xu(i){return i==null?"—":i.toFixed(1)
         <h1 class="font-display text-2xl text-white mb-3">Session not found</h1>
         <p class="text-sm mb-6">That session doesn’t exist or has expired.</p>
         <a href="#/" class="inline-block px-5 py-2.5 rounded-xl bg-accent-500 hover:bg-accent-400 text-[#fff] font-semibold text-sm">Back to practice</a>
-      </div>`;return}ix(s,e,r)}async function nx(i){try{const e=sessionStorage.getItem(`adversaryai:session:${i}`);if(e)return JSON.parse(e)}catch{}try{const e=await Ut("/api/debates"),n=((Array.isArray(e)?e:e.debates)??[]).find(a=>a.id===i);if(!n)return null;let s=n.mode||"debate",r="";try{const o=(await fa()).find(c=>c.id===n.mode);o&&(s=o.name,r=o.icon)}catch{}const _nSetup=n.setup_json?(typeof n.setup_json==="string"?JSON.parse(n.setup_json):n.setup_json):{};const _figId=n.figureId||_nSetup.figureId||(s==="historical"?n.personality:void 0);return{modeId:n.mode||"debate",modeName:s,modeIcon:r,topic:n.topic,personaLabel:n.personaLabel||s,judgeEnabled:n.judgeEnabled===!0,personaVisual:n.personaVisual||void 0,targetRounds:n.targetRounds||0,firstSpeaker:n.firstSpeaker||"user",resolvedFirstSpeaker:n.resolvedFirstSpeaker||"user",debateStyle:n.debateStyle||"oxford",figureId:_figId||void 0}}catch{return null}}function ix(i,e,t){i.innerHTML=`
+      </div>`;return}ix(s,e,r)}async function nx(i){
+  try{
+    const e=sessionStorage.getItem(`adversaryai:session:${i}`);
+    if(e){
+      const parsed=JSON.parse(e);
+      if(parsed.figureId||parsed.modeId!=="historical")return parsed;
+    }
+  }catch{}
+  try{
+    const res=await Ut(`/api/debates/${encodeURIComponent(i)}`);
+    const n=res.debate;
+    if(!n)return null;
+    let s=n.mode||"debate",r="";
+    try{
+      const o=(await fa()).find(c=>c.id===n.mode);
+      o&&(s=o.name,r=o.icon);
+    }catch{}
+    const _nSetup=n.setup_json?(typeof n.setup_json==="string"?JSON.parse(n.setup_json):n.setup_json):{};
+    const _figId=n.figureId||_nSetup.figureId||(s==="historical"?n.personality:void 0);
+    let personaLabel=n.personaLabel;
+    if(!personaLabel){
+      if(s==="historical"&&_figId){
+        personaLabel=_figId.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase());
+      }else{
+        personaLabel=s;
+      }
+    }
+    const sessionObj={
+      modeId:n.mode||"debate",
+      modeName:s,
+      modeIcon:r,
+      topic:n.topic,
+      personaLabel:personaLabel||s,
+      judgeEnabled:n.judgeEnabled===!0||_nSetup.judge==="1",
+      personaVisual:n.personaVisual||_nSetup.personaVisual||void 0,
+      targetRounds:n.targetRounds||parseInt(_nSetup.targetRounds||"0",10)||0,
+      firstSpeaker:n.firstSpeaker||_nSetup.firstSpeaker||"user",
+      resolvedFirstSpeaker:n.resolvedFirstSpeaker||_nSetup.resolvedFirstSpeaker||"user",
+      debateStyle:n.debateStyle||_nSetup.debateStyle||"oxford",
+      figureId:_figId||void 0,
+      ended_at:n.ended_at||null,
+      verdict:res.verdict||null
+    };
+    try{
+      sessionStorage.setItem(`adversaryai:session:${i}`,JSON.stringify(sessionObj));
+    }catch{}
+    return sessionObj;
+  }catch(err){
+    console.error("Failed to load session metadata",err);
+    return null;
+  }
+}
+function ix(i,e,t){i.innerHTML=`
     <div class="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-4 sm:gap-6">
       <div class="lg:sticky lg:top-20 self-start">
         <div class="flex items-center justify-between gap-2 mb-2 px-1">
@@ -4463,7 +4515,7 @@ error=${e||"(none)"}`+r+a},500)}function Xu(i){return i==null?"—":i.toFixed(1)
           <p id="mic-hint" class="hidden text-xs text-slate-500 mt-2">Listening… speak now, then tap the mic again to stop.</p>
         </div>
       </div>
-    </div>`;const n=createDebateAvatar(i.querySelector("#avatar-canvas"),{figureId:t.figureId,personaVisual:t.personaVisual,modeId:t.modeId,personaLabel:t.personaLabel});window.addEventListener("hashchange",()=>n.dispose(),{once:!0});const s=i.querySelector("#transcript"),r=i.querySelector("#msg-input"),a=i.querySelector("#send-btn"),o=i.querySelector("#mic-btn"),c=i.querySelector("#mic-hint"),l=i.querySelector("#replay-btn"),d=i.querySelector("#stop-btn"),u=i.querySelector("#end-btn"),h=i.querySelector("#voice-note"),p=i.querySelector("#quota-slot");(async()=>{try{const I=await Ut(`/api/debates/${encodeURIComponent(e)}`);const _loadedTurns=I.turns??[];for(const G of _loadedTurns)G.role==="user"?L("you",G.text):G.role==="assistant"&&L("opponent",G.text);_sparCurRound=Math.max(1,Math.floor(_loadedTurns.length/2)+1);updateRoundAndPhase();const _resSpeaker=t.resolvedFirstSpeaker||I.debate?.resolvedFirstSpeaker||(I.debate?.setup_json?JSON.parse(I.debate.setup_json).resolvedFirstSpeaker:null);if(_resSpeaker==="opponent"&&_loadedTurns.length===0){setTimeout(()=>q("open"),400);}}catch(err){console.error("Failed to load session turns",err);}})();let _sparCurRound=1;const g=[];const updateRoundAndPhase=()=>{const _crEl=i.querySelector("#spar-cur-round");if(_crEl)_crEl.textContent=_sparCurRound;const _phEl=i.querySelector("#spar-phase-badge");const isDeb=t.modeId==="debate"||t.modeId==="historical"||t.modeId==="thesis"||t.modeId==="sparring";if(_phEl){if(_sparCurRound<=1){_phEl.className="whitespace-nowrap inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-500/15 border border-blue-500/30 text-blue-300 shrink-0";_phEl.textContent=isDeb?"🎙️ Phase 1: Opening":"🎙️ Opening";}else if(t.targetRounds&&_sparCurRound>=t.targetRounds){_phEl.className="whitespace-nowrap inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-500/15 border border-purple-500/30 text-purple-300 shrink-0";_phEl.textContent=isDeb?"🏛️ Phase 3: Closing":"🏛️ Closing";}else{_phEl.className="whitespace-nowrap inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-500/15 border border-red-500/30 text-red-300 shrink-0";_phEl.textContent=isDeb?"⚔️ Phase 2: Rebuttal":`🥊 Round ${_sparCurRound}`;}}if(r){if(_sparCurRound<=1){r.placeholder=isDeb?(g.length===0?"Deliver your opening constructive — state your resolution, definitions, and main arguments…":"Deliver your opening counter-statement — challenge their thesis and state your case…"):"Type your opening statement or tap the mic…";}else if(t.targetRounds&&_sparCurRound>=t.targetRounds){r.placeholder=isDeb?"Deliver your final closing argument — crystalize your key voting issues for the judge…":"Deliver your final closing point…";}else{r.placeholder=isDeb?"Attack their weak premises, challenge evidence, or counter-examine…":"Type your response or tap the mic…";}}};const showUnlimitedEndModal=()=>{return new Promise(resolve=>{const modal=document.createElement("div");modal.className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in";modal.innerHTML=`<div class="relative w-full max-w-md rounded-3xl border border-ink-700 bg-ink-900/95 p-6 sm:p-7 shadow-2xl"><h3 class="font-display text-xl text-white font-bold mb-2">Conclude Unlimited Sparring?</h3><p class="text-sm text-slate-300 leading-relaxed mb-6">You’ve completed ${_sparCurRound} rounds of open sparring. Before scoring, would you like to deliver a final closing argument, or have the AI Judge score your session right now?</p><div class="space-y-3"><button type="button" id="modal-closing-btn" class="w-full py-3 px-4 rounded-xl bg-purple-600/20 border border-purple-500/40 text-purple-200 hover:bg-purple-600/30 font-semibold text-sm flex items-center justify-between transition-all"><span>🏛️ Deliver Final Closing Statement</span><span class="text-xs text-purple-300 opacity-80">1 final round</span></button><button type="button" id="modal-score-now-btn" class="w-full py-3 px-4 rounded-xl bg-accent-500 hover:bg-accent-400 text-white font-bold text-sm shadow-lg shadow-accent-500/20 flex items-center justify-between transition-all"><span>⚖️ Grade Session Now</span><span class="text-xs text-white/80">Immediate verdict</span></button><button type="button" id="modal-cancel-btn" class="w-full py-2.5 px-4 rounded-xl border border-ink-700 text-slate-400 hover:text-white hover:border-slate-500 font-medium text-xs transition-all">Keep Sparring Freely</button></div></div>`;document.body.appendChild(modal);modal.querySelector("#modal-closing-btn").onclick=()=>{modal.remove();resolve("closing");};modal.querySelector("#modal-score-now-btn").onclick=()=>{modal.remove();resolve("score");};modal.querySelector("#modal-cancel-btn").onclick=()=>{modal.remove();resolve("cancel");};});};let _=null;window.__qaExtra=()=>{const I=window.__sdkActive>0,G=!!_&&!_.paused;return`sdkPlaying=${I}
+    </div>`;const n=createDebateAvatar(i.querySelector("#avatar-canvas"),{figureId:t.figureId,personaVisual:t.personaVisual,modeId:t.modeId,personaLabel:t.personaLabel});window.addEventListener("hashchange",()=>n.dispose(),{once:!0});const s=i.querySelector("#transcript"),r=i.querySelector("#msg-input"),a=i.querySelector("#send-btn"),o=i.querySelector("#mic-btn"),c=i.querySelector("#mic-hint"),l=i.querySelector("#replay-btn"),d=i.querySelector("#stop-btn"),u=i.querySelector("#end-btn"),h=i.querySelector("#voice-note"),p=i.querySelector("#quota-slot");(async()=>{try{const I=await Ut(`/api/debates/${encodeURIComponent(e)}`);const _loadedTurns=I.turns??[];for(const G of _loadedTurns)G.role==="user"?L("you",G.text):G.role==="assistant"&&L("opponent",G.text);_sparCurRound=Math.max(1,Math.floor(_loadedTurns.length/2)+1);updateRoundAndPhase();const _resSpeaker=t.resolvedFirstSpeaker||I.debate?.resolvedFirstSpeaker||(I.debate?.setup_json?JSON.parse(I.debate.setup_json).resolvedFirstSpeaker:null);if(_resSpeaker==="opponent"&&_loadedTurns.length===0){setTimeout(()=>q("open"),400);}if(I.debate?.ended_at||t.ended_at){const _concl=document.createElement("div");_concl.className="mb-3 p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-200 text-xs flex items-center justify-between";_concl.innerHTML='<span>✓ This session has concluded and was scored.</span><button type="button" id="concl-scorecard-btn" class="underline font-bold ml-2 cursor-pointer whitespace-nowrap">View Scorecard →</button>';const _tsLot=i.querySelector("#quota-slot");if(_tsLot&&_tsLot.parentNode)_tsLot.parentNode.insertBefore(_concl,_tsLot);const _scb=i.querySelector("#concl-scorecard-btn");if(_scb)_scb.onclick=()=>sx(i,n,t,e,g,I.verdict?.scores);if(r){r.disabled=!0;r.placeholder="This session has been scored and concluded.";}if(a)a.disabled=!0;if(o)o.disabled=!0;if(u){u.textContent="View Scorecard";u.onclick=()=>sx(i,n,t,e,g,I.verdict?.scores);}}}catch(err){console.error("Failed to load session turns",err);}})();let _sparCurRound=1;const g=[];const updateRoundAndPhase=()=>{const _crEl=i.querySelector("#spar-cur-round");if(_crEl)_crEl.textContent=_sparCurRound;const _phEl=i.querySelector("#spar-phase-badge");const isDeb=t.modeId==="debate"||t.modeId==="historical"||t.modeId==="thesis"||t.modeId==="sparring";if(_phEl){if(_sparCurRound<=1){_phEl.className="whitespace-nowrap inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-500/15 border border-blue-500/30 text-blue-300 shrink-0";_phEl.textContent=isDeb?"🎙️ Phase 1: Opening":"🎙️ Opening";}else if(t.targetRounds&&_sparCurRound>=t.targetRounds){_phEl.className="whitespace-nowrap inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-500/15 border border-purple-500/30 text-purple-300 shrink-0";_phEl.textContent=isDeb?"🏛️ Phase 3: Closing":"🏛️ Closing";}else{_phEl.className="whitespace-nowrap inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-500/15 border border-red-500/30 text-red-300 shrink-0";_phEl.textContent=isDeb?"⚔️ Phase 2: Rebuttal":`🥊 Round ${_sparCurRound}`;}}if(r){if(_sparCurRound<=1){r.placeholder=isDeb?(g.length===0?"Deliver your opening constructive — state your resolution, definitions, and main arguments…":"Deliver your opening counter-statement — challenge their thesis and state your case…"):"Type your opening statement or tap the mic…";}else if(t.targetRounds&&_sparCurRound>=t.targetRounds){r.placeholder=isDeb?"Deliver your final closing argument — crystalize your key voting issues for the judge…":"Deliver your final closing point…";}else{r.placeholder=isDeb?"Attack their weak premises, challenge evidence, or counter-examine…":"Type your response or tap the mic…";}}};const showUnlimitedEndModal=()=>{return new Promise(resolve=>{const modal=document.createElement("div");modal.className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in";modal.innerHTML=`<div class="relative w-full max-w-md rounded-3xl border border-ink-700 bg-ink-900/95 p-6 sm:p-7 shadow-2xl"><h3 class="font-display text-xl text-white font-bold mb-2">Conclude Unlimited Sparring?</h3><p class="text-sm text-slate-300 leading-relaxed mb-6">You’ve completed ${_sparCurRound} rounds of open sparring. Before scoring, would you like to deliver a final closing argument, or have the AI Judge score your session right now?</p><div class="space-y-3"><button type="button" id="modal-closing-btn" class="w-full py-3 px-4 rounded-xl bg-purple-600/20 border border-purple-500/40 text-purple-200 hover:bg-purple-600/30 font-semibold text-sm flex items-center justify-between transition-all"><span>🏛️ Deliver Final Closing Statement</span><span class="text-xs text-purple-300 opacity-80">1 final round</span></button><button type="button" id="modal-score-now-btn" class="w-full py-3 px-4 rounded-xl bg-accent-500 hover:bg-accent-400 text-white font-bold text-sm shadow-lg shadow-accent-500/20 flex items-center justify-between transition-all"><span>⚖️ Grade Session Now</span><span class="text-xs text-white/80">Immediate verdict</span></button><button type="button" id="modal-cancel-btn" class="w-full py-2.5 px-4 rounded-xl border border-ink-700 text-slate-400 hover:text-white hover:border-slate-500 font-medium text-xs transition-all">Keep Sparring Freely</button></div></div>`;document.body.appendChild(modal);modal.querySelector("#modal-closing-btn").onclick=()=>{modal.remove();resolve("closing");};modal.querySelector("#modal-score-now-btn").onclick=()=>{modal.remove();resolve("score");};modal.querySelector("#modal-cancel-btn").onclick=()=>{modal.remove();resolve("cancel");};});};let _=null;window.__qaExtra=()=>{const I=window.__sdkActive>0,G=!!_&&!_.paused;return`sdkPlaying=${I}
 mp3Playing=${G}
 overlap=${I&&G?"YES-DOUBLE-AUDIO":"no"}`};let m=null,f=null,E=null,S=!1,x=0,R=null;const T=I=>t.modeId==="rapbattle"?I.replace(/\b(f+u+c+k+|s+h+i+t+|b+i+t+c+h+|a+s+s+(h+o+l+e+)?|d+a+m+n+|d+i+c+k+|p+u+s+s+y+|c+u+n+t+|w+h+o+r+e+|s+l+u+t+|n+i+g+g+[aeiou]+|f+a+g+(g+o+t+)?|t+i+t+s+|b+o+o+b+s?|p+e+n+i+s+|v+a+g+i+n+a+|c+l+i+t+|o+r+g+a+s+m+)\b/gi,"****"):I;function A(){s.scrollTop=s.scrollHeight}function L(I,G){g.push({role:I,text:G});const B=document.createElement("div");return B.className=I==="you"?"flex justify-end":"flex justify-start",B.innerHTML=`
       <div class="max-w-[85%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${I==="you"?"bg-accent-500/15 border border-accent-500/30 text-slate-100 rounded-br-md":"bg-ink-800 border border-ink-700 text-slate-200 rounded-bl-md"}">
@@ -4600,12 +4652,25 @@ if(t.targetRounds&&_sparCurRound>t.targetRounds){const _trb=i.querySelector("#sp
     <div class="rounded-xl border border-accent-500/30 bg-accent-500/5 p-5">
       <div class="text-sm font-semibold text-accent-300 mb-2">Turning point</div>
       <p class="text-sm text-slate-400 leading-relaxed whitespace-pre-wrap">${xt(t.turningPoint)}</p>
-    </div>`:""}`,requestAnimationFrame(()=>{requestAnimationFrame(()=>{n.querySelectorAll("[data-w]").forEach(a=>{a.style.width=`${a.dataset.w}%`})})})}const lx={prosecutor:"The Prosecutor",professor:"The Professor",contrarian:"The Contrarian",coach:"The Coach",theist_mathematician:"The Cambridge Theist",secular_rationalist:"The Secular Rationalist",evolutionary_biologist:"The Evolutionary Biologist",islamic_theologian:"The Islamic Theologian",biblical_creationist:"The Biblical Creationist",moral_humanist:"The Moral Humanist",jordan_peterson:"The Archetypal Psychologist"};function Vi(i){return i.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}function Yl(i){const e=new Date(i);return Number.isNaN(e.getTime())?i:e.toLocaleDateString(void 0,{month:"short",day:"numeric",year:"numeric"})}function po(i,e){const t=e.get(i);return t?`${t.icon} ${t.name}`:i?Vi(i):"Session"}async function dx(i){i.innerHTML=`<div class="max-w-4xl mx-auto px-4 py-6 sm:py-10" id="history-root">
+    </div>`:""}`,requestAnimationFrame(()=>{requestAnimationFrame(()=>{n.querySelectorAll("[data-w]").forEach(a=>{a.style.width=`${a.dataset.w}%`})})})}const lx={prosecutor:"The Prosecutor",professor:"The Professor",contrarian:"The Contrarian",coach:"The Coach",theist_mathematician:"The Cambridge Theist",secular_rationalist:"The Secular Rationalist",evolutionary_biologist:"The Evolutionary Biologist",islamic_theologian:"The Islamic Theologian",biblical_creationist:"The Biblical Creationist",moral_humanist:"The Moral Humanist",jordan_peterson:"The Archetypal Psychologist"};function Vi(i){return i.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}function Yl(i){const e=new Date(i);return Number.isNaN(e.getTime())?i:e.toLocaleDateString(void 0,{month:"short",day:"numeric",year:"numeric"})}function po(i,e){const t=e.get(i);return t?`${t.icon} ${t.name}`:i?Vi(i):"Session"}async function dx(i){
+  i.innerHTML=`<div class="max-w-4xl mx-auto px-4 py-6 sm:py-10" id="history-root">
     <div class="text-center py-16 text-slate-500">Loading your sessions…</div>
-  </div>`;const e=i.querySelector("#history-root");let t,n=new Map;try{const o=await Ut("/api/debates");t=Array.isArray(o)?o:o.debates;try{n=new Map((await fa()).map(c=>[c.id,c]))}catch{}}catch(o){e.innerHTML=`<div class="text-center py-16 text-slate-400">
+  </div>`;
+  const e=i.querySelector("#history-root");
+  let t,n=new Map;
+  try{
+    const o=await Ut("/api/debates");
+    t=Array.isArray(o)?o:o.debates;
+    try{n=new Map((await fa()).map(c=>[c.id,c]));}catch{}
+  }catch(o){
+    e.innerHTML=`<div class="text-center py-16 text-slate-400">
       <p class="text-white font-semibold mb-2">Couldn’t load your history</p>
       <p class="text-sm">${o instanceof Bt?`Error ${o.status}`:"Check your connection and try again."}</p>
-    </div>`;return}if(t.length===0){e.innerHTML=`
+    </div>`;
+    return;
+  }
+  if(t.length===0){
+    e.innerHTML=`
       <div class="text-center mb-8">
         <h1 class="font-display text-3xl text-white">Session history</h1>
       </div>
@@ -4614,38 +4679,248 @@ if(t.targetRounds&&_sparCurRound>t.targetRounds){const _trb=i.querySelector("#sp
         <p class="text-white font-semibold mb-1">No sessions yet</p>
         <p class="text-sm text-slate-400 mb-6">Your finished sessions and full transcripts will live here.</p>
         <a href="#/" class="inline-block px-5 py-2.5 rounded-xl bg-accent-500 hover:bg-accent-400 text-[#fff] font-semibold text-sm">Start your first session</a>
-      </div>`;return}e.innerHTML=`
-    <div class="mb-8">
-      <h1 class="font-display text-3xl text-white">Session history</h1>
-      <p class="text-slate-400 text-sm mt-1">${t.length} session${t.length===1?"":"s"} · select one to read the full transcript</p>
+      </div>`;
+    return;
+  }
+  e.innerHTML=`
+    <div class="mb-8 flex items-center justify-between gap-4 flex-wrap">
+      <div>
+        <h1 class="font-display text-3xl text-white">Session history</h1>
+        <p class="text-slate-400 text-sm mt-1" id="history-counter">${t.length} session${t.length===1?"":"s"} · tap to resume active sparring or view transcripts</p>
+      </div>
+      <a href="#/" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-accent-500 hover:bg-accent-400 text-white font-semibold text-xs sm:text-sm shadow-md shadow-accent-500/20 transition-all">
+        + New Session
+      </a>
     </div>
-    <div class="space-y-3" id="debate-list"></div>
-    <div id="debate-detail" class="hidden mt-8"></div>`;const s=e.querySelector("#debate-list"),r=e.querySelector("#debate-detail");for(const o of t){const c=document.createElement("button");c.type="button",c.className="w-full text-left rounded-2xl border border-ink-700 bg-ink-900 p-5 hover:border-slate-500 transition-colors",c.innerHTML=`
-      <div class="flex items-start justify-between gap-3">
-        <div class="min-w-0">
-          <div class="text-white font-semibold truncate">${Vi(o.topic)}</div>
-          <div class="text-sm text-slate-400 mt-1">${po(o.mode,n)} · ${Vi(Yl(o.created_at))}</div>
-        </div>
-        <span class="shrink-0 text-xs px-2.5 py-1 rounded-full border ${o.ended_at?"border-emerald-800 text-emerald-300 bg-emerald-950/50":"border-ink-700 text-slate-400"}">${o.ended_at?"Scored":"In progress"}</span>
-      </div>`,c.addEventListener("click",()=>void a(o.id)),s.appendChild(c)}async function a(o){r.classList.remove("hidden"),r.innerHTML='<div class="rounded-2xl border border-ink-700 bg-ink-900 p-6 text-slate-500 text-sm">Loading transcript…</div>',r.scrollIntoView({behavior:"smooth",block:"start"});try{const c=await Ut(`/api/debates/${encodeURIComponent(o)}`),l=c.debate,d=l.mode&&l.mode!=="debate"?po(l.mode,n):lx[l.personality]??l.personality,u=c.turns.map(h=>{const p=h.role==="user"||h.role==="you";return`
-          <div class="flex ${p?"justify-end":"justify-start"}">
-            <div class="max-w-[85%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${p?"bg-accent-500/15 border border-accent-500/30 text-slate-100 rounded-br-md":"bg-ink-800 border border-ink-700 text-slate-200 rounded-bl-md"}">
-              <div class="text-[11px] font-semibold uppercase tracking-wide mb-1 ${p?"text-accent-400":"text-slate-500"}">
-                ${p?"You":d}
-              </div>
-              <div class="whitespace-pre-wrap">${Vi(h.text)}</div>
+    <div class="space-y-3.5" id="debate-list"></div>
+    <div id="debate-detail" class="hidden mt-8"></div>`;
+
+  const s=e.querySelector("#debate-list"),
+        r=e.querySelector("#debate-detail");
+
+  function renderDebateList(){
+    s.innerHTML="";
+    for(const o of t){
+      const isEnded=Boolean(o.ended_at);
+      const c=document.createElement("div");
+      c.className="w-full rounded-2xl border border-ink-700 bg-ink-900 p-4 sm:p-5 transition-all shadow-sm hover:border-slate-500";
+      c.setAttribute("data-debate-id",o.id);
+      c.innerHTML=`
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0 flex-1 cursor-pointer" data-role="card-header">
+            <div class="text-white font-semibold text-base sm:text-lg truncate hover:text-accent-300 transition-colors">${Vi(o.topic)}</div>
+            <div class="text-xs sm:text-sm text-slate-400 mt-1 flex items-center gap-2 flex-wrap">
+              <span>${po(o.mode,n)}</span>
+              <span>•</span>
+              <span>${Vi(Yl(o.created_at))}</span>
+              ${o.targetRounds?`<span class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-ink-800 border border-ink-700 text-slate-300">${o.targetRounds} Rounds</span>`:""}
             </div>
-          </div>`}).join("");r.innerHTML=`
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            <span class="text-xs px-2.5 py-1 rounded-full border ${isEnded?"border-emerald-800 text-emerald-300 bg-emerald-950/50":"border-amber-500/40 text-amber-300 bg-amber-500/10 animate-pulse"} font-medium">
+              ${isEnded?"✓ Scored":"● In progress"}
+            </span>
+            <button type="button" data-action="delete" title="Delete session" class="p-1.5 sm:px-2.5 sm:py-1 rounded-lg border border-ink-700 bg-ink-800 hover:bg-red-950 hover:border-red-800 hover:text-red-300 text-slate-400 transition-colors text-xs flex items-center gap-1">
+              <span>🗑️</span><span class="hidden sm:inline text-[11px]">Delete</span>
+            </button>
+          </div>
+        </div>
+        <div class="mt-3 pt-3 border-t border-ink-700/60 flex items-center justify-between gap-2 flex-wrap">
+          ${!isEnded?`
+            <div class="flex items-center gap-2 flex-wrap">
+              <button type="button" data-action="resume" class="px-3.5 py-1.5 rounded-xl bg-accent-500 hover:bg-accent-400 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-accent-500/20 transition-all">
+                ▶ Resume Sparring
+              </button>
+              <button type="button" data-action="closeout" class="px-3 py-1.5 rounded-xl bg-purple-600/20 border border-purple-500/40 hover:bg-purple-600/30 text-purple-200 font-semibold text-xs flex items-center gap-1 transition-all">
+                ⚖️ Close &amp; Grade
+              </button>
+              <button type="button" data-action="transcript" class="px-3 py-1.5 rounded-xl border border-ink-700 bg-ink-800 hover:border-slate-500 text-slate-300 text-xs transition-all">
+                📜 Transcript
+              </button>
+            </div>
+          `:`
+            <div class="flex items-center gap-2">
+              <button type="button" data-action="transcript" class="px-3.5 py-1.5 rounded-xl border border-ink-700 bg-ink-800 hover:border-slate-500 text-slate-200 font-medium text-xs flex items-center gap-1.5 transition-all">
+                📜 View Transcript &amp; Scores
+              </button>
+            </div>
+          `}
+        </div>`;
+
+      const cardHeader=c.querySelector('[data-role="card-header"]');
+      cardHeader.addEventListener("click",()=>{
+        if(!isEnded){
+          location.hash=`#/session/${encodeURIComponent(o.id)}`;
+        }else{
+          void showDetail(o.id);
+        }
+      });
+
+      const resumeBtn=c.querySelector('[data-action="resume"]');
+      if(resumeBtn){
+        resumeBtn.addEventListener("click",(ev)=>{
+          ev.stopPropagation();
+          location.hash=`#/session/${encodeURIComponent(o.id)}`;
+        });
+      }
+
+      const transBtn=c.querySelector('[data-action="transcript"]');
+      if(transBtn){
+        transBtn.addEventListener("click",(ev)=>{
+          ev.stopPropagation();
+          void showDetail(o.id);
+        });
+      }
+
+      const closeBtn=c.querySelector('[data-action="closeout"]');
+      if(closeBtn){
+        closeBtn.addEventListener("click",async(ev)=>{
+          ev.stopPropagation();
+          if(!confirm("Close out this debate now and have the AI Judge score it?"))return;
+          closeBtn.disabled=true;
+          closeBtn.textContent="Scoring…";
+          try{
+            await zt("/api/debate/end",{debateId:o.id});
+            o.ended_at=new Date().toISOString();
+            renderDebateList();
+            void showDetail(o.id);
+          }catch(err){
+            alert("Could not close out session: "+(err.message||"Try again."));
+            closeBtn.disabled=false;
+            closeBtn.textContent="⚖️ Close & Grade";
+          }
+        });
+      }
+
+      const delBtn=c.querySelector('[data-action="delete"]');
+      if(delBtn){
+        delBtn.addEventListener("click",async(ev)=>{
+          ev.stopPropagation();
+          if(!confirm(`Delete "${o.topic||"this session"}"? This will permanently remove all turns and scores.`))return;
+          delBtn.disabled=true;
+          try{
+            const delRes=await fetch(`/api/debates/${encodeURIComponent(o.id)}`,{method:"DELETE"});
+            if(!delRes.ok)throw new Error("Failed to delete session");
+            t=t.filter(x=>x.id!==o.id);
+            c.style.opacity="0";
+            c.style.transform="scale(0.95)";
+            setTimeout(()=>{
+              c.remove();
+              const cntEl=e.querySelector("#history-counter");
+              if(cntEl)cntEl.textContent=`${t.length} session${t.length===1?"":"s"} · tap to resume active sparring or view transcripts`;
+              if(t.length===0){
+                dx(i);
+              }
+            },200);
+          }catch(err){
+            alert("Could not delete session: "+err.message);
+            delBtn.disabled=false;
+          }
+        });
+      }
+
+      s.appendChild(c);
+    }
+  }
+
+  renderDebateList();
+
+  async function showDetail(o){
+    r.classList.remove("hidden");
+    r.innerHTML='<div class="rounded-2xl border border-ink-700 bg-ink-900 p-6 text-slate-500 text-sm">Loading transcript…</div>';
+    r.scrollIntoView({behavior:"smooth",block:"start"});
+    try{
+      const c=await Ut(`/api/debates/${encodeURIComponent(o)}`),
+            l=c.debate,
+            isDebEnded=Boolean(l.ended_at),
+            d=l.mode&&l.mode!=="debate"?po(l.mode,n):lx[l.personality]??l.personality,
+            u=c.turns.map(h=>{
+              const p=h.role==="user"||h.role==="you";
+              return`
+                <div class="flex ${p?"justify-end":"justify-start"}">
+                  <div class="max-w-[85%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${p?"bg-accent-500/15 border border-accent-500/30 text-slate-100 rounded-br-md":"bg-ink-800 border border-ink-700 text-slate-200 rounded-bl-md"}">
+                    <div class="text-[11px] font-semibold uppercase tracking-wide mb-1 ${p?"text-accent-400":"text-slate-500"}">
+                      ${p?"You":d}
+                    </div>
+                    <div class="whitespace-pre-wrap">${Vi(h.text)}</div>
+                  </div>
+                </div>`;
+            }).join("");
+
+      r.innerHTML=`
         <div class="rounded-2xl border border-ink-700 bg-ink-900 p-6">
-          <div class="flex items-start justify-between gap-3 mb-5 pb-5 border-b border-ink-700">
-            <div>
-              <h2 class="text-white font-semibold text-lg">${Vi(l.topic)}</h2>
+          <div class="flex items-start justify-between gap-3 mb-5 pb-5 border-b border-ink-700 flex-wrap">
+            <div class="min-w-0">
+              <h2 class="text-white font-semibold text-lg sm:text-xl">${Vi(l.topic)}</h2>
               <p class="text-sm text-slate-400 mt-1">${po(l.mode,n)} · ${Vi(Yl(l.created_at))}</p>
             </div>
-            <div class="flex items-center gap-2"><button type="button" id="history-arena-share-btn" class="text-xs px-2.5 py-1 rounded-lg border border-accent-500/40 text-accent-300 bg-accent-500/10 hover:bg-accent-500/20 font-medium">🌐 Arena Link</button><button id="close-detail" class="shrink-0 text-slate-500 hover:text-white text-xl leading-none px-2" aria-label="Close transcript">×</button></div>
+            <div class="flex items-center gap-2 flex-wrap">
+              ${!isDebEnded?`
+                <button type="button" id="detail-resume-btn" class="text-xs px-3.5 py-1.5 rounded-xl bg-accent-500 hover:bg-accent-400 text-white font-bold flex items-center gap-1 shadow-md shadow-accent-500/20 transition-all">
+                  ▶ Resume
+                </button>
+                <button type="button" id="detail-closeout-btn" class="text-xs px-3 py-1.5 rounded-xl bg-purple-600/20 border border-purple-500/40 text-purple-200 hover:bg-purple-600/30 font-semibold transition-all">
+                  ⚖️ Close &amp; Grade
+                </button>
+              `:""}
+              <button type="button" id="detail-delete-btn" class="text-xs px-2.5 py-1.5 rounded-xl border border-ink-700 bg-ink-800 hover:bg-red-950 hover:border-red-800 hover:text-red-300 text-slate-400 transition-colors">
+                🗑️ Delete
+              </button>
+              <button id="close-detail" class="shrink-0 text-slate-400 hover:text-white text-xl leading-none px-2" aria-label="Close transcript">×</button>
+            </div>
           </div>
           <div class="space-y-3 max-h-[60vh] overflow-y-auto transcript-scroll pr-1">${u||'<p class="text-slate-500 text-sm">No turns recorded.</p>'}</div>
-        </div>`,r.querySelector("#close-detail").addEventListener("click",()=>r.classList.add("hidden"))}catch{r.innerHTML='<div class="rounded-2xl border border-red-900 bg-red-950/40 p-6 text-sm text-red-300">Couldn’t load that transcript. Try again.</div>'}}}function Lt(i){return i.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}function xs(i){return i.replace(/\bdebates\b/gi,e=>e[0]===e[0].toUpperCase()?"Sessions":"sessions")}function Kl(i,e){try{return new Intl.NumberFormat(void 0,{style:"currency",currency:e.toUpperCase()}).format(i/100)}catch{return`${(i/100).toFixed(2)} ${e.toUpperCase()}`}}function ux(i){if(!i)return"—";const e=new Date(i);return Number.isNaN(e.getTime())?i:e.toLocaleDateString(void 0,{month:"long",day:"numeric",year:"numeric"})}async function qu(i){i.innerHTML='<div class="max-w-4xl mx-auto px-4 py-6 sm:py-10" id="account-root"></div>';const e=i.querySelector("#account-root");e.appendChild(nd("page"));let t,n;try{[t,n]=await Promise.all([Ut("/api/account"),Ut("/api/billing/prices")])}catch(x){e.innerHTML="";const R=x instanceof Bt?`Error ${x.status}`:"Check your connection and try again.";e.appendChild(id(`Couldn't load your account. ${R}`,()=>void qu(i)));return}const s=await da(),r=t.usage.quota>0?Math.min(100,t.usage.debates_used/t.usage.quota*100):0,a=t.subscription;e.innerHTML="";const o=document.createElement("div");o.className="mb-8",o.innerHTML=`
+        </div>`;
+
+      r.querySelector("#close-detail").addEventListener("click",()=>r.classList.add("hidden"));
+
+      const dResBtn=r.querySelector("#detail-resume-btn");
+      if(dResBtn){
+        dResBtn.onclick=()=>{location.hash=`#/session/${encodeURIComponent(l.id)}`;};
+      }
+
+      const dCloseBtn=r.querySelector("#detail-closeout-btn");
+      if(dCloseBtn){
+        dCloseBtn.onclick=async()=>{
+          if(!confirm("Close out this debate now and have the AI Judge score it?"))return;
+          dCloseBtn.disabled=true;
+          dCloseBtn.textContent="Scoring…";
+          try{
+            await zt("/api/debate/end",{debateId:l.id});
+            const item=t.find(x=>x.id===l.id);
+            if(item)item.ended_at=new Date().toISOString();
+            renderDebateList();
+            void showDetail(l.id);
+          }catch(err){
+            alert("Could not close session: "+err.message);
+            dCloseBtn.disabled=false;
+            dCloseBtn.textContent="⚖️ Close & Grade";
+          }
+        };
+      }
+
+      const dDelBtn=r.querySelector("#detail-delete-btn");
+      if(dDelBtn){
+        dDelBtn.onclick=async()=>{
+          if(!confirm(`Delete "${l.topic||"this session"}"?`))return;
+          dDelBtn.disabled=true;
+          try{
+            await fetch(`/api/debates/${encodeURIComponent(l.id)}`,{method:"DELETE"});
+            t=t.filter(x=>x.id!==l.id);
+            renderDebateList();
+            r.classList.add("hidden");
+          }catch(err){
+            alert("Could not delete session: "+err.message);
+            dDelBtn.disabled=false;
+          }
+        };
+      }
+    }catch{
+      r.innerHTML='<div class="rounded-2xl border border-red-900 bg-red-950/40 p-6 text-sm text-red-300">Couldn’t load that transcript. Try again.</div>';
+    }
+  }
+}
+function Lt(i){return i.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}function xs(i){return i.replace(/\bdebates\b/gi,e=>e[0]===e[0].toUpperCase()?"Sessions":"sessions")}function Kl(i,e){try{return new Intl.NumberFormat(void 0,{style:"currency",currency:e.toUpperCase()}).format(i/100)}catch{return`${(i/100).toFixed(2)} ${e.toUpperCase()}`}}function ux(i){if(!i)return"—";const e=new Date(i);return Number.isNaN(e.getTime())?i:e.toLocaleDateString(void 0,{month:"long",day:"numeric",year:"numeric"})}async function qu(i){i.innerHTML='<div class="max-w-4xl mx-auto px-4 py-6 sm:py-10" id="account-root"></div>';const e=i.querySelector("#account-root");e.appendChild(nd("page"));let t,n;try{[t,n]=await Promise.all([Ut("/api/account"),Ut("/api/billing/prices")])}catch(x){e.innerHTML="";const R=x instanceof Bt?`Error ${x.status}`:"Check your connection and try again.";e.appendChild(id(`Couldn't load your account. ${R}`,()=>void qu(i)));return}const s=await da(),r=t.usage.quota>0?Math.min(100,t.usage.debates_used/t.usage.quota*100):0,a=t.subscription;e.innerHTML="";const o=document.createElement("div");o.className="mb-8",o.innerHTML=`
     <p class="eyebrow mb-2">Settings</p>
     <h1 class="font-display text-display-lg text-white">Account</h1>
     <p class="text-slate-400 text-body-sm mt-1">${Lt(s?.email??t.email)}</p>`,e.appendChild(o);const c=document.createElement("div");c.className="grid sm:grid-cols-2 gap-4 mb-10",c.innerHTML=`

@@ -4520,21 +4520,26 @@ debateRouter.post("/end", async (c) => {
   const turns = await c.env.DB.prepare(
     "SELECT role, text FROM turns WHERE debate_id = ? ORDER BY id ASC"
   ).bind(debateId).all();
-  const transcript = formatTranscript(turns.results ?? [], opponentLabel(debate, mode));
+  const turnRows = turns.results ?? [];
   let scores;
-  try {
-    const raw2 = await modelText(
-      c.env,
-      mode.scoringPrompt(),
-      `Session topic: ${debate.topic}
+  if (turnRows.length === 0) {
+    scores = emptyScores(mode.scoringDimensions, "Session concluded with no dialogue.");
+  } else {
+    const transcript = formatTranscript(turnRows, opponentLabel(debate, mode));
+    try {
+      const raw2 = await modelText(
+        c.env,
+        mode.scoringPrompt(),
+        `Session topic: ${debate.topic}
 
 ${transcript}`,
-      2e3,
-      { premium: await isPremium(c, user.id, user.email) }
-    );
-    scores = parseScores(raw2, mode.scoringDimensions);
-  } catch {
-    scores = emptyScores(mode.scoringDimensions, "Scoring unavailable.");
+        2e3,
+        { premium: await isPremium(c, user.id, user.email) }
+      );
+      scores = parseScores(raw2, mode.scoringDimensions);
+    } catch {
+      scores = emptyScores(mode.scoringDimensions, "Scoring unavailable.");
+    }
   }
   await c.env.DB.prepare("UPDATE debates SET ended_at = ? WHERE id = ?").bind(nowIso(), debateId).run();
   return c.json({ scores });
@@ -4710,13 +4715,27 @@ debatesRouter.get("/", async (c) => {
       }
     } catch {
     }
+    const figureId = setup.figureId || (r.mode === "historical" ? r.personality : void 0);
     let personaLabel;
     if (r.mode === "historical") {
-      const fig = figureById(typeof setup.figureId === "string" ? setup.figureId : "");
+      const fig = figureById(typeof figureId === "string" ? figureId : "");
       if (fig) personaLabel = fig.name;
     }
-    const { setup_json: _omitted, ...rest } = r;
-    return { ...rest, judgeEnabled, personaVisual, personaLabel, isPublic: Boolean(r.is_public), views: r.views ?? 0 };
+    const targetRounds = parseInt(setup.targetRounds ?? "0", 10) || 0;
+    return {
+      ...r,
+      setup,
+      judgeEnabled,
+      personaVisual,
+      personaLabel,
+      figureId,
+      targetRounds,
+      firstSpeaker: setup.firstSpeaker,
+      resolvedFirstSpeaker: setup.resolvedFirstSpeaker,
+      debateStyle: setup.debateStyle,
+      isPublic: Boolean(r.is_public),
+      views: r.views ?? 0
+    };
   });
   return c.json({ debates });
 });
@@ -4755,11 +4774,19 @@ debatesRouter.get("/:id", async (c) => {
   }
   const setup = parseSetup(debate.setup_json);
   const targetRounds = parseInt(setup.targetRounds ?? "0", 10) || 0;
+  const figureId = setup.figureId || (debate.mode === "historical" ? debate.personality : void 0);
+  let personaLabel;
+  if (debate.mode === "historical") {
+    const fig = figureById(typeof figureId === "string" ? figureId : "");
+    if (fig) personaLabel = fig.name;
+  }
   const availability = await checkRoundsAvailable(c, user.id, user.email);
   return c.json({
     debate: {
       ...debate,
       targetRounds,
+      figureId,
+      personaLabel,
       firstSpeaker: setup.firstSpeaker,
       resolvedFirstSpeaker: setup.resolvedFirstSpeaker,
       debateStyle: setup.debateStyle,
@@ -4772,6 +4799,25 @@ debatesRouter.get("/:id", async (c) => {
     targetRounds,
     remainingRounds: availability.remaining
   });
+});
+debatesRouter.delete("/:id", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  const debateId = c.req.param("id");
+  const debate = await getOwnedDebate(c, debateId, user.id);
+  if (!debate) return c.json({ error: "debate_not_found" }, 404);
+
+  try {
+    await c.env.DB.prepare("DELETE FROM turns WHERE debate_id = ?").bind(debateId).run();
+    await c.env.DB.prepare("DELETE FROM verdicts WHERE debate_id = ?").bind(debateId).run();
+    await c.env.DB.prepare("DELETE FROM debate_votes WHERE debate_id = ?").bind(debateId).run();
+    await c.env.DB.prepare("DELETE FROM debate_reactions WHERE debate_id = ?").bind(debateId).run();
+    await c.env.DB.prepare("DELETE FROM debates WHERE id = ? AND user_id = ?").bind(debateId, user.id).run();
+    return c.json({ ok: true, deleted: debateId });
+  } catch (err) {
+    console.error("[DELETE /api/debates/:id] error", err);
+    return c.json({ error: "failed_to_delete" }, 500);
+  }
 });
 
 async function getVoterKey(c) {
