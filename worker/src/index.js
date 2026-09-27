@@ -4187,6 +4187,64 @@ function emptyScores(dimensions, notes) {
   };
 }
 __name(emptyScores, "emptyScores");
+
+function buildTurnPrompt(debate, mode, setup, transcript, isOpening, curRound, targetRounds) {
+  const debateStyle = setup.debateStyle || "oxford";
+  const isDebateMode = debate.mode === "debate" || debate.mode === "historical";
+
+  if (isOpening) {
+    if (isDebateMode) {
+      if (debateStyle === "lincoln_douglas") {
+        return `You are taking the floor as the FIRST speaker delivering the formal OPENING STATEMENT in a Lincoln-Douglas debate on: "${debate.topic}".
+Define your core moral framework (e.g. Utilitarianism, Deontology, Social Contract, Natural Rights) and value criterion. Argue why your position upholds this moral principle with rigorous philosophical justification. Keep under 140 words, dignified, articulate, and formidable.`;
+      } else if (debateStyle === "rapid") {
+        return `You are taking the floor first in a high-intensity Rapid Cross-Examination debate on: "${debate.topic}".
+Deliver a sharp, aggressive opening challenge attacking the counter-position. Keep under 70 words, punchy and direct, ending with an incisive question.`;
+      } else if (debateStyle === "freeform") {
+        return `You are opening a sparring discussion on: "${debate.topic}".
+State your opening position clearly, provocatively, and concisely under 100 words.`;
+      } else {
+        return `You are taking the floor as the FIRST speaker delivering the formal OPENING STATEMENT / CONSTRUCTIVE SPEECH on the motion: "${debate.topic}".
+State your side's resolution with confidence, lay out 2-3 foundational pillars supported by reasoning, and set the terms of the debate. Keep under 140 words, articulate and intellectually formidable.`;
+      }
+    } else if (debate.mode === "interview") {
+      return `You are the hiring manager conducting an interview for ${setup.jobTitle || "the position"}${setup.company ? ` at ${setup.company}` : ""}. Welcome the candidate and deliver your opening question. Keep under 80 words.`;
+    } else if (debate.mode === "thesis") {
+      return `The thesis defense is convened on: "${setup.thesisStatement}". As committee chair, welcome the candidate and deliver the committee's opening challenge/question. Keep under 80 words.`;
+    } else if (debate.mode === "expert") {
+      return `You are playing ${setup.audience || "a skeptical decision-maker"}. The candidate is the expert on "${setup.topic}". Welcome them and ask your first challenging question. Keep under 80 words.`;
+    } else if (debate.mode === "rapbattle") {
+      return `You won the coin toss and take the mic first in this rap battle on: "${debate.topic}"! Drop your opening 8-12 bars. Sharp flow, clever wordplay, completely clean and free of vulgarity.`;
+    } else {
+      return `Begin the session on "${debate.topic}" in character. Deliver your opening lines or opening challenge under 100 words.`;
+    }
+  }
+
+  let phaseGuidance = "";
+  if (isDebateMode) {
+    if (curRound <= 1) {
+      phaseGuidance = `[PHASE 1: OPENING STATEMENTS] The user has delivered their opening statement on: "${debate.topic}".
+Deliver your formal OPENING COUNTER-STATEMENT. Directly challenge their primary definitions and premises, and establish your own core contentions. Keep under 140 words.`;
+    } else if (targetRounds > 0 && curRound >= targetRounds) {
+      phaseGuidance = `[PHASE 3: FINAL CLOSING ARGUMENTS - ROUND ${curRound} OF ${targetRounds}]
+This is the FINAL ROUND of the debate. Deliver your formal CLOSING STATEMENT to the judge. Crystallize the core voting issues: summarize why your side prevailed, point out what the user failed to answer, and deliver a compelling final appeal. Keep under 140 words.`;
+    } else {
+      const roundLabel = targetRounds > 0 ? `Round ${curRound} of ${targetRounds}` : `Round ${curRound} (Unlimited Sparring)`;
+      phaseGuidance = `[PHASE 2: REBUTTAL & CROSS-EXAMINATION - ${roundLabel}]
+Direct clash: attack weak premises, expose contradictions, challenge unverified claims, and press your advantage. Keep under 120 words.`;
+    }
+  } else {
+    phaseGuidance = "Respond to the user's latest message in character.";
+  }
+
+  return `Session transcript:
+
+${transcript}
+
+${phaseGuidance}`;
+}
+__name(buildTurnPrompt, "buildTurnPrompt");
+
 var debateRouter = new Hono2();
 debateRouter.post("/start", async (c) => {
   const user = await getSessionUser(c);
@@ -4256,11 +4314,33 @@ debateRouter.post("/start", async (c) => {
   if (!availability.ok) return c.json({ error: "quota_exhausted", message: "You have no rounds remaining in your wallet. Please select a plan or top-up pack to continue." }, 402);
   const targetRounds = Math.max(0, Math.min(100, Math.floor(Number(body.targetRounds ?? rawSetup.targetRounds ?? 0)) || 0));
   setup.targetRounds = String(targetRounds);
+
+  const reqFirstSpeaker = String(body.firstSpeaker ?? rawSetup.firstSpeaker ?? "cointoss").toLowerCase();
+  let resolvedFirstSpeaker = reqFirstSpeaker;
+  if (reqFirstSpeaker === "cointoss") {
+    resolvedFirstSpeaker = Math.random() < 0.5 ? "user" : "opponent";
+  } else if (reqFirstSpeaker !== "user" && reqFirstSpeaker !== "opponent") {
+    resolvedFirstSpeaker = "user";
+  }
+  setup.firstSpeaker = reqFirstSpeaker;
+  setup.resolvedFirstSpeaker = resolvedFirstSpeaker;
+
+  const validStyles = new Set(["oxford", "lincoln_douglas", "rapid", "freeform"]);
+  const reqStyle = String(body.debateStyle ?? rawSetup.debateStyle ?? "oxford").toLowerCase();
+  setup.debateStyle = validStyles.has(reqStyle) ? reqStyle : "oxford";
+
   const debateId = newId();
   await c.env.DB.prepare(
     "INSERT INTO debates (id, user_id, personality, topic, mode, setup_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
   ).bind(debateId, user.id, actorId, topic, mode.id, JSON.stringify(setup), nowIso()).run();
-  return c.json({ debateId, targetRounds, remainingRounds: availability.remaining }, 201);
+  return c.json({
+    debateId,
+    targetRounds,
+    remainingRounds: availability.remaining,
+    firstSpeaker: setup.firstSpeaker,
+    resolvedFirstSpeaker: setup.resolvedFirstSpeaker,
+    debateStyle: setup.debateStyle
+  }, 201);
 });
 debateRouter.post("/turn", async (c) => {
   const user = await getSessionUser(c);
@@ -4268,16 +4348,24 @@ debateRouter.post("/turn", async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const debateId = String(body.debateId ?? "");
   const text = String(body.text ?? "").trim();
-  if (!debateId || !text) return c.json({ error: "debateId_and_text_required" }, 400);
+  const isOpening = body.action === "open";
+  if (!debateId || (!text && !isOpening)) return c.json({ error: "debateId_and_text_required" }, 400);
   if (text.length > 4e3) return c.json({ error: "text_too_long" }, 400);
   const debate = await getOwnedDebate(c, debateId, user.id);
   if (!debate) return c.json({ error: "debate_not_found" }, 404);
   if (debate.ended_at) return c.json({ error: "debate_ended" }, 400);
+  if (isOpening) {
+    const existingAssistant = await c.env.DB.prepare("SELECT id FROM turns WHERE debate_id = ? AND role = 'assistant' LIMIT 1").bind(debateId).first();
+    if (existingAssistant) return c.json({ error: "opening_already_delivered" }, 400);
+  }
   const consumption = await consumeRound(c, user.id, user.email);
   if (!consumption.allowed) return c.json({ error: "quota_exhausted", message: "You have used all rounds in your wallet." }, 402);
-  await c.env.DB.prepare("INSERT INTO turns (debate_id, role, text, created_at) VALUES (?, ?, ?, ?)").bind(debateId, "user", text, nowIso()).run();
+  if (!isOpening) {
+    await c.env.DB.prepare("INSERT INTO turns (debate_id, role, text, created_at) VALUES (?, ?, ?, ?)").bind(debateId, "user", text, nowIso()).run();
+  }
   const mode = getMode(debate.mode);
   const setup = parseSetup(debate.setup_json);
+  const targetRounds = parseInt(setup.targetRounds ?? "0", 10) || 0;
   const systemPrompt = mode.systemPrompt({ ...setup, topic: debate.topic });
   const history = await c.env.DB.prepare(
     "SELECT role, text FROM turns WHERE debate_id = ? ORDER BY id DESC LIMIT 20"
@@ -4286,14 +4374,13 @@ debateRouter.post("/turn", async (c) => {
     [...history.results ?? []].reverse(),
     opponentLabel(debate, mode)
   );
+  const turnCount = history.results?.length ?? 0;
+  const curRound = Math.floor(turnCount / 2) + 1;
+  const userInput = buildTurnPrompt(debate, mode, setup, transcript, isOpening, curRound, targetRounds);
   const rawReply = await modelText(
     c.env,
     systemPrompt,
-    `Session transcript:
-
-${transcript}
-
-Respond to the user's latest message.`,
+    userInput,
     1500,
     { premium: await isPremium(c, user.id, user.email) }
   );
@@ -4327,16 +4414,24 @@ debateRouter.post("/turn-stream", async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const debateId = String(body.debateId ?? "");
   const text = String(body.text ?? "").trim();
-  if (!debateId || !text) return c.json({ error: "debateId_and_text_required" }, 400);
+  const isOpening = body.action === "open";
+  if (!debateId || (!text && !isOpening)) return c.json({ error: "debateId_and_text_required" }, 400);
   if (text.length > 4e3) return c.json({ error: "text_too_long" }, 400);
   const debate = await getOwnedDebate(c, debateId, user.id);
   if (!debate) return c.json({ error: "debate_not_found" }, 404);
   if (debate.ended_at) return c.json({ error: "debate_ended" }, 400);
+  if (isOpening) {
+    const existingAssistant = await c.env.DB.prepare("SELECT id FROM turns WHERE debate_id = ? AND role = 'assistant' LIMIT 1").bind(debateId).first();
+    if (existingAssistant) return c.json({ error: "opening_already_delivered" }, 400);
+  }
   const consumption = await consumeRound(c, user.id, user.email);
   if (!consumption.allowed) return c.json({ error: "quota_exhausted", message: "You have used all rounds in your wallet." }, 402);
-  await c.env.DB.prepare("INSERT INTO turns (debate_id, role, text, created_at) VALUES (?, ?, ?, ?)").bind(debateId, "user", text, nowIso()).run();
+  if (!isOpening) {
+    await c.env.DB.prepare("INSERT INTO turns (debate_id, role, text, created_at) VALUES (?, ?, ?, ?)").bind(debateId, "user", text, nowIso()).run();
+  }
   const mode = getMode(debate.mode);
   const setup = parseSetup(debate.setup_json);
+  const targetRounds = parseInt(setup.targetRounds ?? "0", 10) || 0;
   const systemPrompt = mode.systemPrompt({ ...setup, topic: debate.topic });
   const history = await c.env.DB.prepare(
     "SELECT role, text FROM turns WHERE debate_id = ? ORDER BY id DESC LIMIT 20"
@@ -4345,12 +4440,10 @@ debateRouter.post("/turn-stream", async (c) => {
     [...history.results ?? []].reverse(),
     opponentLabel(debate, mode)
   );
+  const turnCount = history.results?.length ?? 0;
+  const curRound = Math.floor(turnCount / 2) + 1;
   const premium = await isPremium(c, user.id, user.email);
-  const userInput = `Session transcript:
-
-${transcript}
-
-Respond to the user's latest message.`;
+  const userInput = buildTurnPrompt(debate, mode, setup, transcript, isOpening, curRound, targetRounds);
   const figureId = debate.mode === "historical" ? figureById(setup.figureId)?.id : void 0;
   const personaVisualId = typeof setup.personaVisual === "string" ? setup.personaVisual : void 0;
   const voiceInfo = await resolveTtsVoice(debate.personality, figureId, personaVisualId).catch(() => null);
@@ -4664,7 +4757,15 @@ debatesRouter.get("/:id", async (c) => {
   const targetRounds = parseInt(setup.targetRounds ?? "0", 10) || 0;
   const availability = await checkRoundsAvailable(c, user.id, user.email);
   return c.json({
-    debate: { ...debate, targetRounds, isPublic: Boolean(debate.is_public), views: debate.views ?? 0 },
+    debate: {
+      ...debate,
+      targetRounds,
+      firstSpeaker: setup.firstSpeaker,
+      resolvedFirstSpeaker: setup.resolvedFirstSpeaker,
+      debateStyle: setup.debateStyle,
+      isPublic: Boolean(debate.is_public),
+      views: debate.views ?? 0
+    },
     turns: turns.results ?? [],
     verdict,
     votes,
