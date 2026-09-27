@@ -109,7 +109,7 @@ var init_config = __esm({
       aurelius: "en-US-RogerNeural",
       voltaire: "en-US-AndrewNeural",
       eleanor: "en-US-SaraNeural",
-      smith: "en-US-RyanNeural"
+      smith: "en-US-RyanMultilingualNeural"
     };
     PERSONA_VISUAL_VOICES = {
       "teen-boy": "en-US-TonyNeural",
@@ -3478,7 +3478,7 @@ var HISTORICAL_FIGURES = [
       "Accepted a limited role for government: defense, justice, and public works."
     ],
     suggestedTopic: "Should governments intervene in free markets?",
-    voice: "en-US-RyanNeural"
+    voice: "en-US-RyanMultilingualNeural"
   }
 ];
 function figureById(id) {
@@ -5029,6 +5029,48 @@ accountRouter.get("/admin/stripe-status", async (c) => {
   const priceIds = await getStripePriceIdsAsync(c.env);
   const hasSecret = Boolean(c.env.STRIPE_SECRET_KEY);
   return c.json({ ok: true, hasSecret, priceIds });
+});
+
+accountRouter.get("/admin/azure-status", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  if (!isOwnerEmail(user.email, c.env)) return c.json({ error: "forbidden" }, 403);
+  const region = c.env.AZURE_SPEECH_REGION;
+  const key = c.env.AZURE_SPEECH_KEY;
+  if (!region || !key) {
+    return c.json({ ok: false, error: "missing_credentials", hasRegion: Boolean(region), hasKey: Boolean(key) });
+  }
+  let tokenStatus = null, tokenError = null;
+  try {
+    const res = await fetch(`https://${region}.api.cognitive.microsoft.com/sts/v1.0/issueToken`, {
+      method: "POST",
+      headers: { "Ocp-Apim-Subscription-Key": key, "User-Agent": "AdversaryAI/1.0", "Content-Type": "application/x-www-form-urlencoded" },
+      body: ""
+    });
+    tokenStatus = res.status;
+    if (!res.ok) tokenError = await res.text();
+  } catch (e) {
+    tokenError = e instanceof Error ? e.message : String(e);
+  }
+  let ttsStatus = null, ttsError = null;
+  try {
+    const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-US"><voice name="en-US-RyanMultilingualNeural">Testing voice.</voice></speak>`;
+    const res = await fetch(`https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`, {
+      method: "POST",
+      headers: {
+        "Ocp-Apim-Subscription-Key": key,
+        "Content-Type": "application/ssml+xml",
+        "X-Microsoft-OutputFormat": "audio-24khz-96kbitrate-mono-mp3",
+        "User-Agent": "AdversaryAI/1.0"
+      },
+      body: ssml
+    });
+    ttsStatus = res.status;
+    if (!res.ok) ttsError = await res.text();
+  } catch (e) {
+    ttsError = e instanceof Error ? e.message : String(e);
+  }
+  return c.json({ ok: true, region, keyConfigured: true, tokenStatus, tokenError, ttsStatus, ttsError });
 });
 
 accountRouter.post("/admin/setup-stripe", async (c) => {
