@@ -1,4 +1,4 @@
-﻿var __defProp = Object.defineProperty;
+var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 var __esm = (fn, res, err) => function __init() {
@@ -2989,10 +2989,12 @@ authRouter.post("/logout", async (c) => {
 authRouter.get("/me", async (c) => {
   const user = await getSessionUser(c);
   if (!user) return c.json({ error: "unauthorized" }, 401);
+  const isOwner = isOwnerEmail(user.email, c.env);
+  const adminMode = isOwner ? (getCookie(c, "adversaryai_admin_mode") || "premium") : null;
   const sub = await getSubscription(c.env.DB, user.id);
   const orgs = await getUserOrgs(c.env.DB, user.id);
   const org = orgs[0] ? { id: orgs[0].org.id, name: orgs[0].org.name, role: orgs[0].role } : null;
-  return c.json({ id: user.id, email: user.email, plan: resolvePlan(sub), org });
+  return c.json({ id: user.id, email: user.email, plan: resolvePlan(sub), org, isOwner, adminMode });
 });
 
 // worker/src/model.ts
@@ -3843,7 +3845,11 @@ async function enforceUsage(c, userId, email) {
 }
 __name(enforceUsage, "enforceUsage");
 async function isPremium(c, userId, email) {
-  if (isOwnerEmail(email, c.env)) return true;
+  if (isOwnerEmail(email, c.env)) {
+    const adminMode = (getCookie(c, "adversaryai_admin_mode") || c.req.header("x-adversary-mode") || "").toLowerCase();
+    if (adminMode === "regular") return false;
+    return true;
+  }
   const sub = await getSubscription(c.env.DB, userId);
   return !!sub && isSubscriptionActive(sub) && sub.tier === "champion";
 }
@@ -4356,14 +4362,32 @@ accountRouter.get("/", async (c) => {
     const quotas = await getTierQuotas();
     quota = quotas[sub.tier] ?? 0;
   }
+  const adminMode = owner ? (getCookie(c, "adversaryai_admin_mode") || "premium") : null;
   return c.json({
     email,
     plan: owner ? "owner" : resolvePlan(sub),
+    isOwner: owner,
+    adminMode,
     subscription: sub ? { tier: sub.tier, status: sub.status, current_period_end: sub.current_period_end } : null,
     usage: { month, debates_used: debatesUsed, quota: owner ? -1 : quota },
     creditBalance: await creditBalance(db, user.id),
     trialUsed: fullUser?.trial_debates_used ?? 0
   });
+});
+accountRouter.post("/admin-mode", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  if (!isOwnerEmail(user.email, c.env)) return c.json({ error: "forbidden" }, 403);
+  const body = await c.req.json().catch(() => ({}));
+  const mode = String(body.mode ?? "").toLowerCase() === "regular" ? "regular" : "premium";
+  setCookie(c, "adversaryai_admin_mode", mode, {
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365,
+    sameSite: "Lax",
+    secure: true,
+    httpOnly: false
+  });
+  return c.json({ ok: true, adminMode: mode });
 });
 
 // worker/src/webhooks.ts
