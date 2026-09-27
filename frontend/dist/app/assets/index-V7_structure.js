@@ -4127,7 +4127,7 @@ class LivingPortraitAvatar{
       if(this.disposed)return;
       const dpr=Math.min(window.devicePixelRatio||1,2);
       const w=this.canvas.clientWidth||340;
-      const h=this.canvas.clientHeight||425;
+      const h=this.canvas.clientHeight||260;
       if(this.canvas.width!==Math.round(w*dpr)||this.canvas.height!==Math.round(h*dpr)){
         this.canvas.width=Math.round(w*dpr);
         this.canvas.height=Math.round(h*dpr);
@@ -4262,21 +4262,44 @@ class LivingPortraitAvatar{
     const imgH=this.img.height;
     const imgRatio=imgW/imgH;
     const canvasRatio=w/h;
+
+    // Guaranteed whole-head framing:
+    // If canvas is wider than portrait (standard mobile/tablet view):
+    // Fit portrait to height so 100% of head, hair, face, and collar fit inside canvas height
+    // Top of head is NEVER cut off!
     let renderW,renderH,offsetX,offsetY;
-    if(canvasRatio>imgRatio){
-      renderW=w;
-      renderH=w/imgRatio;
-      offsetX=0;
-      offsetY=Math.max(h-renderH,Math.min(0,(h-renderH)*0.28));
-    }else{
+    if(canvasRatio>=imgRatio){
       renderH=h;
       renderW=h*imgRatio;
       offsetX=(w-renderW)/2;
       offsetY=0;
+    }else{
+      renderW=w;
+      renderH=w/imgRatio;
+      offsetX=0;
+      offsetY=Math.max(0,(h-renderH)/2);
     }
-    const breathScale=1.0+Math.sin(performance.now()*0.0016)*0.003+(this.speaking?this.audioLevel*0.005:0);
+
     const cx=w/2;
     const cy=h/2;
+
+    // 1. Atmospheric ambient background filling the stage
+    ctx.save();
+    try{
+      ctx.filter="blur(18px) brightness(0.35)";
+      ctx.drawImage(this.img,0,0,w,h);
+    }catch(e){}
+    ctx.restore();
+
+    // Dark ambient vignette to blend background smoothly
+    const bgGrad=ctx.createRadialGradient(cx,cy,Math.min(w,h)*0.35,cx,cy,Math.max(w,h)*0.78);
+    bgGrad.addColorStop(0,"rgba(7,8,11,0.2)");
+    bgGrad.addColorStop(1,"rgba(7,8,11,0.94)");
+    ctx.fillStyle=bgGrad;
+    ctx.fillRect(0,0,w,h);
+
+    // 2. Draw pristine, crisp living portrait centered with subtle breathing
+    const breathScale=1.0+Math.sin(performance.now()*0.0016)*0.003+(this.speaking?this.audioLevel*0.005:0);
     ctx.save();
     ctx.translate(cx,cy+this.headDrift);
     ctx.scale(breathScale,breathScale);
@@ -4284,12 +4307,32 @@ class LivingPortraitAvatar{
     ctx.translate(-cx,-cy);
     ctx.drawImage(this.img,offsetX,offsetY,renderW,renderH);
     ctx.restore();
-    const grad=ctx.createRadialGradient(cx,cy,Math.min(w,h)*0.45,cx,cy,Math.max(w,h)*0.78);
+
+    // 3. Soft feathered blending on sides if letterboxed
+    if(offsetX>6){
+      const featherW=Math.min(22,offsetX);
+      const lGrad=ctx.createLinearGradient(offsetX,0,offsetX+featherW,0);
+      lGrad.addColorStop(0,"rgba(7,8,11,0.85)");
+      lGrad.addColorStop(1,"rgba(7,8,11,0)");
+      ctx.fillStyle=lGrad;
+      ctx.fillRect(offsetX,0,featherW,h);
+
+      const rGrad=ctx.createLinearGradient(offsetX+renderW-featherW,0,offsetX+renderW,0);
+      rGrad.addColorStop(0,"rgba(7,8,11,0)");
+      rGrad.addColorStop(1,"rgba(7,8,11,0.85)");
+      ctx.fillStyle=rGrad;
+      ctx.fillRect(offsetX+renderW-featherW,0,featherW,h);
+    }
+
+    // 4. Subtle overall radial depth vignette
+    const grad=ctx.createRadialGradient(cx,cy,Math.min(w,h)*0.42,cx,cy,Math.max(w,h)*0.76);
     grad.addColorStop(0,"rgba(7,8,11,0)");
-    grad.addColorStop(0.65,"rgba(7,8,11,0.35)");
-    grad.addColorStop(1,"rgba(7,8,11,0.98)");
+    grad.addColorStop(0.7,"rgba(7,8,11,0.28)");
+    grad.addColorStop(1,"rgba(7,8,11,0.92)");
     ctx.fillStyle=grad;
     ctx.fillRect(0,0,w,h);
+
+    // 5. Speaking rim illumination
     if(this.speaking&&this.audioLevel>0.05){
       const glowAlpha=Math.min(0.28,this.audioLevel*0.3);
       const glowGrad=ctx.createRadialGradient(cx,cy*0.85,20,cx,cy,Math.max(w,h)*0.7);
@@ -4299,13 +4342,15 @@ class LivingPortraitAvatar{
       ctx.fillStyle=glowGrad;
       ctx.fillRect(0,0,w,h);
     }
+
+    // 6. Dynamic acoustic frequency spectrum visualizer at base
     const barCount=this.bars.length;
-    const maxBarH=h*0.16;
-    const totalW=w*0.72;
+    const maxBarH=h*0.14;
+    const totalW=Math.min(w*0.68,Math.max(160,renderW*0.85));
     const barSpacing=totalW/barCount;
     const barW=Math.max(2.5,barSpacing*0.55);
     const startX=(w-totalW)/2;
-    const baseY=h-(h*0.05);
+    const baseY=h-(h*0.04);
     ctx.save();
     for(let i=0;i<barCount;i++){
       const val=Math.max(0.06,this.bars[i]);
@@ -4323,7 +4368,11 @@ class LivingPortraitAvatar{
       }
       ctx.fillStyle=barGrad;
       ctx.beginPath();
-      ctx.roundRect(x,y,barW,barH,[barW/2,barW/2,0,0]);
+      if(ctx.roundRect){
+        ctx.roundRect(x,y,barW,barH,[barW/2,barW/2,0,0]);
+      }else{
+        ctx.rect(x,y,barW,barH);
+      }
       ctx.fill();
     }
     ctx.restore();
@@ -4355,15 +4404,13 @@ error=${e||"(none)"}`+r+a},500)}function Xu(i){return i==null?"—":i.toFixed(1)
         <div class="flex items-center justify-between gap-2 mb-2 px-1">
           <div class="flex items-center gap-2 min-w-0">
             <span class="text-sm sm:text-base font-bold text-white truncate">${t.modeIcon?xt(t.modeIcon)+" ":""}${xt(t.personaLabel)}</span>
-            <span class="text-[10px] text-slate-400 uppercase font-semibold tracking-wider shrink-0">${xt(t.modeName)}</span>
+            <span class="hidden sm:inline-block text-[10px] text-slate-400 uppercase font-semibold tracking-wider shrink-0">${xt(t.modeName)}</span>
           </div>
           ${t.figureId?`<span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 shadow-sm flex items-center gap-1.5 shrink-0 whitespace-nowrap"><span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>Real Likeness HD</span>`:`<span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 shadow-sm flex items-center gap-1.5 shrink-0 whitespace-nowrap"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>Photoreal HD</span>`}
         </div>
 
-        <div class="relative rounded-2xl border border-ink-700 bg-gradient-to-b from-ink-800 to-ink-900 overflow-hidden shadow-xl">
-          <div class="aspect-[4/5] max-h-[300px] sm:max-h-[380px] lg:max-h-none lg:aspect-[4/5] w-full">
-            <canvas id="avatar-canvas" class="avatar-canvas w-full h-full block"></canvas>
-          </div>
+        <div class="avatar-stage-wrap border border-ink-700 shadow-xl">
+          <canvas id="avatar-canvas" class="avatar-canvas w-full h-full block"></canvas>
           <div id="avatar-status-pill" class="absolute bottom-2.5 right-2.5 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/75 backdrop-blur-md border border-white/10 text-[10px] font-semibold text-slate-300 pointer-events-none">
             <span id="avatar-status-dot" class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
             <span id="avatar-status-text">Ready</span>
@@ -4392,8 +4439,8 @@ error=${e||"(none)"}`+r+a},500)}function Xu(i){return i==null?"—":i.toFixed(1)
             <p class="text-accent-400 text-xs font-semibold uppercase tracking-widest">${xt(t.modeName)}</p>
             <div class="flex items-center gap-1.5 sm:gap-2 flex-wrap">
               <span id="spar-phase-badge" class="whitespace-nowrap inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-500/15 border border-blue-500/30 text-blue-300 shrink-0">🎙️ Phase 1: Opening</span>
-              <span id="spar-round-badge" class="whitespace-nowrap inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-accent-500/15 border border-accent-500/30 text-accent-300 shrink-0">🥊 Round <span id="spar-cur-round">1</span>${t.targetRounds ? " / " + t.targetRounds : " (Freestyle)"}</span>
-              <span id="spar-wallet-badge" class="whitespace-nowrap inline-flex items-center px-2 py-1 rounded-full text-[11px] font-medium bg-ink-800 border border-ink-700 text-slate-400 shrink-0"></span>
+              <span id="spar-round-badge" class="whitespace-nowrap inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-accent-500/15 border border-accent-500/30 text-accent-300 shrink-0">🥊 Round <span id="spar-cur-round">1</span>${t.targetRounds ? " / " + t.targetRounds : " (Open Spar)"}</span>
+              <span id="spar-wallet-badge" class="hidden whitespace-nowrap inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-ink-800 border border-ink-700 text-slate-400 shrink-0"></span>
             </div>
           </div>
           <h1 class="font-display text-lg sm:text-2xl text-white font-bold leading-snug">${xt(t.topic||"Live session")}</h1>
@@ -4432,7 +4479,7 @@ overlap=${I&&G?"YES-DOUBLE-AUDIO":"no"}`};let m=null,f=null,E=null,S=!1,x=0,R=nu
       </div>`,s.appendChild(I),A(),I}function y(){try{R?.()}catch{}R=null;_&&(_.pause(),_.currentTime=0,_=null),m&&(m.stop(),m=null),n.stop(),d.disabled=!0,l.disabled=!f&&!E}function C(I){if(window.__audioPath="mp3",y(),!I.audioBase64){n.nod(),h.classList.remove("hidden"),l.disabled=!0;return}f={audioBase64:I.audioBase64,timings:I.timings},_=new Audio(`data:audio/mp3;base64,${I.audioBase64}`),n.setSpeakingFromAudio(_),d.disabled=!1,l.disabled=!1,_.onended=()=>y(),_.onerror=()=>{y(),h.textContent="Audio playback failed — text only for this reply.",h.classList.remove("hidden")},_.play().catch(()=>{y(),h.textContent="Audio was blocked by your browser — tap Replay to hear it.",h.classList.remove("hidden"),l.disabled=!1})}function X(){if(s.querySelector("[data-est-note]"))return;const I=document.createElement("p");I.setAttribute("data-est-note","1"),I.className="text-[11px] text-slate-600 text-center",I.textContent="Lip-sync timing is estimated for this session.",s.appendChild(I)}async function O(I){h.classList.add("hidden"),y();const G=++x,B=window;if(I.ttsVoice&&Io())try{const{speakWithVisemes:ne}=await gr(async()=>{const{speakWithVisemes:re}=await Promise.resolve().then(()=>fo);return{speakWithVisemes:re}},void 0);if(G!==x)return;const Q=await ne(T(I.reply),{voice:I.ttsVoice,style:I.ttsStyle,styleDegree:I.ttsStyleDegree},n);if(G!==x){Q.stop();return}m=Q,B.__audioPath="sdk",E={text:I.reply,voice:I.ttsVoice,style:I.ttsStyle??null,styleDegree:I.ttsStyleDegree??null},d.disabled=!1,l.disabled=!1,Q.done.then(()=>{m===Q&&y()},()=>{m===Q&&(m=null,X(),C(I))});return}catch{}I.audioBase64&&X(),C(I)}async function q(openAction){try{const{warmAudio:ce}=await gr(async()=>{const{warmAudio:ye}=await Promise.resolve().then(()=>fo);return{warmAudio:ye}},void 0);ce()}catch{}const isOpening=(openAction==="open");const I=r.value.trim();if((!I&&!isOpening)||S)return;S=!0,a.disabled=!0;if(!isOpening){r.value="";y();++x;R=null;L("you",I);}else{y();++x;R=null;}const G=x;const B=M(),ne=L("opponent","");let Q="",re="",Re=null,se=!Io(),W=null;const Z=[];let fe=!1,ie=!1,Ae=!1,pe=0,we=!1;R=()=>{we=!0};const ze=()=>{const ce=/[.!?…]["'”’)(\]]?\s+/g;let ye,ve=0;for(;(ye=ce.exec(re))!==null;)ve=ye.index+ye[0].length;if(ve>0){const Ve=re.slice(0,ve).trim();re=re.slice(ve),Ve&&Z.push(Ve)}if(re.length>500){const Ve=re.lastIndexOf(" ",400),ge=Ve>200?Ve:400,w=re.slice(0,ge).trim();re=re.slice(ge).trimStart(),w&&Z.push(w)}},Pe=async()=>{if(fe||se||we||!Re||G!==x)return;fe=!0;const ce=Re;let ye=null;try{const ve=await gr(()=>Promise.resolve().then(()=>fo),void 0),Ve=ge=>{if(ge||Z.length===0||se||we||G!==x)return ge;const w=Z.shift();return ve.synthesizeWithVisemes(T(w),ce,W)};if(!W&&G===x&&!se&&!we)try{W=await ve.fetchSpeechToken()}catch{se=!0}for(;!se&&!we&&G===x;){ye=Ve(ye);const ge=ye;if(!ge)break;ye=null;let w;try{w=await ge.prep}catch{se=!0;break}if(we||G!==x||se)break;ye=Ve(ye);const v=ve.playSynthesized(w,n,void 0);if(G!==x||we){v.stop();break}m=v,window.__audioPath="sdk",d.disabled=!1,v.done.then(()=>{m===v&&(m=null,n.stop())},()=>{m===v&&(m=null),se=!0}),await v.done}}finally{if(ye&&ye.cancel(),ye=null,fe=!1,G!==x)return;we&&(Z.length=0),ie&&Z.length===0?(d.disabled=!0,R=null):Z.length>0&&!se&&!we&&Pe()}},Ye=()=>{const ce=performance.now();ce-pe>48&&(ne.textContent=Q,A(),pe=ce)},D=ce=>{if(G===x){if(ce.t==="hello"){ce.ttsVoice?Re={voice:ce.ttsVoice,style:ce.ttsStyle??null,styleDegree:ce.ttsStyleDegree??null}:se=!0,Pe();return}if(ce.t==="tok"){Ae||(Ae=!0,B.remove()),Q+=ce.c??"",re+=ce.c??"",Ye(),ze(),Z.length>0&&Pe();return}if(ce.t==="done"){ie=!0,Ae||B.remove(),ne.textContent=Q,A();
 _sparCurRound=Math.max(_sparCurRound,Math.floor(g.length/2)+1);
 updateRoundAndPhase();
-const _wbEl=i.querySelector("#spar-wallet-badge");if(_wbEl&&ce.remainingRounds!==undefined){_wbEl.textContent=ce.remainingRounds>=999999?"Unlimited rounds":ce.remainingRounds+" rds left";}
+const _wbEl=i.querySelector("#spar-wallet-badge");if(_wbEl){if(ce.remainingRounds!==undefined&&ce.remainingRounds>0&&ce.remainingRounds<1000){_wbEl.classList.remove("hidden");_wbEl.textContent=ce.remainingRounds+" credits";}else{_wbEl.classList.add("hidden");_wbEl.textContent="";}}
 if(t.targetRounds&&_sparCurRound>t.targetRounds){const _trb=i.querySelector("#spar-target-reached-banner");if(_trb)_trb.classList.remove("hidden");const _bsb=i.querySelector("#banner-score-btn");if(_bsb)_bsb.onclick=()=>u.click();}const ye=re.trim();re="",ye&&Z.push(ye),Re&&(E={text:Q,voice:Re.voice,style:Re.style,styleDegree:Re.styleDegree}),ce.audioBase64&&(f={audioBase64:ce.audioBase64,timings:ce.timings??[]}),se||!Re?C({audioBase64:ce.audioBase64??null,timings:ce.timings??[]}):(l.disabled=!1,Pe()),S=!1,a.disabled=r.disabled;return}if(ce.t==="err"){B.remove(),ne.textContent="";const ye=document.createElement("p");ye.className="text-sm text-red-300 text-center",ye.textContent=ce.message||"Your message didn’t go through. Try sending again.",s.appendChild(ye),A(),S=!1,a.disabled=r.disabled}}},vt=()=>{B.remove(),ne.textContent="";const ce=document.createElement("p");ce.className="text-sm text-red-300 text-center",ce.textContent="Your message didn’t go through. Try sending again.",s.appendChild(ce),A()};try{const ce=await fetch("/api/debate/turn-stream",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({debateId:e,text:isOpening?"":I,action:isOpening?"open":void 0})}),ye=ce.headers.get("content-type")||"";if(!ce.ok||!ye.includes("text/event-stream")){let w={};try{w=await ce.json()}catch{}if(ce.status===402){B.remove(),p.replaceChildren(sd()),r.disabled=!0,a.disabled=!0;return}throw new Error(w.error||`http ${ce.status}`)}const ve=ce.body?.getReader();if(!ve)throw new Error("no stream body");const Ve=new TextDecoder;let ge="";for(;;){const{done:w,value:v}=await ve.read();if(w)break;ge+=Ve.decode(v,{stream:!0});const k=ge.split(`
 
 `);ge=k.pop()??"";for(const Y of k){const J=Y.trim();if(J.startsWith("data:"))try{D(JSON.parse(J.slice(5).trim()))}catch{}}if(G!==x){try{await ve.cancel()}catch{}break}}}catch{G===x&&vt()}finally{G===x&&(B.remove(),S=!1,a.disabled=r.disabled)}}a.addEventListener("click",()=>void q()),r.addEventListener("keydown",I=>{I.key==="Enter"&&!I.shiftKey&&(I.preventDefault(),q())}),l.addEventListener("click",()=>{if(E){O({reply:E.text,audioBase64:f?.audioBase64??null,timings:f?.timings??[],timingsEstimated:!1,ttsVoice:E.voice,ttsStyle:E.style,ttsStyleDegree:E.styleDegree});return}f&&O({reply:"",audioBase64:f.audioBase64,timings:f.timings,timingsEstimated:!1})}),d.addEventListener("click",()=>{R?.(),R=null,y()}),u.addEventListener("click",async()=>{let wantScore=false;if((!t.targetRounds||t.targetRounds===0)&&_sparCurRound>=2){const choice=await showUnlimitedEndModal();if(choice==="closing"){const _phEl=i.querySelector("#spar-phase-badge");if(_phEl){_phEl.className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-500/15 border border-purple-500/30 text-purple-300";_phEl.textContent="🏛️ Phase 3: Final Closing Arguments";}if(r){r.placeholder="Deliver your final closing argument — summarize your key winning points for the judge…";r.focus();}return;}else if(choice==="score"){wantScore=true;}else{return;}}else{if(confirm("End this session and get your scores?"))wantScore=true;}if(wantScore){u.disabled=!0,u.textContent="Scoring…",y();try{const{scores:I}=await zt("/api/debate/end",{debateId:e});sx(i,n,t,e,g,I);}catch{u.disabled=!1,u.textContent="End session";const I=document.createElement("p");I.className="text-sm text-red-300",I.textContent="Could not fetch scores. Try again.",s.appendChild(I);}}});const V=window.SpeechRecognition??window.webkitSpeechRecognition;if(V){o.classList.remove("hidden"),o.classList.add("flex");let I=null,G=!1;o.addEventListener("click",()=>{if(G){I?.stop();return}const B=V;I=new B,I.lang="en-US",I.interimResults=!1,I.onresult=Q=>{const re=Q.results[Q.results.length-1][0].transcript;r.value=(r.value?r.value+" ":"")+re.trim()};const ne=Q=>{G=!1,o.classList.remove("mic-live"),o.innerHTML=it.mic,Q?(c.textContent=Q,c.classList.remove("hidden"),c.classList.add("text-red-400"),window.setTimeout(()=>{c.classList.add("hidden"),c.classList.remove("text-red-400"),c.textContent="Listening… speak now, then tap the mic again to stop."},5e3)):c.classList.add("hidden")};I.onend=()=>ne(),I.onerror=Q=>{const re=Q?.error||"unknown";ne(re==="not-allowed"||re==="service-not-allowed"?"Microphone blocked — allow mic access for this site in your browser settings, then try again.":re==="audio-capture"?"No microphone found on this device.":re==="no-speech"?"Didn't catch that — tap the mic and speak clearly.":re==="network"?"Speech recognition needs a network connection — check yours and retry.":"Voice input failed — please try again or type instead.")};try{I.start(),G=!0,o.classList.add("mic-live"),c.classList.remove("hidden"),o.innerHTML=it.stop}catch{ne()}})}}function $u(i,e,t=10){const n=e==null?0:Math.max(0,Math.min(100,e/t*100));return`
