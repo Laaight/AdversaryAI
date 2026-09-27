@@ -205,6 +205,12 @@ if (code.includes(oldAdminEnd)) {
   }
 }
 
+// 10. Map expert mode icon and 3D avatar
+code = code.replace('thesis:it.cap}', 'thesis:it.cap,expert:it.target}');
+code = code.replace('witness:"man-casual"}', 'witness:"man-casual",expert:"man-pro"}');
+code = code.replace('or any of our 10 practice modes.', 'or any of our 11 practice modes.');
+
+
 // Save updated bundle
 fs.writeFileSync(bundlePath, code, 'utf8');
 

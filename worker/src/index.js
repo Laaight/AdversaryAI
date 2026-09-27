@@ -71,7 +71,7 @@ var init_config = __esm({
     "use strict";
     TIERS = {
       trial: { name: "Trial", debates: 15, rounds: 15, lifetime: true, price: 0 },
-      debater: { name: "Debater", priceMonthly: 12, debatesPerMonth: 300, roundsPerMonth: 300, blurb: "Full access to all 10 sparring arenas and standard 3D avatars." },
+      debater: { name: "Debater", priceMonthly: 12, debatesPerMonth: 300, roundsPerMonth: 300, blurb: "Full access to all 11 sparring arenas and standard 3D avatars." },
       coach: { name: "Coach", priceMonthly: 29, debatesPerMonth: 1000, roundsPerMonth: 1000, analytics: true, blurb: "Detailed coaching analytics, scorecard rubrics, and judge feedback." },
       champion: { name: "Champion", priceMonthly: 49, debatesPerMonth: 2500, roundsPerMonth: 2500, premiumModel: true, blurb: "DeepSeek-V4-Pro brain, photorealistic 3D personas, and priority reasoning." }
     };
@@ -3791,6 +3791,81 @@ var MODES = {
     scoringPrompt: /* @__PURE__ */ __name(() => 'You are the chair of a thesis examination committee reviewing a defense transcript. Score the candidate 1-10 on rigor, evidence, defense under pressure, and clarity; return strict JSON {"dimensions": {"Rigor": <1-10>, "Evidence": <1-10>, "Defense under pressure": <1-10>, "Clarity": <1-10>}, "overall": <1-10>, "notes": "<2-3 sentences of feedback>"}', "scoringPrompt"),
     scoringDimensions: ["Rigor", "Evidence", "Defense under pressure", "Clarity"],
     introCopy: "State your thesis. The committee is seated and the questioning begins now."
+  },
+  expert: {
+    id: "expert",
+    name: "Domain Expert",
+    tagline: "You're the professional — explain & defend any topic",
+    description: "Take the expert seat. Whether you're a Salesforce developer explaining Apex, an apologist defending the cosmological argument, or a doctor explaining a procedure — the AI asks realistic, probing questions to test your clarity and depth.",
+    icon: "\u{1F9E0}",
+    setupFields: [
+      {
+        key: "profession",
+        label: "Your profession or expertise",
+        type: "text",
+        placeholder: "e.g. Senior Salesforce Developer, Christian Apologist, Cardiologist, Cloud Architect",
+        required: true,
+        help: "Who are you in this session? What is your domain of mastery?"
+      },
+      {
+        key: "topic",
+        label: "Topic or concept to explain",
+        type: "textarea",
+        placeholder: "e.g. How Apex triggers and governor limits work and why they protect system integrity, The Moral Argument for God, How microservices scale under load...",
+        required: true,
+        help: "What specific mechanism, philosophy, or process are you explaining or defending?"
+      },
+      {
+        key: "audience",
+        label: "Who is the AI playing?",
+        type: "select",
+        options: [
+          { value: "executive", label: "Non-Technical Executive — wants bottom-line business value, ROI, and risk" },
+          { value: "skeptic", label: "Intelligent Skeptic — challenges assumptions, demands evidence & logical consistency" },
+          { value: "beginner", label: "Curious Beginner — needs plain-English analogies, zero unexplained jargon" },
+          { value: "client", label: "Prospective Client — focused on reliability, practical trade-offs, and outcomes" },
+          { value: "peer", label: "Peer Professional — probes architectural edge cases, nuances, and best practices" }
+        ],
+        required: true,
+        help: "Choose who sits across the table asking the questions."
+      },
+      {
+        key: "intensity",
+        label: "Questioning style",
+        type: "select",
+        options: [
+          { value: "probing", label: "Probing & Analytical — patient follow-ups, calls out vague buzzwords" },
+          { value: "tough", label: "Tough & Demanding — pushes back hard on cost, necessity, and proof" },
+          { value: "curious", label: "Curious & Collaborative — eager to understand and explore the ideas" }
+        ],
+        required: true
+      }
+    ],
+    systemPrompt: /* @__PURE__ */ __name((setup) => `You are roleplaying in "Domain Expert" mode.
+The human user is the recognized professional and expert in: "${setup.profession || "their domain"}".
+They are here to explain and defend: "${setup.topic || "their core concept"}".
+Your role: You play ${setup.audience === "executive" ? "a pragmatic, non-technical corporate executive (VP/C-suite) who cares deeply about business value, stability, and risks, and hates jargon" : setup.audience === "skeptic" ? "an articulate, thoughtful skeptic who challenges premises, spots logical leaps, and demands evidence" : setup.audience === "beginner" ? "an intelligent newcomer who knows nothing about this domain and needs intuitive analogies and plain English" : setup.audience === "client" ? "a cautious client evaluating this approach, looking for reliability and practical benefits" : "a sharp peer professional probing the nuances and edge cases"}.
+Questioning style: ${setup.intensity || "probing"}.
+
+CRITICAL RULES OF ENGAGEMENT:
+1. INVERSION — YOU ARE THE INQUIRER, NOT THE TEACHER:
+   - The user is the expert, NOT you.
+   - Do NOT lecture the user on their own field. Do NOT answer your own questions.
+   - Your job is to ask thoughtful, realistic questions that draw out their explanation and test their mastery.
+2. ADAPT TO WHAT THEY SAY:
+   - If the user uses technical jargon or acronyms without explaining them (e.g. Apex governor limits, SOQL, ontological, fine-tuning), call it out in character: "Wait, hold on — what does [term] actually mean in plain terms?"
+   - If an explanation is too abstract, request an analogy or concrete example: "Can you give me a real-world analogy for how that works?"
+   - If they make a bold claim, probe the 'why': "Why is that the best way? What happens if that fails or under extreme load?"
+   - If their answer was clear and compelling, acknowledge what made sense and smoothly ask the next deeper question.
+3. CONVERSATIONAL CADENCE:
+   - Ask ONE primary question per turn (maximum 2 related follow-ups).
+   - Keep each turn concise: under 90 words.
+   - Stay strictly in character as the inquirer. Never break character to act as an AI assistant.
+4. OPENING TURN:
+   - Begin immediately in character with a natural 1-sentence greeting framing who you are, followed by your first question about "${setup.topic || "their topic"}".`, "systemPrompt"),
+    scoringPrompt: /* @__PURE__ */ __name(() => 'You are an executive communications coach and domain mastery evaluator. Score the expert user 1-10 on Clarity (avoiding confusing jargon), Domain Mastery (technical/conceptual accuracy), Analogy & Simplification (using intuitive metaphors), and Value & Persuasion (making the "why it matters" compelling); return strict JSON {"dimensions": {"Clarity": <1-10>, "Domain Mastery": <1-10>, "Analogy & Simplification": <1-10>, "Value & Persuasion": <1-10>}, "overall": <1-10>, "notes": "<2-3 sentences of constructive feedback highlighting their best moment and where their explanation could be more accessible or robust>"}', "scoringPrompt"),
+    scoringDimensions: ["Clarity", "Domain Mastery", "Analogy & Simplification", "Value & Persuasion"],
+    introCopy: "Take the expert seat. Name your subject and topic — the questions begin as soon as you step up."
   }
 };
 function getMode(id) {
@@ -4985,7 +5060,7 @@ accountRouter.post("/admin/setup-stripe", async (c) => {
   };
 
   const ITEMS = [
-    { key: "debater", name: "AdversaryAI Debater", description: "300 sparring rounds per month across all 10 practice modes", type: "recurring", amount: 1200, interval: "month" },
+    { key: "debater", name: "AdversaryAI Debater", description: "300 sparring rounds per month across all 11 practice modes", type: "recurring", amount: 1200, interval: "month" },
     { key: "coach", name: "AdversaryAI Coach", description: "1,000 sparring rounds per month plus coaching analytics and rubrics", type: "recurring", amount: 2900, interval: "month" },
     { key: "champion", name: "AdversaryAI Champion", description: "2,500 sparring rounds per month with DeepSeek-V4-Pro & photorealistic 3D personas", type: "recurring", amount: 4900, interval: "month" },
     { key: "pack10", name: "100 Sparring Rounds Pack", description: "100 round one-time credit top-up. Credits never expire.", type: "one_time", amount: 900 },

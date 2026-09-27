@@ -13,7 +13,7 @@ const PRICING = {
     cta: 'Start free',
     features: [
       '3 sessions on us',
-      'All 10 practice modes',
+      'All 11 practice modes',
       'Voice or text sessions',
       'No credit card to start'
     ]
@@ -27,7 +27,7 @@ const PRICING = {
       cta: 'Start free trial',
       features: [
         '300 sparring rounds per month',
-        'All 10 practice modes',
+        'All 11 practice modes',
         'Voice or text sessions',
         'Session history'
       ]
@@ -110,7 +110,7 @@ function adaptLivePrices(data) {
       cta: 'Start free',
       features: [
         getRounds(trial, 15) + ' sparring rounds on us',
-        'All 10 practice modes',
+        'All 11 practice modes',
         'Voice or text sessions',
         'No credit card to start'
       ]
@@ -123,7 +123,7 @@ function adaptLivePrices(data) {
       cta: 'Start free trial',
       features: [
         getRounds(debater, 300).toLocaleString() + ' sparring rounds per month',
-        'All 10 practice modes',
+        'All 11 practice modes',
         'Voice or text sessions',
         'Session history'
       ]
@@ -184,7 +184,8 @@ const MODES_FALLBACK = [
   { id: 'difficult', name: 'Difficult Conversations', icon: '💬', img: '/img/mode-difficult.jpg', blurb: 'Rehearse the hard talks: feedback, conflict, bad news — safely.' },
   { id: 'rapbattle', name: 'Rap Battle', icon: '🎤', img: '/img/mode-rapbattle.jpg', blurb: 'Trade bars against a battle MC with flow, wordplay, and rebuttals.' },
   { id: 'witness', name: 'Evangelism Training', icon: '✝️', img: '/img/mode-witness.jpg', blurb: 'Rehearse sharing the gospel with a realistic counterpart — curious, skeptical, or hurting.' },
-  { id: 'thesis', name: 'Thesis Defense', icon: '🎓', img: '/img/mode-thesis.jpg', blurb: 'Defend your thesis against a committee that probes every weakness.' }
+  { id: 'thesis', name: 'Thesis Defense', icon: '🎓', img: '/img/mode-thesis.jpg', blurb: 'Defend your thesis against a committee that probes every weakness.' },
+  { id: 'expert', name: 'Domain Expert', icon: '🧠', img: '/img/mode-expert.jpg', blurb: 'You are the professional. Explain and defend any topic — code, theology, medicine, finance — under probing questions.' }
 ];
 
 function escHtml(s) {
