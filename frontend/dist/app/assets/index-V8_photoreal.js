@@ -4112,34 +4112,44 @@ class LivingPortraitAvatar{
     this.analyser=null;
     this.freqData=null;
     this.raf=0;
-    this.jawOpen=0;
-    this.targetJaw=0;
-    this.mouthStretch=0;
-    this.targetStretch=0;
-    this.blinkProgress=0;
-    this.isBlinking=false;
-    this.lastBlinkAt=performance.now();
-    this.nextBlinkDelay=3200+Math.random()*2500;
+    this.audioLevel=0;
+    this.targetAudioLevel=0;
     this.headTilt=0;
     this.headDrift=0;
     this.startTime=performance.now();
     this.visemeTimer=null;
+    this.bars=Array(20).fill(0);
     this.img.crossOrigin="anonymous";
     this.img.src=`/img/figures/${figureId}.jpg`;
     this.img.onload=()=>{this.loaded=true;this.resize();};
-    this.img.onerror=()=>{console.warn("[LivingPortraitAvatar] Portrait image not loaded for "+figureId);};
+    this.img.onerror=()=>{console.warn("[LivingPortraitAvatar] Portrait not found: "+figureId);};
     this.resize=()=>{
       if(this.disposed)return;
       const dpr=Math.min(window.devicePixelRatio||1,2);
-      const w=this.canvas.clientWidth||360;
-      const h=this.canvas.clientHeight||450;
-      if(this.canvas.width!==w*dpr||this.canvas.height!==h*dpr){
-        this.canvas.width=w*dpr;
-        this.canvas.height=h*dpr;
+      const w=this.canvas.clientWidth||340;
+      const h=this.canvas.clientHeight||425;
+      if(this.canvas.width!==Math.round(w*dpr)||this.canvas.height!==Math.round(h*dpr)){
+        this.canvas.width=Math.round(w*dpr);
+        this.canvas.height=Math.round(h*dpr);
       }
     };
     this.resizeObserver=new ResizeObserver(()=>this.resize());
     this.resizeObserver.observe(canvas);
+    this.updateStatus=()=>{
+      const dot=document.querySelector("#avatar-status-dot");
+      const txt=document.querySelector("#avatar-status-text");
+      if(dot&&txt){
+        if(this.speaking){
+          dot.className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse";
+          txt.textContent="Speaking";
+          txt.className="text-amber-300 font-semibold";
+        }else{
+          dot.className="w-1.5 h-1.5 rounded-full bg-emerald-400";
+          txt.textContent="Listening";
+          txt.className="text-emerald-300 font-medium";
+        }
+      }
+    };
     this.loop=()=>{
       if(this.disposed)return;
       this.raf=requestAnimationFrame(this.loop);
@@ -4150,30 +4160,22 @@ class LivingPortraitAvatar{
   }
   setSpeaking(val){
     this.speaking=Boolean(val);
-    if(!this.speaking){this.targetJaw=0;this.targetStretch=0;}
+    if(!this.speaking){this.targetAudioLevel=0;}
+    this.updateStatus();
   }
   pushViseme(visemeId){
     this.speaking=true;
     const v=Number(visemeId)||0;
-    if(v===0){
-      this.targetJaw=0;this.targetStretch=0;
-    }else if(v===1||v===2||v===3){
-      this.targetJaw=20;this.targetStretch=3;
-    }else if(v===4||v===5||v===6){
-      this.targetJaw=14;this.targetStretch=-6;
-    }else if(v===7||v===8){
-      this.targetJaw=10;this.targetStretch=5;
-    }else if(v===9||v===10){
-      this.targetJaw=12;this.targetStretch=9;
-    }else if(v===17||v===18){
-      this.targetJaw=1;this.targetStretch=2;
-    }else{
-      this.targetJaw=8+(v%7);this.targetStretch=(v%5)-2;
-    }
+    this.targetAudioLevel=v>0?(0.55+Math.random()*0.45):0;
     clearTimeout(this.visemeTimer);
-    this.visemeTimer=setTimeout(()=>{this.targetJaw=0;this.targetStretch=0;},130);
+    this.visemeTimer=setTimeout(()=>{this.targetAudioLevel=0;},120);
+    this.updateStatus();
   }
-  setSpeakingExact(p){this.speaking=true;}
+  setSpeakingExact(p){
+    this.speaking=true;
+    this.targetAudioLevel=0.7;
+    this.updateStatus();
+  }
   setSpeakingFromAudio(audioEl){
     this.stopAudioDrive();
     try{
@@ -4184,7 +4186,7 @@ class LivingPortraitAvatar{
       if(this.audioCtx.state==="running"){
         const src=this.audioCtx.createMediaElementSource(audioEl);
         const an=this.audioCtx.createAnalyser();
-        an.fftSize=512;
+        an.fftSize=256;
         an.smoothingTimeConstant=0.35;
         src.connect(an);
         an.connect(this.audioCtx.destination);
@@ -4194,22 +4196,26 @@ class LivingPortraitAvatar{
       }else{
         this.audioCtx.resume().catch(()=>{});
       }
-    }catch(err){}
+    }catch(e){}
     this.speaking=true;
+    this.updateStatus();
   }
   stopAudioDrive(){
     this.audioDriven=false;
     this.analyser=null;
     this.freqData=null;
+    this.targetAudioLevel=0;
+    this.updateStatus();
   }
   nod(){
-    this.headTilt=4;
-    setTimeout(()=>{this.headTilt=-2;},180);
+    this.headTilt=2.2;
+    setTimeout(()=>{this.headTilt=-1.2;},180);
     setTimeout(()=>{this.headTilt=0;},360);
   }
   stop(){
     this.setSpeaking(false);
     this.stopAudioDrive();
+    this.updateStatus();
   }
   dispose(){
     this.disposed=true;
@@ -4222,30 +4228,27 @@ class LivingPortraitAvatar{
     const elapsed=(now-this.startTime)/1000;
     if(this.audioDriven&&this.analyser&&this.freqData){
       this.analyser.getByteFrequencyData(this.freqData);
-      let lowEnergy=0;
-      for(let i=2;i<22;i++)lowEnergy+=this.freqData[i];
-      lowEnergy=lowEnergy/20;
-      if(lowEnergy>24){
-        this.targetJaw=Math.min(22,(lowEnergy-24)*0.18);
-        this.targetStretch=Math.sin(now*0.014)*5;
-      }else{
-        this.targetJaw=0;
-        this.targetStretch=0;
+      let sum=0;
+      for(let i=1;i<21;i++){
+        const norm=this.freqData[i]/255;
+        this.bars[i-1]+=(norm-this.bars[i-1])*0.35;
+        sum+=norm;
+      }
+      const avg=sum/20;
+      this.targetAudioLevel=avg>0.08?avg*1.4:0;
+    }else if(this.speaking){
+      for(let i=0;i<20;i++){
+        const wave=(Math.sin(elapsed*8+i*0.5)*0.5+0.5)*this.targetAudioLevel;
+        this.bars[i]+=(wave-this.bars[i])*0.3;
+      }
+    }else{
+      for(let i=0;i<20;i++){
+        const idle=(Math.sin(elapsed*2+i*0.4)*0.08+0.08);
+        this.bars[i]+=(idle-this.bars[i])*0.15;
       }
     }
-    this.jawOpen+=(this.targetJaw-this.jawOpen)*0.28;
-    this.mouthStretch+=(this.targetStretch-this.mouthStretch)*0.25;
-    if(!this.isBlinking&&now-this.lastBlinkAt>this.nextBlinkDelay){
-      this.isBlinking=true;
-      this.blinkProgress=0;
-      this.lastBlinkAt=now;
-      this.nextBlinkDelay=3200+Math.random()*2600;
-    }
-    if(this.isBlinking){
-      this.blinkProgress+=0.14;
-      if(this.blinkProgress>=1){this.isBlinking=false;this.blinkProgress=0;}
-    }
-    this.headDrift=Math.sin(elapsed*1.6)*1.2;
+    this.audioLevel+=(this.targetAudioLevel-this.audioLevel)*0.25;
+    this.headDrift=Math.sin(elapsed*1.5)*0.8;
   }
   render(){
     const{ctx,canvas}=this;
@@ -4253,17 +4256,25 @@ class LivingPortraitAvatar{
     const w=canvas.width;
     const h=canvas.height;
     ctx.clearRect(0,0,w,h);
-    ctx.fillStyle="#090a0f";
+    ctx.fillStyle="#07080b";
     ctx.fillRect(0,0,w,h);
-    const imgRatio=this.img.width/this.img.height;
+    const imgW=this.img.width;
+    const imgH=this.img.height;
+    const imgRatio=imgW/imgH;
     const canvasRatio=w/h;
     let renderW,renderH,offsetX,offsetY;
     if(canvasRatio>imgRatio){
-      renderW=w;renderH=w/imgRatio;offsetX=0;offsetY=(h-renderH)/2;
+      renderW=w;
+      renderH=w/imgRatio;
+      offsetX=0;
+      offsetY=Math.max(h-renderH,Math.min(0,(h-renderH)*0.28));
     }else{
-      renderH=h;renderW=h*imgRatio;offsetX=(w-renderW)/2;offsetY=0;
+      renderH=h;
+      renderW=h*imgRatio;
+      offsetX=(w-renderW)/2;
+      offsetY=0;
     }
-    const breathScale=1.0+Math.sin(performance.now()*0.0016)*0.003;
+    const breathScale=1.0+Math.sin(performance.now()*0.0016)*0.003+(this.speaking?this.audioLevel*0.005:0);
     const cx=w/2;
     const cy=h/2;
     ctx.save();
@@ -4272,54 +4283,50 @@ class LivingPortraitAvatar{
     if(this.headTilt!==0){ctx.rotate((this.headTilt*Math.PI)/180);}
     ctx.translate(-cx,-cy);
     ctx.drawImage(this.img,offsetX,offsetY,renderW,renderH);
-    if(this.jawOpen>0.4){
-      const mouthY=offsetY+renderH*0.65;
-      const mouthX=offsetX+renderW*0.35;
-      const mouthW=renderW*0.3;
-      const mouthH=renderH*0.28;
-      ctx.save();
-      ctx.beginPath();
-      ctx.ellipse(cx,mouthY+mouthH*0.45,mouthW*0.54,mouthH*0.5,0,0,Math.PI*2);
-      ctx.clip();
-      ctx.fillStyle="rgba(15,12,12,0.85)";
-      ctx.beginPath();
-      ctx.ellipse(cx,mouthY+renderH*0.04+this.jawOpen*0.4,mouthW*0.34+this.mouthStretch*0.5,this.jawOpen*0.55,0,0,Math.PI*2);
-      ctx.fill();
-      const jawShift=this.jawOpen*(renderH/500);
-      ctx.drawImage(this.img,0,this.img.height*0.66,this.img.width,this.img.height*0.34,offsetX,mouthY+jawShift,renderW,renderH*0.34);
-      ctx.restore();
-    }
-    if(this.isBlinking&&this.blinkProgress>0){
-      const blinkFactor=Math.sin(this.blinkProgress*Math.PI);
-      const eyesY=offsetY+renderH*0.39;
-      const eyeL_X=offsetX+renderW*0.39;
-      const eyeR_X=offsetX+renderW*0.61;
-      const eyeRadiusX=renderW*0.055;
-      const eyeRadiusY=renderH*0.024*blinkFactor;
-      ctx.save();
-      ctx.fillStyle="rgba(42,35,32,0.92)";
-      ctx.beginPath();
-      ctx.ellipse(eyeL_X,eyesY,eyeRadiusX,eyeRadiusY,0,0,Math.PI*2);
-      ctx.ellipse(eyeR_X,eyesY,eyeRadiusX,eyeRadiusY,0,0,Math.PI*2);
-      ctx.fill();
-      ctx.restore();
-    }
     ctx.restore();
-    const grad=ctx.createRadialGradient(cx,cy,Math.min(w,h)*0.45,cx,cy,Math.max(w,h)*0.75);
+    const grad=ctx.createRadialGradient(cx,cy,Math.min(w,h)*0.45,cx,cy,Math.max(w,h)*0.78);
     grad.addColorStop(0,"rgba(7,8,11,0)");
-    grad.addColorStop(0.7,"rgba(7,8,11,0.38)");
-    grad.addColorStop(1,"rgba(7,8,11,0.95)");
+    grad.addColorStop(0.65,"rgba(7,8,11,0.35)");
+    grad.addColorStop(1,"rgba(7,8,11,0.98)");
     ctx.fillStyle=grad;
     ctx.fillRect(0,0,w,h);
-    if(this.speaking&&this.jawOpen>1){
-      const rimAlpha=Math.min(0.2,this.jawOpen*0.015);
-      const rimGrad=ctx.createLinearGradient(0,0,0,h);
-      rimGrad.addColorStop(0,`rgba(245,158,11,${rimAlpha})`);
-      rimGrad.addColorStop(0.5,"rgba(245,158,11,0)");
-      rimGrad.addColorStop(1,`rgba(239,68,68,${rimAlpha*0.6})`);
-      ctx.fillStyle=rimGrad;
+    if(this.speaking&&this.audioLevel>0.05){
+      const glowAlpha=Math.min(0.28,this.audioLevel*0.3);
+      const glowGrad=ctx.createRadialGradient(cx,cy*0.85,20,cx,cy,Math.max(w,h)*0.7);
+      glowGrad.addColorStop(0,`rgba(245,158,11,${glowAlpha})`);
+      glowGrad.addColorStop(0.6,`rgba(239,68,68,${glowAlpha*0.4})`);
+      glowGrad.addColorStop(1,"rgba(0,0,0,0)");
+      ctx.fillStyle=glowGrad;
       ctx.fillRect(0,0,w,h);
     }
+    const barCount=this.bars.length;
+    const maxBarH=h*0.16;
+    const totalW=w*0.72;
+    const barSpacing=totalW/barCount;
+    const barW=Math.max(2.5,barSpacing*0.55);
+    const startX=(w-totalW)/2;
+    const baseY=h-(h*0.05);
+    ctx.save();
+    for(let i=0;i<barCount;i++){
+      const val=Math.max(0.06,this.bars[i]);
+      const barH=val*maxBarH;
+      const x=startX+i*barSpacing;
+      const y=baseY-barH;
+      const barGrad=ctx.createLinearGradient(0,y,0,baseY);
+      if(this.speaking){
+        barGrad.addColorStop(0,"#fde68a");
+        barGrad.addColorStop(0.6,"#f59e0b");
+        barGrad.addColorStop(1,"rgba(245,158,11,0.2)");
+      }else{
+        barGrad.addColorStop(0,"#93c5fd");
+        barGrad.addColorStop(1,"rgba(59,130,246,0.15)");
+      }
+      ctx.fillStyle=barGrad;
+      ctx.beginPath();
+      ctx.roundRect(x,y,barW,barH,[barW/2,barW/2,0,0]);
+      ctx.fill();
+    }
+    ctx.restore();
   }
 }
 function createDebateAvatar(canvas,options={}){
@@ -4343,54 +4350,73 @@ error=${e||"(none)"}`+r+a},500)}function Xu(i){return i==null?"—":i.toFixed(1)
         <p class="text-sm mb-6">That session doesn’t exist or has expired.</p>
         <a href="#/" class="inline-block px-5 py-2.5 rounded-xl bg-accent-500 hover:bg-accent-400 text-[#fff] font-semibold text-sm">Back to practice</a>
       </div>`;return}ix(s,e,r)}async function nx(i){try{const e=sessionStorage.getItem(`adversaryai:session:${i}`);if(e)return JSON.parse(e)}catch{}try{const e=await Ut("/api/debates"),n=((Array.isArray(e)?e:e.debates)??[]).find(a=>a.id===i);if(!n)return null;let s=n.mode||"debate",r="";try{const o=(await fa()).find(c=>c.id===n.mode);o&&(s=o.name,r=o.icon)}catch{}const _nSetup=n.setup_json?(typeof n.setup_json==="string"?JSON.parse(n.setup_json):n.setup_json):{};const _figId=n.figureId||_nSetup.figureId||(s==="historical"?n.personality:void 0);return{modeId:n.mode||"debate",modeName:s,modeIcon:r,topic:n.topic,personaLabel:n.personaLabel||s,judgeEnabled:n.judgeEnabled===!0,personaVisual:n.personaVisual||void 0,targetRounds:n.targetRounds||0,firstSpeaker:n.firstSpeaker||"user",resolvedFirstSpeaker:n.resolvedFirstSpeaker||"user",debateStyle:n.debateStyle||"oxford",figureId:_figId||void 0}}catch{return null}}function ix(i,e,t){i.innerHTML=`
-    <div class="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-5">
+    <div class="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-4 sm:gap-6">
       <div class="lg:sticky lg:top-20 self-start">
-        <div class="relative rounded-2xl border border-ink-700 bg-gradient-to-b from-ink-800 to-ink-900 overflow-hidden">
-          <div class="h-44 sm:h-64 lg:h-auto lg:aspect-[4/5]">
-            <canvas id="avatar-canvas" class="avatar-canvas"></canvas>
+        <div class="flex items-center justify-between gap-2 mb-2 px-1">
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="text-sm sm:text-base font-bold text-white truncate">${t.modeIcon?xt(t.modeIcon)+" ":""}${xt(t.personaLabel)}</span>
+            <span class="text-[10px] text-slate-400 uppercase font-semibold tracking-wider shrink-0">${xt(t.modeName)}</span>
           </div>
-          <div class="absolute top-3 left-3 flex items-center gap-2">
-            <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-ink-950/80 border border-ink-700 text-slate-200 shadow-md backdrop-blur-sm">${t.modeIcon?xt(t.modeIcon)+" ":""}${xt(t.personaLabel)}</span>${t.figureId?`<span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 shadow-sm flex items-center gap-1.5 backdrop-blur-sm"><span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>👑 Real Likeness HD</span>`:`<span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 shadow-sm flex items-center gap-1.5 backdrop-blur-sm"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>💎 Photoreal HD</span>`}
+          ${t.figureId?`<span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 shadow-sm flex items-center gap-1.5 shrink-0 whitespace-nowrap"><span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>Real Likeness HD</span>`:`<span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 shadow-sm flex items-center gap-1.5 shrink-0 whitespace-nowrap"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>Photoreal HD</span>`}
+        </div>
+
+        <div class="relative rounded-2xl border border-ink-700 bg-gradient-to-b from-ink-800 to-ink-900 overflow-hidden shadow-xl">
+          <div class="aspect-[4/5] max-h-[300px] sm:max-h-[380px] lg:max-h-none lg:aspect-[4/5] w-full">
+            <canvas id="avatar-canvas" class="avatar-canvas w-full h-full block"></canvas>
           </div>
-          <div id="voice-note" class="hidden absolute bottom-3 left-3 right-3 text-xs text-center text-slate-400 bg-ink-950/70 border border-ink-700 rounded-lg px-2 py-1.5">
-            Voice unavailable for this reply — text only.
+          <div id="avatar-status-pill" class="absolute bottom-2.5 right-2.5 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/75 backdrop-blur-md border border-white/10 text-[10px] font-semibold text-slate-300 pointer-events-none">
+            <span id="avatar-status-dot" class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+            <span id="avatar-status-text">Ready</span>
+          </div>
+          <div id="voice-note" class="hidden absolute bottom-2.5 left-2.5 right-24 text-[11px] text-center text-slate-300 bg-black/80 backdrop-blur-md border border-ink-700 rounded-lg px-2 py-1">
+            Text only for this reply.
           </div>
         </div>
-        <div class="flex gap-2 mt-3">
-          <button id="replay-btn" disabled class="flex-1 px-3 py-2 rounded-xl border border-ink-700 text-sm text-slate-300 hover:border-slate-500 disabled:opacity-40">↻ Replay</button>
-          <button id="stop-btn" disabled class="flex-1 px-3 py-2 rounded-xl border border-ink-700 text-sm text-slate-300 hover:border-slate-500 disabled:opacity-40">■ Stop</button>
-          <button id="end-btn" class="flex-1 px-3 py-2 rounded-xl bg-red-900/60 border border-red-800 text-sm text-red-200 hover:bg-red-900 font-semibold">End &amp; Grade</button>
+
+        <div class="grid grid-cols-3 gap-2 mt-3">
+          <button id="replay-btn" disabled class="h-10 px-2 rounded-xl border border-ink-700 bg-ink-900 text-xs sm:text-sm font-semibold text-slate-300 hover:border-slate-500 hover:text-white disabled:opacity-40 disabled:hover:border-ink-700 transition-all flex items-center justify-center gap-1">
+            ↻ Replay
+          </button>
+          <button id="stop-btn" disabled class="h-10 px-2 rounded-xl border border-ink-700 bg-ink-900 text-xs sm:text-sm font-semibold text-slate-300 hover:border-slate-500 hover:text-white disabled:opacity-40 disabled:hover:border-ink-700 transition-all flex items-center justify-center gap-1">
+            ■ Stop
+          </button>
+          <button id="end-btn" class="h-10 px-2 rounded-xl bg-red-900/50 border border-red-800/80 text-xs sm:text-sm text-red-200 hover:bg-red-800 hover:text-white font-semibold shadow-sm transition-all flex items-center justify-center gap-1 whitespace-nowrap">
+            End &amp; Grade
+          </button>
         </div>
       </div>
 
       <div class="flex flex-col lg:min-h-[60vh]">
-        <div class="mb-4">
-          <div class="flex items-center justify-between flex-wrap gap-2">
+        <div class="mb-3 sm:mb-4">
+          <div class="flex items-center justify-between flex-wrap gap-2 mb-1.5">
             <p class="text-accent-400 text-xs font-semibold uppercase tracking-widest">${xt(t.modeName)}</p>
-            <div class="flex items-center gap-2">
-              <span id="spar-phase-badge" class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-500/15 border border-blue-500/30 text-blue-300">🎙️ Phase 1: Opening</span><span id="spar-round-badge" class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-accent-500/15 border border-accent-500/30 text-accent-300">🥊 Round <span id="spar-cur-round">1</span>${t.targetRounds ? " / " + t.targetRounds : " (Freestyle)"}</span>
-              <span id="spar-wallet-badge" class="px-2 py-0.5 rounded-full text-[11px] font-medium bg-ink-800 border border-ink-700 text-slate-400"></span>
+            <div class="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+              <span id="spar-phase-badge" class="whitespace-nowrap inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-500/15 border border-blue-500/30 text-blue-300 shrink-0">🎙️ Phase 1: Opening</span>
+              <span id="spar-round-badge" class="whitespace-nowrap inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-accent-500/15 border border-accent-500/30 text-accent-300 shrink-0">🥊 Round <span id="spar-cur-round">1</span>${t.targetRounds ? " / " + t.targetRounds : " (Freestyle)"}</span>
+              <span id="spar-wallet-badge" class="whitespace-nowrap inline-flex items-center px-2 py-1 rounded-full text-[11px] font-medium bg-ink-800 border border-ink-700 text-slate-400 shrink-0"></span>
             </div>
           </div>
-          <h1 class="font-display text-xl sm:text-2xl text-white mt-1">${xt(t.topic||"Live session")}</h1>
+          <h1 class="font-display text-lg sm:text-2xl text-white font-bold leading-snug">${xt(t.topic||"Live session")}</h1>
           <div id="spar-target-reached-banner" class="hidden mt-2 p-2.5 rounded-xl bg-accent-500/15 border border-accent-500/30 text-accent-300 text-xs flex items-center justify-between">
             <span>🎯 Target rounds completed! Ready for your verdict, or keep sparring freely.</span>
-            <button type="button" id="banner-score-btn" class="underline font-bold ml-2 cursor-pointer">Get Scorecard →</button>
+            <button type="button" id="banner-score-btn" class="underline font-bold ml-2 cursor-pointer whitespace-nowrap">Get Scorecard →</button>
           </div>
         </div>
         <div id="transcript" class="transcript-scroll flex-1 overflow-y-auto space-y-3 pr-1 max-h-[46vh] lg:max-h-[52vh] min-h-0 lg:min-h-[200px]"></div>
         <div id="quota-slot"></div>
         <div class="mt-4">
           <div class="flex gap-2">
-            <textarea id="msg-input" rows="2" placeholder="${xt(t.modeId==="debate"||t.modeId==="historical"?"Your move — type it or tap the mic to speak…":t.modeId==="rapbattle"?"Drop your bars — type them or tap the mic to spit…":"Say what’s on your mind — type it or tap the mic to speak…")}"
-              class="flex-1 px-4 py-3 rounded-xl bg-ink-900 border border-ink-700 text-white placeholder:text-slate-600 focus:outline-none focus:border-accent-400 resize-none"></textarea>
-            <button id="mic-btn" title="Speak your response" aria-label="Speak your response" class="hidden shrink-0 w-12 rounded-xl border border-ink-700 text-slate-300 hover:text-white hover:border-slate-500 items-center justify-center">${it.mic}</button>
+            <textarea id="msg-input" rows="2" placeholder="${xt(t.modeId==="debate"||t.modeId==="historical"?"Deliver your opening constructive statement…":t.modeId==="thesis"?"Deliver your opening defense statement…":"Type your opening point or tap the mic…")}"
+              class="flex-1 px-4 py-3 rounded-xl bg-ink-900 border border-ink-700 text-white placeholder-slate-500 focus:outline-none focus:border-accent-500 text-sm resize-none"></textarea>
+            <button id="mic-btn" title="Speak your response" aria-label="Speak your response" class="hidden shrink-0 w-11 h-11 self-end items-center justify-center rounded-xl border border-ink-700 hover:border-slate-500 text-slate-300 transition-colors [&>svg]:w-5 [&>svg]:h-5">
+              ${it.mic}
+            </button>
             <button id="send-btn" class="shrink-0 px-5 rounded-xl bg-accent-500 hover:bg-accent-400 text-[#fff] font-semibold disabled:opacity-60">Send</button>
           </div>
           <p id="mic-hint" class="hidden text-xs text-slate-500 mt-2">Listening… speak now, then tap the mic again to stop.</p>
         </div>
       </div>
-    </div>`;const n=createDebateAvatar(i.querySelector("#avatar-canvas"),{figureId:t.figureId,personaVisual:t.personaVisual,modeId:t.modeId,personaLabel:t.personaLabel});window.addEventListener("hashchange",()=>n.dispose(),{once:!0});const s=i.querySelector("#transcript"),r=i.querySelector("#msg-input"),a=i.querySelector("#send-btn"),o=i.querySelector("#mic-btn"),c=i.querySelector("#mic-hint"),l=i.querySelector("#replay-btn"),d=i.querySelector("#stop-btn"),u=i.querySelector("#end-btn"),h=i.querySelector("#voice-note"),p=i.querySelector("#quota-slot");(async()=>{try{const I=await Ut(`/api/debates/${encodeURIComponent(e)}`);const _loadedTurns=I.turns??[];for(const G of _loadedTurns)G.role==="user"?L("you",G.text):G.role==="assistant"&&L("opponent",G.text);_sparCurRound=Math.max(1,Math.floor(_loadedTurns.length/2)+1);updateRoundAndPhase();const _resSpeaker=t.resolvedFirstSpeaker||I.debate?.resolvedFirstSpeaker||(I.debate?.setup_json?JSON.parse(I.debate.setup_json).resolvedFirstSpeaker:null);if(_resSpeaker==="opponent"&&_loadedTurns.length===0){setTimeout(()=>q("open"),400);}}catch(err){console.error("Failed to load session turns",err);}})();let _sparCurRound=1;const g=[];const updateRoundAndPhase=()=>{const _crEl=i.querySelector("#spar-cur-round");if(_crEl)_crEl.textContent=_sparCurRound;const _phEl=i.querySelector("#spar-phase-badge");const isDeb=t.modeId==="debate"||t.modeId==="historical"||t.modeId==="thesis"||t.modeId==="sparring";if(_phEl){if(_sparCurRound<=1){_phEl.className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-500/15 border border-blue-500/30 text-blue-300";_phEl.textContent=isDeb?"🎙️ Phase 1: Opening Statements":"🎙️ Phase 1: Opening";}else if(t.targetRounds&&_sparCurRound>=t.targetRounds){_phEl.className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-500/15 border border-purple-500/30 text-purple-300";_phEl.textContent=isDeb?"🏛️ Phase 3: Final Closing Arguments":"🏛️ Phase 3: Closing";}else{_phEl.className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-500/15 border border-red-500/30 text-red-300";_phEl.textContent=isDeb?"⚔️ Phase 2: Rebuttal & Cross-Exam":`🥊 Round ${_sparCurRound} Clash`;}}if(r){if(_sparCurRound<=1){r.placeholder=isDeb?(g.length===0?"Deliver your opening constructive — state your resolution, definitions, and main arguments…":"Deliver your opening counter-statement — challenge their thesis and state your case…"):"Type your opening statement or tap the mic…";}else if(t.targetRounds&&_sparCurRound>=t.targetRounds){r.placeholder=isDeb?"Deliver your final closing argument — crystalize your key voting issues for the judge…":"Deliver your final closing point…";}else{r.placeholder=isDeb?"Attack their weak premises, challenge evidence, or counter-examine…":"Type your response or tap the mic…";}}};const showUnlimitedEndModal=()=>{return new Promise(resolve=>{const modal=document.createElement("div");modal.className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in";modal.innerHTML=`<div class="relative w-full max-w-md rounded-3xl border border-ink-700 bg-ink-900/95 p-6 sm:p-7 shadow-2xl"><h3 class="font-display text-xl text-white font-bold mb-2">Conclude Unlimited Sparring?</h3><p class="text-sm text-slate-300 leading-relaxed mb-6">You’ve completed ${_sparCurRound} rounds of open sparring. Before scoring, would you like to deliver a final closing argument, or have the AI Judge score your session right now?</p><div class="space-y-3"><button type="button" id="modal-closing-btn" class="w-full py-3 px-4 rounded-xl bg-purple-600/20 border border-purple-500/40 text-purple-200 hover:bg-purple-600/30 font-semibold text-sm flex items-center justify-between transition-all"><span>🏛️ Deliver Final Closing Statement</span><span class="text-xs text-purple-300 opacity-80">1 final round</span></button><button type="button" id="modal-score-now-btn" class="w-full py-3 px-4 rounded-xl bg-accent-500 hover:bg-accent-400 text-white font-bold text-sm shadow-lg shadow-accent-500/20 flex items-center justify-between transition-all"><span>⚖️ Grade Session Now</span><span class="text-xs text-white/80">Immediate verdict</span></button><button type="button" id="modal-cancel-btn" class="w-full py-2.5 px-4 rounded-xl border border-ink-700 text-slate-400 hover:text-white hover:border-slate-500 font-medium text-xs transition-all">Keep Sparring Freely</button></div></div>`;document.body.appendChild(modal);modal.querySelector("#modal-closing-btn").onclick=()=>{modal.remove();resolve("closing");};modal.querySelector("#modal-score-now-btn").onclick=()=>{modal.remove();resolve("score");};modal.querySelector("#modal-cancel-btn").onclick=()=>{modal.remove();resolve("cancel");};});};let _=null;window.__qaExtra=()=>{const I=window.__sdkActive>0,G=!!_&&!_.paused;return`sdkPlaying=${I}
+    </div>`;const n=createDebateAvatar(i.querySelector("#avatar-canvas"),{figureId:t.figureId,personaVisual:t.personaVisual,modeId:t.modeId,personaLabel:t.personaLabel});window.addEventListener("hashchange",()=>n.dispose(),{once:!0});const s=i.querySelector("#transcript"),r=i.querySelector("#msg-input"),a=i.querySelector("#send-btn"),o=i.querySelector("#mic-btn"),c=i.querySelector("#mic-hint"),l=i.querySelector("#replay-btn"),d=i.querySelector("#stop-btn"),u=i.querySelector("#end-btn"),h=i.querySelector("#voice-note"),p=i.querySelector("#quota-slot");(async()=>{try{const I=await Ut(`/api/debates/${encodeURIComponent(e)}`);const _loadedTurns=I.turns??[];for(const G of _loadedTurns)G.role==="user"?L("you",G.text):G.role==="assistant"&&L("opponent",G.text);_sparCurRound=Math.max(1,Math.floor(_loadedTurns.length/2)+1);updateRoundAndPhase();const _resSpeaker=t.resolvedFirstSpeaker||I.debate?.resolvedFirstSpeaker||(I.debate?.setup_json?JSON.parse(I.debate.setup_json).resolvedFirstSpeaker:null);if(_resSpeaker==="opponent"&&_loadedTurns.length===0){setTimeout(()=>q("open"),400);}}catch(err){console.error("Failed to load session turns",err);}})();let _sparCurRound=1;const g=[];const updateRoundAndPhase=()=>{const _crEl=i.querySelector("#spar-cur-round");if(_crEl)_crEl.textContent=_sparCurRound;const _phEl=i.querySelector("#spar-phase-badge");const isDeb=t.modeId==="debate"||t.modeId==="historical"||t.modeId==="thesis"||t.modeId==="sparring";if(_phEl){if(_sparCurRound<=1){_phEl.className="whitespace-nowrap inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-500/15 border border-blue-500/30 text-blue-300 shrink-0";_phEl.textContent=isDeb?"🎙️ Phase 1: Opening":"🎙️ Opening";}else if(t.targetRounds&&_sparCurRound>=t.targetRounds){_phEl.className="whitespace-nowrap inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-500/15 border border-purple-500/30 text-purple-300 shrink-0";_phEl.textContent=isDeb?"🏛️ Phase 3: Closing":"🏛️ Closing";}else{_phEl.className="whitespace-nowrap inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-500/15 border border-red-500/30 text-red-300 shrink-0";_phEl.textContent=isDeb?"⚔️ Phase 2: Rebuttal":`🥊 Round ${_sparCurRound}`;}}if(r){if(_sparCurRound<=1){r.placeholder=isDeb?(g.length===0?"Deliver your opening constructive — state your resolution, definitions, and main arguments…":"Deliver your opening counter-statement — challenge their thesis and state your case…"):"Type your opening statement or tap the mic…";}else if(t.targetRounds&&_sparCurRound>=t.targetRounds){r.placeholder=isDeb?"Deliver your final closing argument — crystalize your key voting issues for the judge…":"Deliver your final closing point…";}else{r.placeholder=isDeb?"Attack their weak premises, challenge evidence, or counter-examine…":"Type your response or tap the mic…";}}};const showUnlimitedEndModal=()=>{return new Promise(resolve=>{const modal=document.createElement("div");modal.className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in";modal.innerHTML=`<div class="relative w-full max-w-md rounded-3xl border border-ink-700 bg-ink-900/95 p-6 sm:p-7 shadow-2xl"><h3 class="font-display text-xl text-white font-bold mb-2">Conclude Unlimited Sparring?</h3><p class="text-sm text-slate-300 leading-relaxed mb-6">You’ve completed ${_sparCurRound} rounds of open sparring. Before scoring, would you like to deliver a final closing argument, or have the AI Judge score your session right now?</p><div class="space-y-3"><button type="button" id="modal-closing-btn" class="w-full py-3 px-4 rounded-xl bg-purple-600/20 border border-purple-500/40 text-purple-200 hover:bg-purple-600/30 font-semibold text-sm flex items-center justify-between transition-all"><span>🏛️ Deliver Final Closing Statement</span><span class="text-xs text-purple-300 opacity-80">1 final round</span></button><button type="button" id="modal-score-now-btn" class="w-full py-3 px-4 rounded-xl bg-accent-500 hover:bg-accent-400 text-white font-bold text-sm shadow-lg shadow-accent-500/20 flex items-center justify-between transition-all"><span>⚖️ Grade Session Now</span><span class="text-xs text-white/80">Immediate verdict</span></button><button type="button" id="modal-cancel-btn" class="w-full py-2.5 px-4 rounded-xl border border-ink-700 text-slate-400 hover:text-white hover:border-slate-500 font-medium text-xs transition-all">Keep Sparring Freely</button></div></div>`;document.body.appendChild(modal);modal.querySelector("#modal-closing-btn").onclick=()=>{modal.remove();resolve("closing");};modal.querySelector("#modal-score-now-btn").onclick=()=>{modal.remove();resolve("score");};modal.querySelector("#modal-cancel-btn").onclick=()=>{modal.remove();resolve("cancel");};});};let _=null;window.__qaExtra=()=>{const I=window.__sdkActive>0,G=!!_&&!_.paused;return`sdkPlaying=${I}
 mp3Playing=${G}
 overlap=${I&&G?"YES-DOUBLE-AUDIO":"no"}`};let m=null,f=null,E=null,S=!1,x=0,R=null;const T=I=>t.modeId==="rapbattle"?I.replace(/\b(f+u+c+k+|s+h+i+t+|b+i+t+c+h+|a+s+s+(h+o+l+e+)?|d+a+m+n+|d+i+c+k+|p+u+s+s+y+|c+u+n+t+|w+h+o+r+e+|s+l+u+t+|n+i+g+g+[aeiou]+|f+a+g+(g+o+t+)?|t+i+t+s+|b+o+o+b+s?|p+e+n+i+s+|v+a+g+i+n+a+|c+l+i+t+|o+r+g+a+s+m+)\b/gi,"****"):I;function A(){s.scrollTop=s.scrollHeight}function L(I,G){g.push({role:I,text:G});const B=document.createElement("div");return B.className=I==="you"?"flex justify-end":"flex justify-start",B.innerHTML=`
       <div class="max-w-[85%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${I==="you"?"bg-accent-500/15 border border-accent-500/30 text-slate-100 rounded-br-md":"bg-ink-800 border border-ink-700 text-slate-200 rounded-bl-md"}">
