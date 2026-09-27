@@ -13,7 +13,7 @@ const PRICING = {
     cta: 'Start free',
     features: [
       '3 sessions on us',
-      'All 8 practice modes',
+      'All 10 practice modes',
       'Voice or text sessions',
       'No credit card to start'
     ]
@@ -27,7 +27,7 @@ const PRICING = {
       cta: 'Start free trial',
       features: [
         '30 sessions per month',
-        'All 8 practice modes',
+        'All 10 practice modes',
         'Voice or text sessions',
         'Session history'
       ]
@@ -79,7 +79,7 @@ function adaptLivePrices(data) {
       cta: 'Start free',
       features: [
         (trial.debates || 3) + ' sessions on us',
-        'All 8 practice modes',
+        'All 10 practice modes',
         'Voice or text sessions',
         'No credit card to start'
       ]
@@ -92,7 +92,7 @@ function adaptLivePrices(data) {
       cta: 'Start free trial',
       features: [
         (debater.debatesPerMonth || 30) + ' sessions per month',
-        'All 8 practice modes',
+        'All 10 practice modes',
         'Voice or text sessions',
         'Session history'
       ]
@@ -137,6 +137,8 @@ const MODES_FALLBACK = [
   { id: 'negotiation', name: 'Negotiation', icon: '🤝', img: '/img/mode-negotiation.jpg', blurb: 'Hone your deal-making against a counterpart who plays hardball.' },
   { id: 'sales', name: 'Sales Objections', icon: '📈', img: '/img/mode-sales.jpg', blurb: 'Handle every objection — price, timing, competition — until they melt away.' },
   { id: 'difficult', name: 'Difficult Conversations', icon: '💬', img: '/img/mode-difficult.jpg', blurb: 'Rehearse the hard talks: feedback, conflict, bad news — safely.' },
+  { id: 'rapbattle', name: 'Rap Battle', icon: '🎤', img: '/img/mode-rapbattle.jpg', blurb: 'Trade bars against a battle MC with flow, wordplay, and rebuttals.' },
+  { id: 'witness', name: 'Evangelism Training', icon: '✝️', img: '/img/mode-witness.jpg', blurb: 'Rehearse sharing the gospel with a realistic counterpart — curious, skeptical, or hurting.' },
   { id: 'thesis', name: 'Thesis Defense', icon: '🎓', img: '/img/mode-thesis.jpg', blurb: 'Defend your thesis against a committee that probes every weakness.' }
 ];
 
