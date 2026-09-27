@@ -46,6 +46,20 @@ const PRICING = {
         'Weakness tracking',
         'Priority voice quality'
       ]
+    },
+    {
+      name: 'Champion',
+      price: 49,
+      per: '/mo',
+      headline: '2,500 sparring rounds per month',
+      cta: 'Start free trial',
+      features: [
+        '2,500 sparring rounds per month',
+        'DeepSeek-V4-Pro reasoning engine',
+        'Coaching analytics & judge rubrics',
+        'Photorealistic 3D personas',
+        'Priority low-latency synthesis'
+      ]
     }
   ],
   packs: [
@@ -58,27 +72,44 @@ const PRICING = {
 
 const SIGNUP_URL = '/app/#/signup';
 
-/* Live prices: GET /api/billing/prices -> { tiers: {trial, debater, coach}, packs: [...] }.
+/* Live prices: GET /api/billing/prices -> { tiers: [...], packs: [...] }.
    Shapes come from the worker config; anything missing falls back to PRICING. */
 function adaptLivePrices(data) {
   if (!data || typeof data !== 'object') return null;
-  const tiers = data.tiers;
+  const rawTiers = data.tiers;
   const packs = data.packs;
-  if (!tiers || typeof tiers !== 'object') return null;
+  if (!rawTiers) return null;
 
-  const trial = tiers.trial || {};
-  const debater = tiers.debater || {};
-  const coach = tiers.coach || {};
+  const tiers = {};
+  if (Array.isArray(rawTiers)) {
+    for (const t of rawTiers) {
+      tiers[t.id] = t;
+    }
+  } else if (typeof rawTiers === 'object') {
+    Object.assign(tiers, rawTiers);
+  }
+
+  const trial = tiers.trial || { name: 'Trial', price: 0, debates: 15, rounds: 15 };
+  const debater = tiers.debater || { name: 'Debater', price: 1200, rounds: 300 };
+  const coach = tiers.coach || { name: 'Coach', price: 2900, rounds: 1000 };
+  const champion = tiers.champion || { name: 'Champion', price: 4900, rounds: 2500 };
+
+  const getPrice = (t, def) => {
+    if (typeof t.priceMonthly === 'number') return t.priceMonthly;
+    if (typeof t.price === 'number') return t.price > 100 ? Math.round(t.price / 100) : t.price;
+    return def;
+  };
+  const getRounds = (t, def) => t.roundsPerMonth || t.rounds || t.debatesPerMonth || t.debates || def;
 
   const plans = [
     {
       name: trial.name || 'Trial',
       price: 0,
       per: '',
-      headline: (trial.rounds || trial.debates || 15) + ' sparring rounds, free',
+      headline: getRounds(trial, 15) + ' sparring rounds, free',
       cta: 'Start free',
       features: [
-        (trial.rounds || trial.debates || 15) + ' sparring rounds on us',
+        getRounds(trial, 15) + ' sparring rounds on us',
         'All 10 practice modes',
         'Voice or text sessions',
         'No credit card to start'
@@ -86,12 +117,12 @@ function adaptLivePrices(data) {
     },
     {
       name: debater.name || 'Debater',
-      price: typeof debater.priceMonthly === 'number' ? debater.priceMonthly : 12,
+      price: getPrice(debater, 12),
       per: '/mo',
-      headline: (debater.roundsPerMonth || debater.rounds || debater.debates || 300) + ' sparring rounds per month',
+      headline: getRounds(debater, 300).toLocaleString() + ' sparring rounds per month',
       cta: 'Start free trial',
       features: [
-        (debater.roundsPerMonth || debater.rounds || debater.debates || 300) + ' sparring rounds per month',
+        getRounds(debater, 300).toLocaleString() + ' sparring rounds per month',
         'All 10 practice modes',
         'Voice or text sessions',
         'Session history'
@@ -99,17 +130,31 @@ function adaptLivePrices(data) {
     },
     {
       name: coach.name || 'Coach',
-      price: typeof coach.priceMonthly === 'number' ? coach.priceMonthly : 29,
+      price: getPrice(coach, 29),
       per: '/mo',
-      headline: (coach.roundsPerMonth || coach.rounds || coach.debates || 1000) + ' sparring rounds per month',
+      headline: getRounds(coach, 1000).toLocaleString() + ' sparring rounds per month',
       badge: 'Most popular',
       cta: 'Start free trial',
       features: [
-        (coach.roundsPerMonth || coach.rounds || coach.debates || 1000) + ' sparring rounds per month',
+        getRounds(coach, 1000).toLocaleString() + ' sparring rounds per month',
         'Everything in Debater',
         'Coaching analytics & scores',
         'Weakness tracking',
         'Priority voice quality'
+      ]
+    },
+    {
+      name: champion.name || 'Champion',
+      price: getPrice(champion, 49),
+      per: '/mo',
+      headline: getRounds(champion, 2500).toLocaleString() + ' sparring rounds per month',
+      cta: 'Start free trial',
+      features: [
+        getRounds(champion, 2500).toLocaleString() + ' sparring rounds per month',
+        'DeepSeek-V4-Pro reasoning engine',
+        'Coaching analytics & judge rubrics',
+        'Photorealistic 3D personas',
+        'Priority low-latency synthesis'
       ]
     }
   ];
@@ -118,7 +163,7 @@ function adaptLivePrices(data) {
     ? packs.map(function (p) { return { credits: p.rounds || p.debates || p.credits, price: Math.round((p.price || 0) / 100) || p.price }; })
     : PRICING.packs;
 
-  return { trial: plans[0], plans: [plans[1], plans[2]], packs: livePacks, packsNote: PRICING.packsNote };
+  return { trial: plans[0], plans: [plans[1], plans[2], plans[3]], packs: livePacks, packsNote: PRICING.packsNote };
 }
 
 function loadLivePricing() {

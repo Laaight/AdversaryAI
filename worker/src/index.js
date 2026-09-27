@@ -48,9 +48,9 @@ var init_config = __esm({
     "use strict";
     TIERS = {
       trial: { name: "Trial", debates: 15, rounds: 15, lifetime: true, price: 0 },
-      debater: { name: "Debater", priceMonthly: 12, debatesPerMonth: 300, roundsPerMonth: 300, blurb: "300 sparring rounds per month." },
-      coach: { name: "Coach", priceMonthly: 29, debatesPerMonth: 1000, roundsPerMonth: 1000, analytics: true, blurb: "1,000 sparring rounds per month plus coaching analytics." },
-      champion: { name: "Champion", priceMonthly: 49, debatesPerMonth: 800, roundsPerMonth: 800, premiumModel: true, blurb: "800 sparring rounds per month with DeepSeek-V4-Pro & photorealistic avatars." }
+      debater: { name: "Debater", priceMonthly: 12, debatesPerMonth: 300, roundsPerMonth: 300, blurb: "Full access to all 10 sparring arenas and standard 3D avatars." },
+      coach: { name: "Coach", priceMonthly: 29, debatesPerMonth: 1000, roundsPerMonth: 1000, analytics: true, blurb: "Detailed coaching analytics, scorecard rubrics, and judge feedback." },
+      champion: { name: "Champion", priceMonthly: 49, debatesPerMonth: 2500, roundsPerMonth: 2500, premiumModel: true, blurb: "DeepSeek-V4-Pro brain, photorealistic 3D personas, and priority reasoning." }
     };
     PACKS = [
       { id: "pack10", name: "100 Rounds", debates: 100, rounds: 100, price: 9 },
