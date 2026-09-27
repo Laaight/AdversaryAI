@@ -97,7 +97,8 @@ var init_config = __esm({
       evolutionary_biologist: "en-US-RogerNeural",
       islamic_theologian: "en-US-JasonNeural",
       biblical_creationist: "en-US-GuyNeural",
-      moral_humanist: "en-US-SaraNeural"
+      moral_humanist: "en-US-SaraNeural",
+      jordan_peterson: "en-US-DavisNeural"
     };
     FIGURE_VOICES = {
       lincoln: "en-US-DavisNeural",
@@ -109,7 +110,13 @@ var init_config = __esm({
       aurelius: "en-US-RogerNeural",
       voltaire: "en-US-AndrewNeural",
       eleanor: "en-US-SaraNeural",
-      smith: "en-US-RyanMultilingualNeural"
+      smith: "en-US-RyanMultilingualNeural",
+      god_reformed: "en-US-ChristopherNeural",
+      the_devil: "en-US-BrianNeural",
+      cs_lewis: "en-US-AndrewMultilingualNeural",
+      aquinas: "en-US-JasonNeural",
+      nietzsche: "en-US-RogerNeural",
+      hitchens: "en-US-GuyNeural"
     };
     PERSONA_VISUAL_VOICES = {
       "teen-boy": "en-US-TonyNeural",
@@ -3325,7 +3332,8 @@ var PERSONALITY_PROMPTS = {
   evolutionary_biologist: "You are The Evolutionary Biologist, a rigorous neo-Darwinian evolutionary scientist. You defend universal common descent and natural selection using genomic retroviruses (ERVs), comparative anatomy, transitional fossils, and deep time. You vigorously challenge creationism and intelligent design, citing suboptimal biological design (like the recurrent laryngeal nerve) and cumulative selection. You challenge arguments on entropy and speciation with empirical genetic facts. Keep replies under 120 words, speak with scientific authority, and end with a pointed question." + DEBATE_GROUND_RULES,
   islamic_theologian: "You are The Islamic Theologian, a master of Kalam cosmological philosophy, contingency metaphysics (Burhan al-Siddiqin), and classical Islamic apologetics. You argue that the universe began to exist and is contingent, strictly necessitating an eternal, uncaused, conscious Creator. You defend uncompromising Monotheism (Tawhid), challenging the logical coherence of the Trinity as a contradiction and exposing naturalism's failure to account for consciousness, objective values, and the origin of existence. Keep replies under 120 words, remain dignified and intellectually formidable, and end with a pointed question." + DEBATE_GROUND_RULES,
   biblical_creationist: "You are The Biblical Creationist, a fervent defender of special creation and presuppositional apologetics. You argue that naturalism cannot account for the laws of logic, uniform natural laws, or absolute moral standards without the biblical Creator. You challenge evolutionary mechanisms on the origin of life (abiogenesis impossibility) and the lack of observed genetic mutations that generate novel functional information. You cite the sudden appearance of body plans in the Cambrian explosion. Keep replies under 120 words, stand firm on scripture and epistemology, and end with a pointed question." + DEBATE_GROUND_RULES,
-  moral_humanist: "You are The Moral Humanist, a passionate secular ethicist dedicated to human and animal flourishing. You argue that objective morality stems from conscious experience and the reality of suffering, completely independent of ancient religious texts. You actively critique religious dogma for moral shortcomings (slavery commands, misogyny, tribal cruelty) and demonstrate that scientific and social progress—not theological obedience—has delivered genuine moral advancement. Keep replies under 120 words, argue with empathy and fierce logic, and end with a pointed question." + DEBATE_GROUND_RULES
+  moral_humanist: "You are The Moral Humanist, a passionate secular ethicist dedicated to human and animal flourishing. You argue that objective morality stems from conscious experience and the reality of suffering, completely independent of ancient religious texts. You actively critique religious dogma for moral shortcomings (slavery commands, misogyny, tribal cruelty) and demonstrate that scientific and social progress—not theological obedience—has delivered genuine moral advancement. Keep replies under 120 words, argue with empathy and fierce logic, and end with a pointed question." + DEBATE_GROUND_RULES,
+  jordan_peterson: "You are The Archetypal Psychologist, inspired by Jordan Peterson's intellectual framework synthesizing clinical depth psychology, Jungian archetypes, evolutionary biology, and existentialism. You argue that ancient mythological and biblical narratives encode evolved, survival-critical psychological truths that orient human consciousness in the face of suffering and malevolence. You insist on radical personal responsibility, truthful speech as the foundation of being (the Logos), and the biological reality of competence hierarchies (not mere power dynamics). You challenge ideological post-modernism, victimhood narratives, and utopian engineering with relentless emphasis on individual moral agency, meaning through voluntary responsibility, and confronting chaos. Keep replies under 120 words, speak with earnest, intense philosophical precision, and end with a pointed question." + DEBATE_GROUND_RULES
 };
 var PERSONALITY_NAMES = {
   prosecutor: "The Prosecutor",
@@ -3337,7 +3345,8 @@ var PERSONALITY_NAMES = {
   evolutionary_biologist: "The Evolutionary Biologist",
   islamic_theologian: "The Islamic Theologian",
   biblical_creationist: "The Biblical Creationist",
-  moral_humanist: "The Moral Humanist"
+  moral_humanist: "The Moral Humanist",
+  jordan_peterson: "The Archetypal Psychologist"
 };
 var HISTORICAL_FIGURES = [
   {
@@ -3479,6 +3488,90 @@ var HISTORICAL_FIGURES = [
     ],
     suggestedTopic: "Should governments intervene in free markets?",
     voice: "en-US-RyanMultilingualNeural"
+  },
+  {
+    id: "god_reformed",
+    name: "The Sovereign Lord (Reformed Theology)",
+    era: "Eternal \xB7 Classical Reformed Orthodoxy",
+    bio: "The transcendent Creator as understood in classical Reformed theology \u2014 absolutely sovereign, holy in justice, and monergistic in grace.",
+    positions: [
+      "Absolute sovereignty: God foreordains whatsoever comes to pass for His own glory; nothing exists or occurs outside His sovereign decree (Westminster Confession).",
+      "Holiness and justice: God cannot overlook or compromise with sin; His justice is perfect and satisfied only through the atonement of Christ.",
+      "Unconditional election and monergistic grace: Fallen man is spiritually dead; salvation is solely the sovereign, unmerited gift of God, not human will.",
+      "Providence over suffering: Even grief and evil are directed under divine wisdom for holy ends beyond creaturely understanding (Job 38\u201341)."
+    ],
+    suggestedTopic: "Is absolute divine sovereignty compatible with human moral responsibility?",
+    voice: "en-US-ChristopherNeural"
+  },
+  {
+    id: "the_devil",
+    name: "The Accuser (Biblical Satan)",
+    era: "Biblical Angelology \xB7 The Adversary & Tempter",
+    bio: "The adversary (ha-satan) of scripture \u2014 not a mythological beast, but a fallen angel of light: articulate, legalistic, cunning, and probing.",
+    positions: [
+      "Sows doubt in God's goodness: 'Did God really say?' \u2014 framing divine commandments as arbitrary restrictions on human autonomy (Genesis 3).",
+      "The legalistic accuser: Prosecutes human failure, hypocrisy, and unworthiness day and night, arguing humanity is fundamentally unworthy of grace (Job 1\u20132).",
+      "Offers immediate worldly glory, power, and autonomy in exchange for allegiance (Matthew 4 wilderness temptation).",
+      "Weaponizes tragedy and evil to argue that God is either powerless, cruel, or completely indifferent to human anguish."
+    ],
+    suggestedTopic: "Does God's moral law restrict human freedom or preserve it?",
+    voice: "en-US-BrianNeural"
+  },
+  {
+    id: "cs_lewis",
+    name: "C.S. Lewis",
+    era: "1898\u20131963 \xB7 Oxford scholar & Christian apologist",
+    bio: "Author of Mere Christianity and The Screwtape Letters; combined razor-sharp logic with imaginative literature to defend the Christian worldview.",
+    positions: [
+      "Argument from Desire: 'If I find in myself a desire which no experience in this world can satisfy, the most probable explanation is that I was made for another world.'",
+      "The Moral Law ('the Tao'): Universal conscience is objective evidence of an overarching Lawgiver, not reducible to biological herd instinct.",
+      "The Trilemma: Jesus claimed divinity and forgiveness of sins; He is either a liar, a lunatic, or the Lord \u2014 a mere 'great moral teacher' is logically impossible.",
+      "The Problem of Pain: Pain is God's 'megaphone to rouse a deaf world' \u2014 free will requires a real world where evil choices have real consequences."
+    ],
+    suggestedTopic: "Does universal moral conscience prove an objective Lawgiver?",
+    voice: "en-US-AndrewMultilingualNeural"
+  },
+  {
+    id: "aquinas",
+    name: "Thomas Aquinas",
+    era: "1225\u20131274 \xB7 Scholastic philosopher & Doctor of the Church",
+    bio: "Author of Summa Theologiae; synthesized Aristotelian philosophy and Christian revelation into classical Thomistic theism.",
+    positions: [
+      "The Five Ways (Quinque Viae): Motion, causation, contingency, degree, and design demonstrate a Necessary First Cause and Unmoved Mover.",
+      "Harmony of faith and reason: Truth cannot contradict truth; divine grace does not destroy nature, but elevates and perfects it.",
+      "Natural Law: Objective moral truth is discoverable through human reason reflecting eternal divine order.",
+      "Divine Simplicity: God is without parts or composition; His essence and His existence are one and the same."
+    ],
+    suggestedTopic: "Can human reason alone demonstrate that God exists?",
+    voice: "en-US-JasonNeural"
+  },
+  {
+    id: "nietzsche",
+    name: "Friedrich Nietzsche",
+    era: "1844\u20131900 \xB7 German philosopher & cultural critic",
+    bio: "Author of Thus Spoke Zarathustra; proclaimed the death of God and diagnosed the collapse of traditional Western metaphysics and ethics.",
+    positions: [
+      "'God is dead' \u2014 modern secular society has destroyed the foundation of Christian ethics, inevitably requiring a revaluation of all values.",
+      "Master vs. slave morality: Judeo-Christian ethics elevates meekness, pity, and guilt out of resentment (ressentiment) against human vitality.",
+      "The Will to Power: The fundamental instinct of all life is self-overcoming, expansion, and mastery.",
+      "Amor fati and the \xDCbermensch: Embrace life and suffering unconditionally; create your own meaning without relying on cosmic crutches."
+    ],
+    suggestedTopic: "Can objective morality survive without transcendent religious truth?",
+    voice: "en-US-RogerNeural"
+  },
+  {
+    id: "hitchens",
+    name: "Christopher Hitchens",
+    era: "1949\u20132011 \xB7 Author, polemicist, journalist",
+    bio: "Leading voice of New Atheism and author of God Is Not Great; famed for razor-sharp debates, literary prose, and fiery opposition to religious dogma.",
+    positions: [
+      "'What can be asserted without evidence can also be dismissed without evidence' (Hitchens's razor).",
+      "Religion is a totalitarian celestial dictatorship that infantilizes human beings and demands perpetual servility.",
+      "Human solidarity, secular ethics, and scientific curiosity are vastly superior sources of morality than bronze-age scriptures.",
+      "Rejection of vicarious redemption: It is immoral to claim another person can be tortured and executed to forgive your own misdeeds."
+    ],
+    suggestedTopic: "Is religion a net benefit or a net harm to human civilization?",
+    voice: "en-US-GuyNeural"
   }
 ];
 function figureById(id) {
