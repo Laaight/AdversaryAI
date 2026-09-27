@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+.npm/
+
+# Cloudflare Wrangler
+.wrangler/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+Desktop.ini

@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AdversaryAI — Practice against anyone</title>
+<meta name="description" content="AdversaryAI is an AI sparring partner for debates, interviews, negotiations and more. Practice by voice or text, get coaching scores after every session. Start with 3 free sessions.">
+<meta name="theme-color" content="#07080b">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AdversaryAI">
+<meta property="og:title" content="AdversaryAI — Practice against anyone">
+<meta property="og:description" content="An AI sparring partner for debates, interviews, negotiations and more — with coaching scores after every session. 3 sessions free.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://getadversaryai.com/">
+<meta property="og:image" content="https://getadversaryai.com/img/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://getadversaryai.com/img/og-image.jpg">
+<meta name="twitter:title" content="AdversaryAI — Practice against anyone">
+<meta name="twitter:description" content="An AI sparring partner for debates, interviews, negotiations and more — with coaching scores after every session. 3 sessions free.">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="stylesheet" href="landing.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="#top" aria-label="AdversaryAI home">
+      <svg class="brand-mark-svg" viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="#0d0f14"/><polygon points="256,104 400,392 112,392" fill="none" stroke="#e8392e" stroke-width="34" stroke-linejoin="round"/><g fill="#e8392e"><rect x="165" y="264" width="22" height="44" rx="11"/><rect x="193" y="244" width="22" height="84" rx="11"/><rect x="221" y="226" width="22" height="120" rx="11"/><rect x="249" y="212" width="22" height="148" rx="11"/><rect x="277" y="230" width="22" height="112" rx="11"/><rect x="305" y="248" width="22" height="76" rx="11"/><rect x="333" y="266" width="22" height="40" rx="11"/></g></svg>
+      <span class="brand-name">Adversary<em>AI</em></span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="#how">How it works</a>
+      <a href="#modes">Practice modes</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <div class="nav-actions">
+      <a class="nav-login" href="/app/#/login">Log in</a>
+      <a class="btn btn-primary btn-sm" href="/app/#/signup">Start free trial</a>
+      <button class="nav-toggle" id="navToggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="mobileNav">
+        <span aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
+      </button>
+    </div>
+  </div>
+  <nav class="mobile-nav hidden" id="mobileNav" aria-label="Mobile">
+    <a href="#how">How it works</a>
+    <a href="#modes">Practice modes</a>
+    <a href="#pricing">Pricing</a>
+    <a href="#faq">FAQ</a>
+    <a href="/app/#/login">Log in</a>
+    <a class="btn btn-primary" href="/app/#/signup">Start free trial</a>
+  </nav>
+</header>
+
+<main id="top">
+
+  <!-- ============ 1. HERO ============ -->
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div class="hero-copy">
+        <p class="kicker">AI practice partner</p>
+        <h1>Practice against<br><span class="accent">anyone.</span></h1>
+        <p class="sub">
+          AdversaryAI is a sparring partner that never gets tired and never lets a
+          weak answer slide. Debate a motion, rehearse a job interview, or negotiate
+          a deal — by voice or text — and get scored like an athlete after every session.
+        </p>
+        <div class="hero-ctas">
+          <a class="btn btn-primary" href="/app/#/signup">Start free trial</a>
+          <a class="btn btn-ghost" href="#modes">Explore practice modes</a>
+        </div>
+        <p class="hero-note">3 sessions free. No credit card to start.</p>
+      </div>
+
+      <div class="hero-avatar">
+        <div class="demo-persona-tabs" id="demoPersonaTabs" role="tablist" aria-label="Choose a demo opponent">
+          <button type="button" role="tab" data-demo-persona="prosecutor" aria-selected="true" class="demo-persona-tab is-active">The Prosecutor</button>
+          <button type="button" role="tab" data-demo-persona="contrarian" aria-selected="false" class="demo-persona-tab">The Contrarian</button>
+          <button type="button" role="tab" data-demo-persona="coach" aria-selected="false" class="demo-persona-tab">The Coach</button>
+        </div>
+        <div class="avatar-frame" id="avatarFrame">
+          <canvas id="avatarCanvas" aria-label="AdversaryAI opponent avatar"></canvas>
+          <div class="avatar-overlay" id="avatarOverlay">
+            <button class="btn btn-primary btn-lg" id="playBtn" type="button">
+              <span aria-hidden="true">▶</span> Hear your opponent
+            </button>
+          </div>
+          <p class="avatar-caption" id="avatarCaption" role="status"></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 2. HOW IT WORKS ============ -->
+  <section class="section" id="how">
+    <div class="wrap">
+      <p class="kicker">How it works</p>
+      <h2>Three steps to sharper thinking</h2>
+      <div class="steps">
+        <div class="step reveal">
+          <span class="step-num" aria-hidden="true">01</span>
+          <h3>Pick your mode</h3>
+          <p>Choose from eight practice modes — debate sparring, job interviews, negotiations, historical figures and more. Set the scenario and the difficulty.</p>
+        </div>
+        <div class="step reveal">
+          <span class="step-num" aria-hidden="true">02</span>
+          <h3>Practice by voice or text</h3>
+          <p>Argue out loud with natural voice conversation, or type if you prefer. Your opponent pushes back in real time — cross-examining, probing, and refusing to let sloppy thinking pass.</p>
+        </div>
+        <div class="step reveal">
+          <span class="step-num" aria-hidden="true">03</span>
+          <h3>Get coaching scores</h3>
+          <p>Every session ends with detailed scores: argument strength, evidence, rebuttal quality, and composure — plus exactly where you lost points and how to win them back next time.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 3. PRACTICE MODES ============ -->
+  <section class="section section-alt" id="modes">
+    <div class="wrap">
+      <p class="kicker">Practice modes</p>
+      <h2>Eight arenas. One goal: better thinking.</h2>
+      <p class="section-lede">Whatever you're preparing for, there's a mode built for it. Each one sets the scene, plays the other side, and scores you like a coach.</p>
+      <div class="modes" id="modes-grid" aria-live="polite">
+        <div class="mode-skeleton" aria-hidden="true"><span class="sk-img"></span><span class="sk-title"></span><span class="sk-text"></span></div>
+        <div class="mode-skeleton" aria-hidden="true"><span class="sk-img"></span><span class="sk-title"></span><span class="sk-text"></span></div>
+        <div class="mode-skeleton" aria-hidden="true"><span class="sk-img"></span><span class="sk-title"></span><span class="sk-text"></span></div>
+        <div class="mode-skeleton" aria-hidden="true"><span class="sk-img"></span><span class="sk-title"></span><span class="sk-text"></span></div>
+        <div class="mode-skeleton" aria-hidden="true"><span class="sk-img"></span><span class="sk-title"></span><span class="sk-text"></span></div>
+        <div class="mode-skeleton" aria-hidden="true"><span class="sk-img"></span><span class="sk-title"></span><span class="sk-text"></span></div>
+        <div class="mode-skeleton" aria-hidden="true"><span class="sk-img"></span><span class="sk-title"></span><span class="sk-text"></span></div>
+        <div class="mode-skeleton" aria-hidden="true"><span class="sk-img"></span><span class="sk-title"></span><span class="sk-text"></span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 4. PRICING ============ -->
+  <section class="section" id="pricing">
+    <div class="wrap">
+      <p class="kicker">Pricing</p>
+      <h2>Pay for sessions, not promises</h2>
+      <p class="section-lede">Start free. Upgrade when you're hooked. One-time session packs never expire.</p>
+      <div class="plans" id="plans"></div>
+      <h3 class="packs-title">One-time session packs</h3>
+      <div class="packs" id="packs"></div>
+      <p class="packs-note">One-time purchase. Credits never expire. Stack them with any plan.</p>
+    </div>
+  </section>
+
+  <!-- ============ 5. FAQ ============ -->
+  <section class="section section-alt" id="faq">
+    <div class="wrap faq-wrap">
+      <p class="kicker">FAQ</p>
+      <h2>Questions, answered</h2>
+      <details class="faq" open>
+        <summary>What is AdversaryAI?</summary>
+        <p>AdversaryAI is an AI sparring partner. You pick a practice mode — debate, job interview, negotiation, and more — then argue your case by voice or by text. The AI pushes back in real time, and when the session ends you get detailed coaching scores on your argument strength, evidence, rebuttals, and composure.</p>
+      </details>
+      <details class="faq">
+        <summary>How does a session work?</summary>
+        <p>You choose a mode and a scenario (anything from "AI should be regulated" to a mock interview for a product role), pick your opponent style, and set the difficulty. Then you practice in timed exchanges — make your case, handle rebuttals, and deliver a closing. Afterwards you get a full scorecard showing where you won and lost points.</p>
+      </details>
+      <details class="faq">
+        <summary>Do I need a microphone?</summary>
+        <p>No. Voice sessions need a mic, but text sessions work with just a keyboard — same opponents, same scoring. Many people start with text and switch to voice once they're warmed up.</p>
+      </details>
+      <details class="faq">
+        <summary>Is there a free trial?</summary>
+        <p>Yes — your first 3 sessions are free, with full access to every practice mode and voice or text. No credit card required to start.</p>
+      </details>
+      <details class="faq">
+        <summary>What does it cost after the trial?</summary>
+        <p><strong>Debater</strong> is $12/month for 30 sessions, <strong>Coach</strong> is $29/month for 150 sessions plus coaching analytics, and <strong>Champion</strong> is $49/month for 25 sessions with our smartest debate brain (DeepSeek V4 Pro). Prefer one-off? Session packs cost $9 for 10, $19 for 25, or $39 for 60 sessions — and pack credits never expire.</p>
+      </details>
+      <details class="faq">
+        <summary>Can I cancel anytime?</summary>
+        <p>Yes. Monthly plans cancel in one click and you keep access until the end of your billing period. Any unused pack credits stay on your account — they never expire.</p>
+      </details>
+    </div>
+  </section>
+
+  <!-- ============ 6. FINAL CTA + FOOTER ============ -->
+  <section class="section final-cta">
+    <div class="wrap">
+      <p class="kicker kicker-center">Ready when you are</p>
+      <h2>Your first opponent is waiting.</h2>
+      <p>Three sessions. Free. No excuses left.</p>
+      <a class="btn btn-primary btn-lg" href="/app/#/signup">Start free trial</a>
+    </div>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <div class="wrap footer-inner">
+    <div class="footer-brand">
+      <a class="brand" href="#top" aria-label="AdversaryAI home">
+        <svg class="brand-mark-svg" viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="#0d0f14"/><polygon points="256,104 400,392 112,392" fill="none" stroke="#e8392e" stroke-width="34" stroke-linejoin="round"/><g fill="#e8392e"><rect x="165" y="264" width="22" height="44" rx="11"/><rect x="193" y="244" width="22" height="84" rx="11"/><rect x="221" y="226" width="22" height="120" rx="11"/><rect x="249" y="212" width="22" height="148" rx="11"/><rect x="277" y="230" width="22" height="112" rx="11"/><rect x="305" y="248" width="22" height="76" rx="11"/><rect x="333" y="266" width="22" height="40" rx="11"/></g></svg>
+        <span class="brand-name">Adversary<em>AI</em></span>
+      </a>
+      <p class="footer-tagline">Practice against anyone.</p>
+    </div>
+    <nav class="footer-links" aria-label="Footer">
+      <a href="#how">How it works</a>
+      <a href="#modes">Practice modes</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#faq">FAQ</a>
+      <a href="/app/#/signup">Sign up</a>
+      <a href="/app/#/login">Log in</a>
+    </nav>
+    <p class="copyright">© 2026 AdversaryAI. Argue better.</p>
+  </div>
+</footer>
+
+<script src="landing.js"></script>
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"8fdd31aebec840deb57089bace298fb9","r":1,"spa":2}' crossorigin="anonymous"></script>
+</body>
+</html>

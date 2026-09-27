@@ -1,0 +1,14 @@
+{
+  "name": "adversaryai",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AdversaryAI — AI sparring partner for debates, interviews, negotiations, and coaching",
+  "scripts": {
+    "deploy": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy.ps1",
+    "tail": "powershell -ExecutionPolicy Bypass -File ./scripts/tail.ps1",
+    "d1:query": "powershell -ExecutionPolicy Bypass -File ./scripts/d1-query.ps1"
+  },
+  "devDependencies": {
+    "wrangler": "^4.141.0"
+  }
+}

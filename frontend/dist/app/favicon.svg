@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<rect width="512" height="512" rx="112" fill="#0d0f14"/>
+<defs><linearGradient id="pg" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#ff5a4d"/><stop offset="1" stop-color="#a3121f"/></linearGradient></defs>
+<polygon points="256,104 400,392 112,392" fill="none" stroke="url(#pg)" stroke-width="34" stroke-linejoin="round"/>
+<rect x="165" y="264.0" width="22" height="44" rx="11" fill="#e8392e"/><rect x="193" y="244.0" width="22" height="84" rx="11" fill="#e8392e"/><rect x="221" y="226.0" width="22" height="120" rx="11" fill="#e8392e"/><rect x="249" y="212.0" width="22" height="148" rx="11" fill="#e8392e"/><rect x="277" y="230.0" width="22" height="112" rx="11" fill="#e8392e"/><rect x="305" y="248.0" width="22" height="76" rx="11" fill="#e8392e"/><rect x="333" y="266.0" width="22" height="40" rx="11" fill="#e8392e"/>
+</svg>

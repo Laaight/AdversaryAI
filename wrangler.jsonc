@@ -1,0 +1,33 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "adversaryai",
+  "main": "worker/src/index.js",
+  "compatibility_date": "2024-09-23",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "account_id": "c7c994f6f420b6b429084f0e9c915ded",
+  "assets": {
+    "directory": "frontend/dist",
+    "binding": "ASSETS"
+  },
+  "routes": [
+    { "pattern": "getadversaryai.com", "custom_domain": true },
+    { "pattern": "www.getadversaryai.com", "custom_domain": true }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "adversaryai-db",
+      "database_id": "a2763f97-fa6a-46c7-b3e9-349c50ad16ff"
+    }
+  ],
+  "vars": {
+    "APP_URL": "https://getadversaryai.com",
+    "AZURE_SPEECH_REGION": "westus3",
+    "DEEPSEEK_BASE_MODEL": "DeepSeek-V4-Flash",
+    "DEEPSEEK_BASE_URL": "https://adversaryai-resource.services.ai.azure.com/openai/v1/chat/completions",
+    "DEEPSEEK_PRO_MODEL": "DeepSeek-V4-Pro",
+    "DEEPSEEK_PRO_URL": "https://adversaryai-resource.services.ai.azure.com/openai/v1/chat/completions"
+  }
+}

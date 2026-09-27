@@ -1,0 +1,4630 @@
+﻿var __defProp = Object.defineProperty;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
+var __esm = (fn, res, err) => function __init() {
+  if (err) throw err[0];
+  try {
+    return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+  } catch (e) {
+    throw err = [e], e;
+  }
+};
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+
+// worker/src/config.ts
+var config_exports = {};
+__export(config_exports, {
+  EDU: () => EDU,
+  FIGURE_VOICES: () => FIGURE_VOICES,
+  OWNER_EMAILS: () => OWNER_EMAILS,
+  PACKS: () => PACKS,
+  PERSONALITY_VOICES: () => PERSONALITY_VOICES,
+  PERSONA_VISUAL_VOICES: () => PERSONA_VISUAL_VOICES,
+  TIERS: () => TIERS,
+  getStripePriceIds: () => getStripePriceIds,
+  isOwnerEmail: () => isOwnerEmail
+});
+function getStripePriceIds(env) {
+  return {
+    debater: env.STRIPE_PRICE_DEBATER,
+    coach: env.STRIPE_PRICE_COACH,
+    champion: env.STRIPE_PRICE_CHAMPION,
+    pack10: env.STRIPE_PRICE_PACK10,
+    pack25: env.STRIPE_PRICE_PACK25,
+    pack60: env.STRIPE_PRICE_PACK60,
+    eduSeat: env.STRIPE_PRICE_EDU_SEAT
+  };
+}
+function isOwnerEmail(email, env) {
+  const extra = (env?.OWNER_EMAILS ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+  return (/* @__PURE__ */ new Set([...OWNER_EMAILS, ...extra])).has(email.trim().toLowerCase());
+}
+var TIERS, PACKS, EDU, PERSONALITY_VOICES, FIGURE_VOICES, PERSONA_VISUAL_VOICES, OWNER_EMAILS;
+var init_config = __esm({
+  "worker/src/config.ts"() {
+    "use strict";
+    TIERS = {
+      trial: { name: "Trial", debates: 3, lifetime: true, price: 0 },
+      debater: { name: "Debater", priceMonthly: 12, debatesPerMonth: 30, blurb: "The essential sparring partner." },
+      coach: { name: "Coach", priceMonthly: 29, debatesPerMonth: 150, analytics: true, blurb: "Deeper sessions plus coaching analytics." },
+      champion: { name: "Champion", priceMonthly: 49, debatesPerMonth: 25, premiumModel: true, blurb: "Our smartest debate brain (DeepSeek V4 Pro) \u2014 the ultimate sparring partner." }
+    };
+    PACKS = [
+      { id: "pack10", name: "10 debates", debates: 10, price: 9 },
+      { id: "pack25", name: "25 debates", debates: 25, price: 19 },
+      { id: "pack60", name: "60 debates", debates: 60, price: 39 }
+    ];
+    EDU = {
+      /** Displayed price per seat per month (USD). Stripe price configured via STRIPE_PRICE_EDU_SEAT. */
+      pricePerSeatMonthly: 6,
+      /** Monthly debate sessions each paid seat contributes to the org pool. */
+      sessionsPerSeat: 30
+    };
+    PERSONALITY_VOICES = {
+      prosecutor: "en-US-DavisNeural",
+      professor: "en-US-BrianNeural",
+      contrarian: "en-US-AvaNeural",
+      coach: "en-US-JennyNeural"
+    };
+    FIGURE_VOICES = {
+      lincoln: "en-US-DavisNeural",
+      churchill: "en-US-BrianNeural",
+      socrates: "en-US-JasonNeural",
+      douglass: "en-US-GuyNeural",
+      mlk: "en-US-ChristopherNeural",
+      einstein: "en-US-TonyNeural",
+      aurelius: "en-US-RogerNeural",
+      voltaire: "en-US-AndrewNeural",
+      eleanor: "en-US-SaraNeural",
+      smith: "en-US-RyanNeural"
+    };
+    PERSONA_VISUAL_VOICES = {
+      "teen-boy": "en-US-TonyNeural",
+      "teen-girl": "en-US-AriaNeural",
+      "man-pro": "en-US-GuyNeural",
+      "woman-pro": "en-US-JennyNeural",
+      "older-man": "en-US-DavisNeural",
+      "older-woman": "en-US-JennyNeural",
+      "man-casual": "en-US-GuyNeural",
+      "woman-casual": "en-US-JennyNeural",
+      "default-masc": "en-US-GuyNeural",
+      "default-fem": "en-US-JennyNeural"
+    };
+    __name(getStripePriceIds, "getStripePriceIds");
+    OWNER_EMAILS = ["matthewmhuston@gmail.com"];
+    __name(isOwnerEmail, "isOwnerEmail");
+  }
+});
+
+// worker/node_modules/hono/dist/compose.js
+var compose = /* @__PURE__ */ __name((middleware, onError, onNotFound) => {
+  return (context, next) => {
+    let index = -1;
+    return dispatch(0);
+    async function dispatch(i) {
+      if (i <= index) {
+        throw new Error("next() called multiple times");
+      }
+      index = i;
+      let res;
+      let isError = false;
+      let handler;
+      if (middleware[i]) {
+        handler = middleware[i][0][0];
+        context.req.routeIndex = i;
+      } else {
+        handler = i === middleware.length && next || void 0;
+      }
+      if (handler) {
+        try {
+          res = await handler(context, () => dispatch(i + 1));
+        } catch (err) {
+          if (err instanceof Error && onError) {
+            context.error = err;
+            res = await onError(err, context);
+            isError = true;
+          } else {
+            throw err;
+          }
+        }
+      } else {
+        if (context.finalized === false && onNotFound) {
+          res = await onNotFound(context);
+        }
+      }
+      if (res && (context.finalized === false || isError)) {
+        context.res = res;
+      }
+      return context;
+    }
+    __name(dispatch, "dispatch");
+  };
+}, "compose");
+
+// worker/node_modules/hono/dist/request/constants.js
+var GET_MATCH_RESULT = /* @__PURE__ */ Symbol();
+
+// worker/node_modules/hono/dist/utils/buffer.js
+var bufferToFormData = /* @__PURE__ */ __name((arrayBuffer, contentType) => {
+  const response = new Response(arrayBuffer, {
+    headers: {
+      // Normalize the media type (case-insensitive) while keeping parameters like the boundary
+      "Content-Type": contentType.replace(/^[^;]+/, (mediaType) => mediaType.toLowerCase())
+    }
+  });
+  return response.formData();
+}, "bufferToFormData");
+
+// worker/node_modules/hono/dist/utils/body.js
+var MAX_NESTING_DEPTH = 32;
+var MAX_NESTED_OBJECTS = 1e4;
+var isRawRequest = /* @__PURE__ */ __name((request) => "headers" in request, "isRawRequest");
+var parseBody = /* @__PURE__ */ __name(async (request, options = /* @__PURE__ */ Object.create(null)) => {
+  const { all = false, dot = false } = options;
+  const headers = isRawRequest(request) ? request.headers : request.raw.headers;
+  const contentType = headers.get("Content-Type");
+  const mediaType = contentType?.split(";")[0].trim().toLowerCase();
+  if (mediaType === "multipart/form-data" || mediaType === "application/x-www-form-urlencoded") {
+    return parseFormData(request, { all, dot });
+  }
+  return {};
+}, "parseBody");
+async function parseFormData(request, options) {
+  if (!isRawRequest(request) && request.bodyCache.formData) {
+    return convertFormDataToBodyData(
+      await request.bodyCache.formData,
+      options
+    );
+  }
+  const headers = isRawRequest(request) ? request.headers : request.raw.headers;
+  const arrayBuffer = await request.arrayBuffer();
+  const formDataPromise = bufferToFormData(arrayBuffer, headers.get("Content-Type") || "");
+  if (!isRawRequest(request)) {
+    request.bodyCache.formData = formDataPromise;
+  }
+  const formData = await formDataPromise;
+  if (formData) {
+    return convertFormDataToBodyData(formData, options);
+  }
+  return {};
+}
+__name(parseFormData, "parseFormData");
+function convertFormDataToBodyData(formData, options) {
+  const form = /* @__PURE__ */ Object.create(null);
+  const nestingState = { count: 0 };
+  formData.forEach((value, key) => {
+    const shouldParseAllValues = options.all || key.endsWith("[]");
+    if (!shouldParseAllValues) {
+      form[key] = value;
+    } else {
+      handleParsingAllValues(form, key, value);
+    }
+  });
+  if (options.dot) {
+    Object.entries(form).forEach(([key, value]) => {
+      const shouldParseDotValues = key.includes(".");
+      if (shouldParseDotValues) {
+        handleParsingNestedValues(form, key, value, nestingState);
+        delete form[key];
+      }
+    });
+  }
+  return form;
+}
+__name(convertFormDataToBodyData, "convertFormDataToBodyData");
+var handleParsingAllValues = /* @__PURE__ */ __name((form, key, value) => {
+  if (form[key] !== void 0) {
+    if (Array.isArray(form[key])) {
+      ;
+      form[key].push(value);
+    } else {
+      form[key] = [form[key], value];
+    }
+  } else {
+    if (!key.endsWith("[]")) {
+      form[key] = value;
+    } else {
+      form[key] = [value];
+    }
+  }
+}, "handleParsingAllValues");
+var handleParsingNestedValues = /* @__PURE__ */ __name((form, key, value, state) => {
+  if (/(?:^|\.)__proto__\./.test(key)) {
+    return;
+  }
+  let nestedForm = form;
+  const keys = key.split(".", MAX_NESTING_DEPTH + 2);
+  if (keys.length > MAX_NESTING_DEPTH + 1) {
+    throwNestingLimitExceeded();
+  }
+  keys.forEach((key2, index) => {
+    if (index === keys.length - 1) {
+      nestedForm[key2] = value;
+    } else {
+      if (!nestedForm[key2] || typeof nestedForm[key2] !== "object" || Array.isArray(nestedForm[key2]) || nestedForm[key2] instanceof File) {
+        if (state.count++ >= MAX_NESTED_OBJECTS) {
+          throwNestingLimitExceeded();
+        }
+        nestedForm[key2] = /* @__PURE__ */ Object.create(null);
+      }
+      nestedForm = nestedForm[key2];
+    }
+  });
+}, "handleParsingNestedValues");
+var throwNestingLimitExceeded = /* @__PURE__ */ __name(() => {
+  throw new Error("Nesting limit exceeded");
+}, "throwNestingLimitExceeded");
+
+// worker/node_modules/hono/dist/utils/url.js
+var splitPath = /* @__PURE__ */ __name((path) => {
+  const paths = path.split("/");
+  if (paths[0] === "") {
+    paths.shift();
+  }
+  return paths;
+}, "splitPath");
+var splitRoutingPath = /* @__PURE__ */ __name((routePath) => {
+  const { groups, path } = extractGroupsFromPath(routePath);
+  const paths = splitPath(path);
+  return replaceGroupMarks(paths, groups);
+}, "splitRoutingPath");
+var extractGroupsFromPath = /* @__PURE__ */ __name((path) => {
+  const groups = [];
+  path = path.replace(/\{[^}]+\}/g, (match2, index) => {
+    const mark = `@${index}`;
+    groups.push([mark, match2]);
+    return mark;
+  });
+  return { groups, path };
+}, "extractGroupsFromPath");
+var replaceGroupMarks = /* @__PURE__ */ __name((paths, groups) => {
+  for (let i = groups.length - 1; i >= 0; i--) {
+    const [mark] = groups[i];
+    for (let j = paths.length - 1; j >= 0; j--) {
+      if (paths[j].includes(mark)) {
+        paths[j] = paths[j].replace(mark, groups[i][1]);
+        break;
+      }
+    }
+  }
+  return paths;
+}, "replaceGroupMarks");
+var patternCache = {};
+var getPattern = /* @__PURE__ */ __name((label, next) => {
+  if (label === "*") {
+    return "*";
+  }
+  const match2 = label.match(/^\:([^\{\}]+)(?:\{(.+)\})?$/);
+  if (match2) {
+    const cacheKey = `${label}#${next}`;
+    if (!patternCache[cacheKey]) {
+      if (match2[2]) {
+        patternCache[cacheKey] = next && next[0] !== ":" && next[0] !== "*" ? [cacheKey, match2[1], new RegExp(`^${match2[2]}(?=/${next})`)] : [label, match2[1], new RegExp(`^${match2[2]}$`)];
+      } else {
+        patternCache[cacheKey] = [label, match2[1], true];
+      }
+    }
+    return patternCache[cacheKey];
+  }
+  return null;
+}, "getPattern");
+var tryDecode = /* @__PURE__ */ __name((str, decoder) => {
+  try {
+    return decoder(str);
+  } catch {
+    return str.replace(/(?:%[0-9A-Fa-f]{2})+/g, (match2) => {
+      try {
+        return decoder(match2);
+      } catch {
+        return match2;
+      }
+    });
+  }
+}, "tryDecode");
+var tryDecodeURI = /* @__PURE__ */ __name((str) => tryDecode(str, decodeURI), "tryDecodeURI");
+var getPath = /* @__PURE__ */ __name((request) => {
+  const url = request.url;
+  const start = url.indexOf("/", url.indexOf(":") + 4);
+  let i = start;
+  for (; i < url.length; i++) {
+    const charCode = url.charCodeAt(i);
+    if (charCode === 37) {
+      const queryIndex = url.indexOf("?", i);
+      const hashIndex = url.indexOf("#", i);
+      const end = queryIndex === -1 ? hashIndex === -1 ? void 0 : hashIndex : hashIndex === -1 ? queryIndex : Math.min(queryIndex, hashIndex);
+      const path = url.slice(start, end);
+      return tryDecodeURI(path.includes("%25") ? path.replace(/%25/g, "%2525") : path);
+    } else if (charCode === 63 || charCode === 35) {
+      break;
+    }
+  }
+  return url.slice(start, i);
+}, "getPath");
+var getPathNoStrict = /* @__PURE__ */ __name((request) => {
+  const result = getPath(request);
+  return result.length > 1 && result.at(-1) === "/" ? result.slice(0, -1) : result;
+}, "getPathNoStrict");
+var mergePath = /* @__PURE__ */ __name((base, sub, ...rest) => {
+  if (rest.length) {
+    sub = mergePath(sub, ...rest);
+  }
+  return `${base?.[0] === "/" ? "" : "/"}${base}${sub === "/" ? "" : `${base?.at(-1) === "/" ? "" : "/"}${sub?.[0] === "/" ? sub.slice(1) : sub}`}`;
+}, "mergePath");
+var checkOptionalParameter = /* @__PURE__ */ __name((path) => {
+  if (path.charCodeAt(path.length - 1) !== 63 || !path.includes(":")) {
+    return null;
+  }
+  const segments = path.split("/");
+  const results = [];
+  let basePath = "";
+  segments.forEach((segment) => {
+    if (segment !== "" && !/\:/.test(segment)) {
+      basePath += "/" + segment;
+    } else if (/\:/.test(segment)) {
+      if (segment.charCodeAt(segment.length - 1) === 63) {
+        if (results.length === 0 && basePath === "") {
+          results.push("/");
+        } else {
+          results.push(basePath);
+        }
+        const optionalSegment = segment.slice(0, -1);
+        basePath += "/" + optionalSegment;
+        results.push(basePath);
+      } else {
+        basePath += "/" + segment;
+      }
+    }
+  });
+  return results.filter((v, i, a) => a.indexOf(v) === i);
+}, "checkOptionalParameter");
+var tryDecodeURIComponent = /* @__PURE__ */ __name((str) => str.indexOf("%") !== -1 ? tryDecode(str, decodeURIComponent_) : str, "tryDecodeURIComponent");
+var _decodeURI = /* @__PURE__ */ __name((value) => {
+  if (value.indexOf("+") !== -1) {
+    value = value.replace(/\+/g, " ");
+  }
+  return tryDecodeURIComponent(value);
+}, "_decodeURI");
+var _getQueryParam = /* @__PURE__ */ __name((url, key, multiple) => {
+  const hashIndex = url.indexOf("#", 8);
+  if (hashIndex !== -1) {
+    url = url.slice(0, hashIndex);
+  }
+  let encoded;
+  if (!multiple && key && key.indexOf("%") === -1 && key.indexOf("+") === -1) {
+    let keyIndex2 = url.indexOf("?", 8);
+    if (keyIndex2 === -1) {
+      return void 0;
+    }
+    if (!url.startsWith(key, keyIndex2 + 1)) {
+      keyIndex2 = url.indexOf(`&${key}`, keyIndex2 + 1);
+    }
+    while (keyIndex2 !== -1) {
+      const trailingKeyCode = url.charCodeAt(keyIndex2 + key.length + 1);
+      if (trailingKeyCode === 61) {
+        const valueIndex = keyIndex2 + key.length + 2;
+        const endIndex = url.indexOf("&", valueIndex);
+        return _decodeURI(url.slice(valueIndex, endIndex === -1 ? void 0 : endIndex));
+      } else if (trailingKeyCode == 38 || isNaN(trailingKeyCode)) {
+        return "";
+      }
+      keyIndex2 = url.indexOf(`&${key}`, keyIndex2 + 1);
+    }
+    encoded = /[%+]/.test(url);
+    if (!encoded) {
+      return void 0;
+    }
+  }
+  const results = /* @__PURE__ */ Object.create(null);
+  encoded ??= /[%+]/.test(url);
+  let keyIndex = url.indexOf("?", 8);
+  while (keyIndex !== -1) {
+    const nextKeyIndex = url.indexOf("&", keyIndex + 1);
+    let valueIndex = url.indexOf("=", keyIndex);
+    if (valueIndex > nextKeyIndex && nextKeyIndex !== -1) {
+      valueIndex = -1;
+    }
+    let name = url.slice(
+      keyIndex + 1,
+      valueIndex === -1 ? nextKeyIndex === -1 ? void 0 : nextKeyIndex : valueIndex
+    );
+    if (encoded) {
+      name = _decodeURI(name);
+    }
+    keyIndex = nextKeyIndex;
+    if (name === "") {
+      continue;
+    }
+    let value;
+    if (valueIndex === -1) {
+      value = "";
+    } else {
+      value = url.slice(valueIndex + 1, nextKeyIndex === -1 ? void 0 : nextKeyIndex);
+      if (encoded) {
+        value = _decodeURI(value);
+      }
+    }
+    if (multiple) {
+      if (!(results[name] && Array.isArray(results[name]))) {
+        results[name] = [];
+      }
+      ;
+      results[name].push(value);
+    } else {
+      results[name] ??= value;
+    }
+  }
+  return key ? results[key] : results;
+}, "_getQueryParam");
+var getQueryParam = _getQueryParam;
+var getQueryParams = /* @__PURE__ */ __name((url, key) => {
+  return _getQueryParam(url, key, true);
+}, "getQueryParams");
+var decodeURIComponent_ = decodeURIComponent;
+
+// worker/node_modules/hono/dist/request.js
+var HonoRequest = class {
+  static {
+    __name(this, "HonoRequest");
+  }
+  /**
+   * `.raw` can get the raw Request object.
+   *
+   * @see {@link https://hono.dev/docs/api/request#raw}
+   *
+   * @example
+   * ```ts
+   * // For Cloudflare Workers
+   * app.post('/', async (c) => {
+   *   const metadata = c.req.raw.cf?.hostMetadata?
+   *   ...
+   * })
+   * ```
+   */
+  raw;
+  #validatedData;
+  // Short name of validatedData
+  #matchResult;
+  routeIndex = 0;
+  /**
+   * `.path` can get the pathname of the request.
+   *
+   * @see {@link https://hono.dev/docs/api/request#path}
+   *
+   * @example
+   * ```ts
+   * app.get('/about/me', (c) => {
+   *   const pathname = c.req.path // `/about/me`
+   * })
+   * ```
+   */
+  path;
+  bodyCache = {};
+  constructor(request, path = "/", matchResult = [[]]) {
+    this.raw = request;
+    this.path = path;
+    this.#matchResult = matchResult;
+  }
+  param(key) {
+    return key ? this.#getDecodedParam(key) : this.#getAllDecodedParams();
+  }
+  #getDecodedParam(key) {
+    const paramKey = this.#matchResult[0][this.routeIndex]?.[1][key];
+    const param = this.#getParamValue(paramKey);
+    return param && tryDecodeURIComponent(param);
+  }
+  #getAllDecodedParams() {
+    const decoded = {};
+    const keys = Object.keys(this.#matchResult[0][this.routeIndex]?.[1] ?? {});
+    for (const key of keys) {
+      const value = this.#getParamValue(this.#matchResult[0][this.routeIndex][1][key]);
+      if (value !== void 0) {
+        decoded[key] = tryDecodeURIComponent(value);
+      }
+    }
+    return decoded;
+  }
+  #getParamValue(paramKey) {
+    return this.#matchResult[1] ? this.#matchResult[1][paramKey] : paramKey;
+  }
+  query(key) {
+    return getQueryParam(this.url, key);
+  }
+  queries(key) {
+    return getQueryParams(this.url, key);
+  }
+  header(name) {
+    if (name) {
+      return this.raw.headers.get(name) ?? void 0;
+    }
+    const headerData = /* @__PURE__ */ Object.create(null);
+    this.raw.headers.forEach((value, key) => {
+      headerData[key] = value;
+    });
+    return headerData;
+  }
+  async parseBody(options) {
+    return parseBody(this, options);
+  }
+  #cachedBody = /* @__PURE__ */ __name((key) => {
+    const { bodyCache, raw: raw2 } = this;
+    const cachedBody = bodyCache[key];
+    if (cachedBody) {
+      return cachedBody;
+    }
+    for (const anyCachedKey in bodyCache) {
+      return bodyCache[anyCachedKey].then((body) => {
+        if (anyCachedKey === "json") {
+          body = JSON.stringify(body);
+        }
+        const contentType = anyCachedKey === "formData" ? void 0 : raw2.headers.get("content-type");
+        return new Response(body, {
+          headers: contentType ? { "Content-Type": contentType } : void 0
+        })[key]();
+      });
+    }
+    return bodyCache[key] = raw2[key]();
+  }, "#cachedBody");
+  /**
+   * `.json()` can parse Request body of type `application/json`
+   *
+   * @see {@link https://hono.dev/docs/api/request#json}
+   *
+   * @example
+   * ```ts
+   * app.post('/entry', async (c) => {
+   *   const body = await c.req.json()
+   * })
+   * ```
+   */
+  json() {
+    return this.#cachedBody("text").then((text) => JSON.parse(text));
+  }
+  /**
+   * `.text()` can parse Request body of type `text/plain`
+   *
+   * @see {@link https://hono.dev/docs/api/request#text}
+   *
+   * @example
+   * ```ts
+   * app.post('/entry', async (c) => {
+   *   const body = await c.req.text()
+   * })
+   * ```
+   */
+  text() {
+    return this.#cachedBody("text");
+  }
+  /**
+   * `.arrayBuffer()` parse Request body as an `ArrayBuffer`
+   *
+   * @see {@link https://hono.dev/docs/api/request#arraybuffer}
+   *
+   * @example
+   * ```ts
+   * app.post('/entry', async (c) => {
+   *   const body = await c.req.arrayBuffer()
+   * })
+   * ```
+   */
+  arrayBuffer() {
+    return this.#cachedBody("arrayBuffer");
+  }
+  /**
+   * `.bytes()` parses the request body as a `Uint8Array`.
+   *
+   * @see {@link https://hono.dev/docs/api/request#bytes}
+   *
+   * @example
+   * ```ts
+   * app.post('/entry', async (c) => {
+   *   const body = await c.req.bytes()
+   * })
+   * ```
+   */
+  bytes() {
+    return this.#cachedBody("arrayBuffer").then((buffer) => new Uint8Array(buffer));
+  }
+  /**
+   * Parses the request body as a `Blob`.
+   * @example
+   * ```ts
+   * app.post('/entry', async (c) => {
+   *   const body = await c.req.blob();
+   * });
+   * ```
+   * @see https://hono.dev/docs/api/request#blob
+   */
+  blob() {
+    return this.#cachedBody("blob");
+  }
+  /**
+   * Parses the request body as `FormData`.
+   * @example
+   * ```ts
+   * app.post('/entry', async (c) => {
+   *   const body = await c.req.formData();
+   * });
+   * ```
+   * @see https://hono.dev/docs/api/request#formdata
+   */
+  formData() {
+    return this.#cachedBody("formData");
+  }
+  /**
+   * Adds validated data to the request.
+   *
+   * @param target - The target of the validation.
+   * @param data - The validated data to add.
+   */
+  addValidatedData(target, data) {
+    ;
+    (this.#validatedData ??= {})[target] = data;
+  }
+  valid(target) {
+    return this.#validatedData?.[target];
+  }
+  /**
+   * `.url()` can get the request url strings.
+   *
+   * @see {@link https://hono.dev/docs/api/request#url}
+   *
+   * @example
+   * ```ts
+   * app.get('/about/me', (c) => {
+   *   const url = c.req.url // `http://localhost:8787/about/me`
+   *   ...
+   * })
+   * ```
+   */
+  get url() {
+    return this.raw.url;
+  }
+  /**
+   * `.method()` can get the method name of the request.
+   *
+   * @see {@link https://hono.dev/docs/api/request#method}
+   *
+   * @example
+   * ```ts
+   * app.get('/about/me', (c) => {
+   *   const method = c.req.method // `GET`
+   * })
+   * ```
+   */
+  get method() {
+    return this.raw.method;
+  }
+  get [GET_MATCH_RESULT]() {
+    return this.#matchResult;
+  }
+  /**
+   * `.matchedRoutes()` can return a matched route in the handler
+   *
+   * @deprecated
+   *
+   * Use matchedRoutes helper defined in "hono/route" instead.
+   *
+   * @see {@link https://hono.dev/docs/api/request#matchedroutes}
+   *
+   * @example
+   * ```ts
+   * app.use('*', async function logger(c, next) {
+   *   await next()
+   *   c.req.matchedRoutes.forEach(({ handler, method, path }, i) => {
+   *     const name = handler.name || (handler.length < 2 ? '[handler]' : '[middleware]')
+   *     console.log(
+   *       method,
+   *       ' ',
+   *       path,
+   *       ' '.repeat(Math.max(10 - path.length, 0)),
+   *       name,
+   *       i === c.req.routeIndex ? '<- respond from here' : ''
+   *     )
+   *   })
+   * })
+   * ```
+   */
+  get matchedRoutes() {
+    return this.#matchResult[0].map(([[, route]]) => route);
+  }
+  /**
+   * `routePath()` can retrieve the path registered within the handler
+   *
+   * @deprecated
+   *
+   * Use routePath helper defined in "hono/route" instead.
+   *
+   * @see {@link https://hono.dev/docs/api/request#routepath}
+   *
+   * @example
+   * ```ts
+   * app.get('/posts/:id', (c) => {
+   *   return c.json({ path: c.req.routePath })
+   * })
+   * ```
+   */
+  get routePath() {
+    return this.#matchResult[0].map(([[, route]]) => route)[this.routeIndex].path;
+  }
+};
+
+// worker/node_modules/hono/dist/utils/html.js
+var HtmlEscapedCallbackPhase = {
+  Stringify: 1,
+  BeforeStream: 2,
+  Stream: 3
+};
+var raw = /* @__PURE__ */ __name((value, callbacks) => {
+  const escapedString = new String(value);
+  escapedString.isEscaped = true;
+  escapedString.callbacks = callbacks;
+  return escapedString;
+}, "raw");
+var resolveCallback = /* @__PURE__ */ __name(async (str, phase, preserveCallbacks, context, buffer) => {
+  if (typeof str === "object" && !(str instanceof String)) {
+    if (!(str instanceof Promise)) {
+      str = str.toString();
+    }
+    if (str instanceof Promise) {
+      str = await str;
+    }
+  }
+  const callbacks = str.callbacks;
+  if (!callbacks?.length) {
+    return Promise.resolve(str);
+  }
+  if (buffer) {
+    buffer[0] += str;
+  } else {
+    buffer = [str];
+  }
+  const resStr = Promise.all(callbacks.map((c) => c({ phase, buffer, context }))).then(
+    (res) => Promise.all(
+      res.filter(Boolean).map((str2) => resolveCallback(str2, phase, false, context, buffer))
+    ).then(() => buffer[0])
+  );
+  if (preserveCallbacks) {
+    return raw(await resStr, callbacks);
+  } else {
+    return resStr;
+  }
+}, "resolveCallback");
+
+// worker/node_modules/hono/dist/context.js
+var TEXT_PLAIN = "text/plain; charset=UTF-8";
+var setDefaultContentType = /* @__PURE__ */ __name((contentType, headers) => {
+  return {
+    "Content-Type": contentType,
+    ...headers
+  };
+}, "setDefaultContentType");
+var createResponseInstance = /* @__PURE__ */ __name((body, init) => new Response(body, init), "createResponseInstance");
+var Context = class {
+  static {
+    __name(this, "Context");
+  }
+  #rawRequest;
+  #req;
+  /**
+   * `.env` can get bindings (environment variables, secrets, KV namespaces, D1 database, R2 bucket etc.) in Cloudflare Workers.
+   *
+   * @see {@link https://hono.dev/docs/api/context#env}
+   *
+   * @example
+   * ```ts
+   * // Environment object for Cloudflare Workers
+   * app.get('*', async c => {
+   *   const counter = c.env.COUNTER
+   * })
+   * ```
+   */
+  env = {};
+  #var;
+  finalized = false;
+  /**
+   * `.error` can get the error object from the middleware if the Handler throws an error.
+   *
+   * @see {@link https://hono.dev/docs/api/context#error}
+   *
+   * @example
+   * ```ts
+   * app.use('*', async (c, next) => {
+   *   await next()
+   *   if (c.error) {
+   *     // do something...
+   *   }
+   * })
+   * ```
+   */
+  error;
+  #status;
+  #executionCtx;
+  #res;
+  #layout;
+  #renderer;
+  #notFoundHandler;
+  #preparedHeaders;
+  #matchResult;
+  #path;
+  /**
+   * Creates an instance of the Context class.
+   *
+   * @param req - The Request object.
+   * @param options - Optional configuration options for the context.
+   */
+  constructor(req, options) {
+    this.#rawRequest = req;
+    if (options) {
+      this.#executionCtx = options.executionCtx;
+      this.env = options.env;
+      this.#notFoundHandler = options.notFoundHandler;
+      this.#path = options.path;
+      this.#matchResult = options.matchResult;
+    }
+  }
+  /**
+   * `.req` is the instance of {@link HonoRequest}.
+   */
+  get req() {
+    this.#req ??= new HonoRequest(this.#rawRequest, this.#path, this.#matchResult);
+    return this.#req;
+  }
+  /**
+   * @see {@link https://hono.dev/docs/api/context#event}
+   * The FetchEvent associated with the current request.
+   *
+   * @throws Will throw an error if the context does not have a FetchEvent.
+   */
+  get event() {
+    if (this.#executionCtx && "respondWith" in this.#executionCtx) {
+      return this.#executionCtx;
+    } else {
+      throw Error("This context has no FetchEvent");
+    }
+  }
+  /**
+   * @see {@link https://hono.dev/docs/api/context#executionctx}
+   * The ExecutionContext associated with the current request.
+   *
+   * @throws Will throw an error if the context does not have an ExecutionContext.
+   */
+  get executionCtx() {
+    if (this.#executionCtx) {
+      return this.#executionCtx;
+    } else {
+      throw Error("This context has no ExecutionContext");
+    }
+  }
+  /**
+   * @see {@link https://hono.dev/docs/api/context#res}
+   * The Response object for the current request.
+   */
+  get res() {
+    return this.#res ||= createResponseInstance(null, {
+      headers: this.#preparedHeaders ??= new Headers()
+    });
+  }
+  /**
+   * Sets the Response object for the current request.
+   *
+   * @param _res - The Response object to set.
+   */
+  set res(_res) {
+    if (this.#res && _res) {
+      _res = createResponseInstance(_res.body, _res);
+      for (const [k, v] of this.#res.headers.entries()) {
+        if (k === "content-type") {
+          continue;
+        }
+        if (k === "set-cookie") {
+          const cookies = this.#res.headers.getSetCookie();
+          _res.headers.delete("set-cookie");
+          for (const cookie of cookies) {
+            _res.headers.append("set-cookie", cookie);
+          }
+        } else {
+          _res.headers.set(k, v);
+        }
+      }
+    }
+    this.#res = _res;
+    this.finalized = true;
+  }
+  /**
+   * `.render()` can create a response within a layout.
+   *
+   * @see {@link https://hono.dev/docs/api/context#render-setrenderer}
+   *
+   * @example
+   * ```ts
+   * app.get('/', (c) => {
+   *   return c.render('Hello!')
+   * })
+   * ```
+   */
+  render = /* @__PURE__ */ __name((...args) => {
+    this.#renderer ??= (content) => this.html(content);
+    return this.#renderer(...args);
+  }, "render");
+  /**
+   * Sets the layout for the response.
+   *
+   * @param layout - The layout to set.
+   * @returns The layout function.
+   */
+  setLayout = /* @__PURE__ */ __name((layout) => this.#layout = layout, "setLayout");
+  /**
+   * Gets the current layout for the response.
+   *
+   * @returns The current layout function.
+   */
+  getLayout = /* @__PURE__ */ __name(() => this.#layout, "getLayout");
+  /**
+   * `.setRenderer()` can set the layout in the custom middleware.
+   *
+   * @see {@link https://hono.dev/docs/api/context#render-setrenderer}
+   *
+   * @example
+   * ```tsx
+   * app.use('*', async (c, next) => {
+   *   c.setRenderer((content) => {
+   *     return c.html(
+   *       <html>
+   *         <body>
+   *           <p>{content}</p>
+   *         </body>
+   *       </html>
+   *     )
+   *   })
+   *   await next()
+   * })
+   * ```
+   */
+  setRenderer = /* @__PURE__ */ __name((renderer) => {
+    this.#renderer = renderer;
+  }, "setRenderer");
+  /**
+   * `.header()` can set headers.
+   *
+   * @see {@link https://hono.dev/docs/api/context#header}
+   *
+   * @example
+   * ```ts
+   * app.get('/welcome', (c) => {
+   *   // Set headers
+   *   c.header('X-Message', 'Hello!')
+   *   c.header('Content-Type', 'text/plain')
+   *
+   *   // Append multiple headers using the append option (e.g. Vary)
+   *   c.header('Vary', 'Accept-Encoding', { append: true })
+   *   c.header('Vary', 'User-Agent', { append: true })
+   *
+   *   return c.body('Thank you for coming')
+   * })
+   * ```
+   */
+  header = /* @__PURE__ */ __name((name, value, options) => {
+    if (this.finalized) {
+      this.#res = createResponseInstance(this.#res.body, this.#res);
+    }
+    const headers = this.#res ? this.#res.headers : this.#preparedHeaders ??= new Headers();
+    if (value === void 0) {
+      headers.delete(name);
+    } else if (options?.append) {
+      headers.append(name, value);
+    } else {
+      headers.set(name, value);
+    }
+  }, "header");
+  status = /* @__PURE__ */ __name((status) => {
+    this.#status = status;
+  }, "status");
+  /**
+   * `.set()` can set the value specified by the key.
+   *
+   * @see {@link https://hono.dev/docs/api/context#set-get}
+   *
+   * @example
+   * ```ts
+   * app.use('*', async (c, next) => {
+   *   c.set('message', 'Hono is hot!!')
+   *   await next()
+   * })
+   * ```
+   */
+  set = /* @__PURE__ */ __name((key, value) => {
+    this.#var ??= /* @__PURE__ */ new Map();
+    this.#var.set(key, value);
+  }, "set");
+  /**
+   * `.get()` can use the value specified by the key.
+   *
+   * @see {@link https://hono.dev/docs/api/context#set-get}
+   *
+   * @example
+   * ```ts
+   * app.get('/', (c) => {
+   *   const message = c.get('message')
+   *   return c.text(`The message is "${message}"`)
+   * })
+   * ```
+   */
+  get = /* @__PURE__ */ __name((key) => {
+    return this.#var ? this.#var.get(key) : void 0;
+  }, "get");
+  /**
+   * `.var` can access the value of a variable.
+   *
+   * @see {@link https://hono.dev/docs/api/context#var}
+   *
+   * @example
+   * ```ts
+   * const result = c.var.client.oneMethod()
+   * ```
+   */
+  // c.var.propName is a read-only
+  get var() {
+    if (!this.#var) {
+      return {};
+    }
+    return Object.fromEntries(this.#var);
+  }
+  #newResponse(data, arg, headers) {
+    let responseHeaders = this.#res ? new Headers(this.#res.headers) : this.#preparedHeaders;
+    if (typeof arg === "object" && arg.headers) {
+      responseHeaders ??= new Headers();
+      for (const [key, value] of new Headers(arg.headers)) {
+        if (key === "set-cookie") {
+          responseHeaders.append(key, value);
+        } else {
+          responseHeaders.set(key, value);
+        }
+      }
+    }
+    if (headers) {
+      if (!responseHeaders) {
+        let count = 0;
+        for (const k in headers) {
+          if (++count > 1 || typeof headers[k] !== "string") {
+            responseHeaders = new Headers();
+            break;
+          }
+        }
+      }
+      if (responseHeaders) {
+        for (const k in headers) {
+          const v = headers[k];
+          if (typeof v === "string") {
+            responseHeaders.set(k, v);
+          } else {
+            responseHeaders.delete(k);
+            for (const v2 of v) {
+              responseHeaders.append(k, v2);
+            }
+          }
+        }
+      }
+    }
+    const status = typeof arg === "number" ? arg : arg?.status ?? this.#status;
+    return createResponseInstance(data, {
+      status,
+      headers: responseHeaders ?? headers
+    });
+  }
+  newResponse = /* @__PURE__ */ __name((...args) => this.#newResponse(...args), "newResponse");
+  /**
+   * `.body()` can return the HTTP response.
+   * You can set headers with `.header()` and set HTTP status code with `.status`.
+   * This can also be set in `.text()`, `.json()` and so on.
+   *
+   * @see {@link https://hono.dev/docs/api/context#body}
+   *
+   * @example
+   * ```ts
+   * app.get('/welcome', (c) => {
+   *   // Set headers
+   *   c.header('X-Message', 'Hello!')
+   *   c.header('Content-Type', 'text/plain')
+   *   // Set HTTP status code
+   *   c.status(201)
+   *
+   *   // Return the response body
+   *   return c.body('Thank you for coming')
+   * })
+   * ```
+   */
+  body = /* @__PURE__ */ __name((data, arg, headers) => this.#newResponse(data, arg, headers), "body");
+  /**
+   * `.text()` can render text as `Content-Type:text/plain`.
+   *
+   * @see {@link https://hono.dev/docs/api/context#text}
+   *
+   * @example
+   * ```ts
+   * app.get('/say', (c) => {
+   *   return c.text('Hello!')
+   * })
+   * ```
+   */
+  text = /* @__PURE__ */ __name((text, arg, headers) => {
+    return !this.#preparedHeaders && !this.#status && !arg && !headers && !this.finalized ? new Response(text) : this.#newResponse(
+      text,
+      arg,
+      setDefaultContentType(TEXT_PLAIN, headers)
+    );
+  }, "text");
+  /**
+   * `.json()` can render JSON as `Content-Type:application/json`.
+   *
+   * @see {@link https://hono.dev/docs/api/context#json}
+   *
+   * @example
+   * ```ts
+   * app.get('/api', (c) => {
+   *   return c.json({ message: 'Hello!' })
+   * })
+   * ```
+   */
+  json = /* @__PURE__ */ __name((object, arg, headers) => {
+    return this.#newResponse(
+      JSON.stringify(object),
+      arg,
+      setDefaultContentType("application/json", headers)
+    );
+  }, "json");
+  html = /* @__PURE__ */ __name((html, arg, headers) => {
+    const res = /* @__PURE__ */ __name((html2) => this.#newResponse(html2, arg, setDefaultContentType("text/html; charset=UTF-8", headers)), "res");
+    return typeof html === "object" ? resolveCallback(html, HtmlEscapedCallbackPhase.Stringify, false, {}).then(res) : res(html);
+  }, "html");
+  /**
+   * `.redirect()` can Redirect, default status code is 302.
+   *
+   * @see {@link https://hono.dev/docs/api/context#redirect}
+   *
+   * @example
+   * ```ts
+   * app.get('/redirect', (c) => {
+   *   return c.redirect('/')
+   * })
+   * app.get('/redirect-permanently', (c) => {
+   *   return c.redirect('/', 301)
+   * })
+   * ```
+   */
+  redirect = /* @__PURE__ */ __name((location, status) => {
+    const locationString = String(location);
+    this.header(
+      "Location",
+      // Multibytes should be encoded
+      // eslint-disable-next-line no-control-regex
+      !/[^\x00-\xFF]/.test(locationString) ? locationString : encodeURI(locationString)
+    );
+    return this.newResponse(null, status ?? 302);
+  }, "redirect");
+  /**
+   * `.notFound()` can return the Not Found Response.
+   *
+   * @see {@link https://hono.dev/docs/api/context#notfound}
+   *
+   * @example
+   * ```ts
+   * app.get('/notfound', (c) => {
+   *   return c.notFound()
+   * })
+   * ```
+   */
+  notFound = /* @__PURE__ */ __name(() => {
+    this.#notFoundHandler ??= () => createResponseInstance();
+    return this.#notFoundHandler(this);
+  }, "notFound");
+};
+
+// worker/node_modules/hono/dist/router.js
+var METHOD_NAME_ALL = "ALL";
+var METHOD_NAME_ALL_LOWERCASE = "all";
+var METHODS = ["get", "post", "put", "delete", "options", "patch", "query"];
+var MESSAGE_MATCHER_IS_ALREADY_BUILT = "Can not add a route since the matcher is already built.";
+var UnsupportedPathError = class extends Error {
+  static {
+    __name(this, "UnsupportedPathError");
+  }
+};
+
+// worker/node_modules/hono/dist/utils/constants.js
+var COMPOSED_HANDLER = "__COMPOSED_HANDLER";
+
+// worker/node_modules/hono/dist/hono-base.js
+var notFoundHandler = /* @__PURE__ */ __name((c) => {
+  return c.text("404 Not Found", 404);
+}, "notFoundHandler");
+var errorHandler = /* @__PURE__ */ __name((err, c) => {
+  if ("getResponse" in err) {
+    const res = err.getResponse();
+    return c.newResponse(res.body, res);
+  }
+  console.error(err);
+  return c.text("Internal Server Error", 500);
+}, "errorHandler");
+var Hono = class _Hono {
+  static {
+    __name(this, "_Hono");
+  }
+  get;
+  post;
+  put;
+  delete;
+  options;
+  patch;
+  query;
+  all;
+  on;
+  use;
+  /*
+    This class is like an abstract class and does not have a router.
+    To use it, inherit the class and implement router in the constructor.
+  */
+  router;
+  getPath;
+  // Cannot use `#` because it requires visibility at JavaScript runtime.
+  _basePath = "/";
+  #path = "/";
+  routes = [];
+  constructor(options = {}) {
+    const allMethods = [...METHODS, METHOD_NAME_ALL_LOWERCASE];
+    allMethods.forEach((method) => {
+      this[method] = (args1, ...args) => {
+        const methodName = method.toUpperCase();
+        if (typeof args1 === "string") {
+          this.#path = args1;
+        } else {
+          this.#addRoute(methodName, this.#path, args1);
+        }
+        args.forEach((handler) => {
+          this.#addRoute(methodName, this.#path, handler);
+        });
+        return this;
+      };
+    });
+    this.on = (method, path, ...handlers) => {
+      for (const p of [path].flat()) {
+        this.#path = p;
+        for (const m of [method].flat()) {
+          const methodName = m.toUpperCase();
+          for (const handler of handlers) {
+            this.#addRoute(methodName, this.#path, handler);
+          }
+        }
+      }
+      return this;
+    };
+    this.use = (arg1, ...handlers) => {
+      if (typeof arg1 === "string") {
+        this.#path = arg1;
+      } else {
+        this.#path = "*";
+        handlers.unshift(arg1);
+      }
+      handlers.forEach((handler) => {
+        this.#addRoute(METHOD_NAME_ALL, this.#path, handler);
+      });
+      return this;
+    };
+    const { strict, ...optionsWithoutStrict } = options;
+    Object.assign(this, optionsWithoutStrict);
+    this.getPath = strict ?? true ? options.getPath ?? getPath : getPathNoStrict;
+  }
+  #clone() {
+    const clone = new _Hono({
+      router: this.router,
+      getPath: this.getPath
+    });
+    clone.errorHandler = this.errorHandler;
+    clone.#notFoundHandler = this.#notFoundHandler;
+    clone.routes = this.routes;
+    return clone;
+  }
+  #notFoundHandler = notFoundHandler;
+  // Cannot use `#` because it requires visibility at JavaScript runtime.
+  errorHandler = errorHandler;
+  /**
+   * `.route()` allows grouping other Hono instance in routes.
+   *
+   * @see {@link https://hono.dev/docs/api/routing#grouping}
+   *
+   * @param {string} path - base Path
+   * @param {Hono} app - other Hono instance
+   * @returns {Hono} routed Hono instance
+   *
+   * @example
+   * ```ts
+   * const app = new Hono()
+   * const app2 = new Hono()
+   *
+   * app2.get("/user", (c) => c.text("user"))
+   * app.route("/api", app2) // GET /api/user
+   * ```
+   */
+  route(path, app2) {
+    const subApp = this.basePath(path);
+    app2.routes.map((r) => {
+      let handler;
+      if (app2.errorHandler === errorHandler) {
+        handler = r.handler;
+      } else {
+        handler = /* @__PURE__ */ __name(async (c, next) => (await compose([], app2.errorHandler)(c, () => r.handler(c, next))).res, "handler");
+        handler[COMPOSED_HANDLER] = r.handler;
+      }
+      subApp.#addRoute(r.method, r.path, handler, r.basePath);
+    });
+    return this;
+  }
+  /**
+   * `.basePath()` allows base paths to be specified.
+   *
+   * @see {@link https://hono.dev/docs/api/routing#base-path}
+   *
+   * @param {string} path - base Path
+   * @returns {Hono} changed Hono instance
+   *
+   * @example
+   * ```ts
+   * const api = new Hono().basePath('/api')
+   * ```
+   */
+  basePath(path) {
+    const subApp = this.#clone();
+    subApp._basePath = mergePath(this._basePath, path);
+    return subApp;
+  }
+  /**
+   * `.onError()` handles an error and returns a customized Response.
+   *
+   * @see {@link https://hono.dev/docs/api/hono#error-handling}
+   *
+   * @param {ErrorHandler} handler - request Handler for error
+   * @returns {Hono} changed Hono instance
+   *
+   * @example
+   * ```ts
+   * app.onError((err, c) => {
+   *   console.error(`${err}`)
+   *   return c.text('Custom Error Message', 500)
+   * })
+   * ```
+   */
+  onError = /* @__PURE__ */ __name((handler) => {
+    this.errorHandler = handler;
+    return this;
+  }, "onError");
+  /**
+   * `.notFound()` allows you to customize a Not Found Response.
+   *
+   * @see {@link https://hono.dev/docs/api/hono#not-found}
+   *
+   * @param {NotFoundHandler} handler - request handler for not-found
+   * @returns {Hono} changed Hono instance
+   *
+   * @example
+   * ```ts
+   * app.notFound((c) => {
+   *   return c.text('Custom 404 Message', 404)
+   * })
+   * ```
+   */
+  notFound = /* @__PURE__ */ __name((handler) => {
+    this.#notFoundHandler = handler;
+    return this;
+  }, "notFound");
+  /**
+   * `.mount()` allows you to mount applications built with other frameworks into your Hono application.
+   *
+   * @see {@link https://hono.dev/docs/api/hono#mount}
+   *
+   * @param {string} path - base Path
+   * @param {Function} applicationHandler - other Request Handler
+   * @param {MountOptions} [options] - options of `.mount()`
+   * @returns {Hono} mounted Hono instance
+   *
+   * @example
+   * ```ts
+   * import { Router as IttyRouter } from 'itty-router'
+   * import { Hono } from 'hono'
+   * // Create itty-router application
+   * const ittyRouter = IttyRouter()
+   * // GET /itty-router/hello
+   * ittyRouter.get('/hello', () => new Response('Hello from itty-router'))
+   *
+   * const app = new Hono()
+   * app.mount('/itty-router', ittyRouter.handle)
+   * ```
+   *
+   * @example
+   * ```ts
+   * const app = new Hono()
+   * // Send the request to another application without modification.
+   * app.mount('/app', anotherApp, {
+   *   replaceRequest: (req) => req,
+   * })
+   * ```
+   */
+  mount(path, applicationHandler, options) {
+    let replaceRequest;
+    let optionHandler;
+    if (options) {
+      if (typeof options === "function") {
+        optionHandler = options;
+      } else {
+        optionHandler = options.optionHandler;
+        if (options.replaceRequest === false) {
+          replaceRequest = /* @__PURE__ */ __name((request) => request, "replaceRequest");
+        } else {
+          replaceRequest = options.replaceRequest;
+        }
+      }
+    }
+    const getOptions = optionHandler ? (c) => {
+      const options2 = optionHandler(c);
+      return Array.isArray(options2) ? options2 : [options2];
+    } : (c) => {
+      let executionContext = void 0;
+      try {
+        executionContext = c.executionCtx;
+      } catch {
+      }
+      return [c.env, executionContext];
+    };
+    replaceRequest ||= (() => {
+      const mergedPath = mergePath(this._basePath, path);
+      const pathPrefixLength = mergedPath === "/" ? 0 : mergedPath.length;
+      return (request) => {
+        const url = new URL(request.url);
+        url.pathname = this.getPath(request).slice(pathPrefixLength) || "/";
+        return new Request(url, request);
+      };
+    })();
+    const handler = /* @__PURE__ */ __name(async (c, next) => {
+      const res = await applicationHandler(replaceRequest(c.req.raw), ...getOptions(c));
+      if (res) {
+        return res;
+      }
+      await next();
+    }, "handler");
+    this.#addRoute(METHOD_NAME_ALL, mergePath(path, "*"), handler);
+    return this;
+  }
+  #addRoute(method, path, handler, baseRoutePath) {
+    path = mergePath(this._basePath, path);
+    const r = {
+      basePath: baseRoutePath !== void 0 ? mergePath(this._basePath, baseRoutePath) : this._basePath,
+      path,
+      method,
+      handler
+    };
+    this.router.add(method, path, [handler, r]);
+    this.routes.push(r);
+  }
+  #handleError(err, c) {
+    if (err instanceof Error) {
+      return this.errorHandler(err, c);
+    }
+    throw err;
+  }
+  #dispatch(request, executionCtx, env, method) {
+    if (method === "HEAD") {
+      return (async () => new Response(null, await this.#dispatch(request, executionCtx, env, "GET")))();
+    }
+    const path = this.getPath(request, { env });
+    const matchResult = this.router.match(method, path);
+    const c = new Context(request, {
+      path,
+      matchResult,
+      env,
+      executionCtx,
+      notFoundHandler: this.#notFoundHandler
+    });
+    if (matchResult[0].length === 1) {
+      let res;
+      try {
+        res = matchResult[0][0][0][0](c, async () => {
+          c.res = await this.#notFoundHandler(c);
+        });
+      } catch (err) {
+        return this.#handleError(err, c);
+      }
+      return res instanceof Promise ? res.then(
+        (resolved) => resolved || (c.finalized ? c.res : this.#notFoundHandler(c))
+      ).catch((err) => this.#handleError(err, c)) : res ?? this.#notFoundHandler(c);
+    }
+    const composed = compose(matchResult[0], this.errorHandler, this.#notFoundHandler);
+    return (async () => {
+      try {
+        const context = await composed(c);
+        if (!context.finalized) {
+          throw new Error(
+            "Context is not finalized. Did you forget to return a Response object or `await next()`?"
+          );
+        }
+        return context.res;
+      } catch (err) {
+        return this.#handleError(err, c);
+      }
+    })();
+  }
+  /**
+   * `.fetch()` will be entry point of your app.
+   *
+   * @see {@link https://hono.dev/docs/api/hono#fetch}
+   *
+   * @param {Request} request - request Object of request
+   * @param {Env} env - env Object
+   * @param {ExecutionContext} executionCtx - context of execution
+   * @returns {Response | Promise<Response>} response of request
+   *
+   */
+  fetch = /* @__PURE__ */ __name((request, ...rest) => {
+    return this.#dispatch(request, rest[1], rest[0], request.method);
+  }, "fetch");
+  /**
+   * `.request()` is a useful method for testing.
+   * You can pass a URL or pathname to send a GET request.
+   * app will return a Response object.
+   * ```ts
+   * test('GET /hello is ok', async () => {
+   *   const res = await app.request('/hello')
+   *   expect(res.status).toBe(200)
+   * })
+   * ```
+   * @see https://hono.dev/docs/api/hono#request
+   */
+  request = /* @__PURE__ */ __name((input, requestInit, Env, executionCtx) => {
+    if (input instanceof Request) {
+      return this.fetch(requestInit ? new Request(input, requestInit) : input, Env, executionCtx);
+    }
+    input = input.toString();
+    return this.fetch(
+      new Request(
+        /^https?:\/\//.test(input) ? input : `http://localhost${mergePath("/", input)}`,
+        requestInit
+      ),
+      Env,
+      executionCtx
+    );
+  }, "request");
+  /**
+   * `.fire()` automatically adds a global fetch event listener.
+   * This can be useful for environments that adhere to the Service Worker API, such as non-ES module Cloudflare Workers.
+   * @deprecated
+   * Use `fire` from `hono/service-worker` instead.
+   * ```ts
+   * import { Hono } from 'hono'
+   * import { fire } from 'hono/service-worker'
+   *
+   * const app = new Hono()
+   * // ...
+   * fire(app)
+   * ```
+   * @see https://hono.dev/docs/api/hono#fire
+   * @see https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API
+   * @see https://developers.cloudflare.com/workers/reference/migrate-to-module-workers/
+   */
+  fire = /* @__PURE__ */ __name(() => {
+    addEventListener("fetch", (event) => {
+      event.respondWith(this.#dispatch(event.request, event, void 0, event.request.method));
+    });
+  }, "fire");
+};
+
+// worker/node_modules/hono/dist/router/utils.js
+var createNullObject = /* @__PURE__ */ __name(() => /* @__PURE__ */ Object.create(null), "createNullObject");
+
+// worker/node_modules/hono/dist/router/reg-exp-router/matcher.js
+var emptyParam = [];
+function match(method, path) {
+  const matchers = this.buildAllMatchers();
+  const match2 = /* @__PURE__ */ __name(((method2, path2) => {
+    const matcher = matchers[method2] || matchers[METHOD_NAME_ALL];
+    const staticMatch = matcher[2][path2];
+    if (staticMatch) {
+      return staticMatch;
+    }
+    const match3 = path2.match(matcher[0]);
+    if (!match3) {
+      return [[], emptyParam];
+    }
+    const index = match3.indexOf("", 1);
+    return [matcher[1][index], match3];
+  }), "match2");
+  this.match = match2;
+  return match2(method, path);
+}
+__name(match, "match");
+
+// worker/node_modules/hono/dist/router/reg-exp-router/node.js
+var LABEL_REG_EXP_STR = "[^/]+";
+var ONLY_WILDCARD_REG_EXP_STR = ".*";
+var TAIL_WILDCARD_REG_EXP_STR = "(?:|/.*)";
+var PATH_ERROR = /* @__PURE__ */ Symbol();
+var regExpMetaChars = new Set(".\\+*[^]$()");
+function compareKey(a, b) {
+  if (a.length === 1) {
+    return b.length === 1 ? a < b ? -1 : 1 : -1;
+  }
+  if (b.length === 1) {
+    return 1;
+  }
+  if (a === ONLY_WILDCARD_REG_EXP_STR || a === TAIL_WILDCARD_REG_EXP_STR) {
+    return b === TAIL_WILDCARD_REG_EXP_STR ? -1 : 1;
+  } else if (b === ONLY_WILDCARD_REG_EXP_STR || b === TAIL_WILDCARD_REG_EXP_STR) {
+    return -1;
+  }
+  if (a === LABEL_REG_EXP_STR) {
+    return 1;
+  } else if (b === LABEL_REG_EXP_STR) {
+    return -1;
+  }
+  return a.length === b.length ? a < b ? -1 : 1 : b.length - a.length;
+}
+__name(compareKey, "compareKey");
+var Node = class _Node {
+  static {
+    __name(this, "_Node");
+  }
+  // handler index of a dynamic path, or -1 for a static path terminal
+  #index;
+  #varIndex;
+  #children = createNullObject();
+  insert(tokens, index, paramMap, context, isStatic) {
+    let node = this;
+    for (let i = 0, len = tokens.length; i < len; i++) {
+      const token = tokens[i];
+      const pattern = token.length === 1 ? token === "*" ? i === len - 1 ? ["", "", ONLY_WILDCARD_REG_EXP_STR] : ["", "", LABEL_REG_EXP_STR] : null : token === "/*" ? ["", "", TAIL_WILDCARD_REG_EXP_STR] : token.match(/^\:([^\{\}]+)(?:\{(.+)\})?$/);
+      let nextNode;
+      if (pattern) {
+        const name = pattern[1];
+        let regexpStr = pattern[2] || LABEL_REG_EXP_STR;
+        if (name && pattern[2]) {
+          if (regexpStr === ".*") {
+            throw PATH_ERROR;
+          }
+          regexpStr = regexpStr.replace(/^\((?!\?:)(?=[^)]+\)$)/, "(?:");
+          if (/\((?!\?:)/.test(regexpStr)) {
+            throw PATH_ERROR;
+          }
+          if (regexpStr.length === 1 && regExpMetaChars.has(regexpStr)) {
+            throw PATH_ERROR;
+          }
+        }
+        nextNode = node.#children[regexpStr];
+        if (!nextNode) {
+          if (regexpStr !== ONLY_WILDCARD_REG_EXP_STR && regexpStr !== TAIL_WILDCARD_REG_EXP_STR) {
+            for (const k in node.#children) {
+              if (
+                // a single-char pattern coexists with single-char literals as a literal does
+                (regexpStr.length > 1 || k.length > 1) && k !== ONLY_WILDCARD_REG_EXP_STR && k !== TAIL_WILDCARD_REG_EXP_STR
+              ) {
+                throw PATH_ERROR;
+              }
+            }
+          }
+          nextNode = node.#children[regexpStr] = new _Node();
+        }
+        if (name !== "") {
+          nextNode.#varIndex ??= context.varIndex++;
+          paramMap.push([name, nextNode.#varIndex]);
+        }
+      } else {
+        nextNode = node.#children[token];
+        if (!nextNode) {
+          for (const k in node.#children) {
+            if (k.length > 1 && k !== ONLY_WILDCARD_REG_EXP_STR && k !== TAIL_WILDCARD_REG_EXP_STR) {
+              throw PATH_ERROR;
+            }
+          }
+          nextNode = node.#children[token] = new _Node();
+        }
+      }
+      node = nextNode;
+    }
+    if (node.#index !== void 0) {
+      throw PATH_ERROR;
+    }
+    node.#index = isStatic ? -1 : index;
+  }
+  buildRegExpStr() {
+    const childKeys = Object.keys(this.#children).sort(compareKey);
+    const strList = childKeys.map((k) => {
+      const c = this.#children[k];
+      const childStr = c.buildRegExpStr();
+      return childStr === "" ? "" : (typeof c.#varIndex === "number" ? `(${k})@${c.#varIndex}` : regExpMetaChars.has(k) ? `\\${k}` : k) + childStr;
+    }).filter(Boolean);
+    if (typeof this.#index === "number" && this.#index !== -1) {
+      strList.unshift(`#${this.#index}`);
+    }
+    if (strList.length === 0) {
+      return "";
+    }
+    if (strList.length === 1) {
+      return strList[0];
+    }
+    return "(?:" + strList.join("|") + ")";
+  }
+};
+
+// worker/node_modules/hono/dist/router/reg-exp-router/trie.js
+var Trie = class {
+  static {
+    __name(this, "Trie");
+  }
+  #context = { varIndex: 0 };
+  #root = new Node();
+  #index = 0;
+  // dynamic path -> [handler index, param assoc]; static paths are not registered
+  paths = createNullObject();
+  insert(path, isStatic) {
+    if (isStatic) {
+      this.#root.insert(path.split(""), 0, [], this.#context, true);
+      return;
+    }
+    const paramAssoc = [];
+    const groups = [];
+    let markedPath = path;
+    for (let i = 0; ; ) {
+      let replaced = false;
+      markedPath = markedPath.replace(/\{[^}]+\}/g, (m) => {
+        const mark = `@\\${i}`;
+        groups[i] = [mark, m];
+        i++;
+        replaced = true;
+        return mark;
+      });
+      if (!replaced) {
+        break;
+      }
+    }
+    const tokens = markedPath.match(/(?::[^\/]+)|(?:\/\*$)|./g) || [];
+    for (let i = groups.length - 1; i >= 0; i--) {
+      const [mark] = groups[i];
+      for (let j = tokens.length - 1; j >= 0; j--) {
+        if (tokens[j].indexOf(mark) !== -1) {
+          tokens[j] = tokens[j].replace(mark, groups[i][1]);
+          break;
+        }
+      }
+    }
+    this.#root.insert(tokens, this.#index, paramAssoc, this.#context, false);
+    this.paths[path] = [this.#index++, paramAssoc];
+  }
+  buildRegExp() {
+    let regexp = this.#root.buildRegExpStr();
+    if (regexp === "") {
+      return [/^$/, [], []];
+    }
+    let captureIndex = 0;
+    const indexReplacementMap = [];
+    const paramReplacementMap = [];
+    regexp = regexp.replace(/#(\d+)|@(\d+)|\.\*\$/g, (_, handlerIndex, paramIndex) => {
+      if (handlerIndex !== void 0) {
+        indexReplacementMap[++captureIndex] = Number(handlerIndex);
+        return "$()";
+      }
+      if (paramIndex !== void 0) {
+        paramReplacementMap[Number(paramIndex)] = ++captureIndex;
+        return "";
+      }
+      return "";
+    });
+    return [new RegExp(`^${regexp}`), indexReplacementMap, paramReplacementMap];
+  }
+};
+
+// worker/node_modules/hono/dist/router/reg-exp-router/router.js
+var wildcardRegExpCache = createNullObject();
+function buildWildcardRegExp(path) {
+  return wildcardRegExpCache[path] ??= new RegExp(
+    `^${path.replace(
+      /\/:[^/{}]+(?:\{\[\^\/]\+})?(?=[/{]|$)|\/?\*$|([.\\+*[^\]$()?{}|])/g,
+      (match2, metaChar) => metaChar ? `\\${metaChar}` : match2 === "/*" ? TAIL_WILDCARD_REG_EXP_STR : match2 === "*" ? ONLY_WILDCARD_REG_EXP_STR : `/:${LABEL_REG_EXP_STR}`
+    )}$`
+  );
+}
+__name(buildWildcardRegExp, "buildWildcardRegExp");
+function findMiddleware(middleware, path) {
+  for (const k of Object.keys(middleware).sort((a, b) => b.length - a.length)) {
+    if (buildWildcardRegExp(k).test(path)) {
+      return [...middleware[k]];
+    }
+  }
+  return void 0;
+}
+__name(findMiddleware, "findMiddleware");
+var RegExpRouter = class {
+  static {
+    __name(this, "RegExpRouter");
+  }
+  name = "RegExpRouter";
+  #middleware;
+  #routes;
+  #tries;
+  constructor() {
+    this.#middleware = { [METHOD_NAME_ALL]: createNullObject() };
+    this.#routes = { [METHOD_NAME_ALL]: createNullObject() };
+    this.#tries = { [METHOD_NAME_ALL]: new Trie() };
+  }
+  #insertPath(method, path) {
+    try {
+      this.#tries[method].insert(path, !/\*|\/:/.test(path));
+    } catch (e) {
+      throw e === PATH_ERROR ? new UnsupportedPathError(path) : e;
+    }
+  }
+  add(method, path, handler) {
+    const middleware = this.#middleware;
+    const routes = this.#routes;
+    if (!middleware) {
+      throw new Error(MESSAGE_MATCHER_IS_ALREADY_BUILT);
+    }
+    if (!middleware[method]) {
+      this.#tries[method] = new Trie();
+      for (const handlerMap of [middleware, routes]) {
+        handlerMap[method] = createNullObject();
+        for (const p in handlerMap[METHOD_NAME_ALL]) {
+          handlerMap[method][p] = [...handlerMap[METHOD_NAME_ALL][p]];
+          this.#insertPath(method, p);
+        }
+      }
+    }
+    if (path === "/*") {
+      path = "*";
+    }
+    const methods = method === METHOD_NAME_ALL ? Object.keys(middleware) : [method];
+    if (/\*$/.test(path)) {
+      const re = buildWildcardRegExp(path);
+      for (const m of methods) {
+        if (!middleware[m][path]) {
+          this.#insertPath(m, path);
+          middleware[m][path] = findMiddleware(middleware[m], path) || findMiddleware(middleware[METHOD_NAME_ALL], path) || [];
+        }
+      }
+      for (const handlerMap of [middleware, routes]) {
+        for (const m of methods) {
+          for (const p in handlerMap[m]) {
+            re.test(p) && handlerMap[m][p].push([handler, path]);
+          }
+        }
+      }
+      return;
+    }
+    const paths = checkOptionalParameter(path) || [path];
+    for (const path2 of paths) {
+      for (const m of methods) {
+        if (!routes[m][path2]) {
+          this.#insertPath(m, path2);
+          routes[m][path2] = findMiddleware(middleware[m], path2) || findMiddleware(middleware[METHOD_NAME_ALL], path2) || [];
+        }
+        routes[m][path2].push([handler, path2]);
+      }
+    }
+  }
+  match = match;
+  buildAllMatchers() {
+    const matchers = createNullObject();
+    for (const method of Object.keys(this.#routes)) {
+      matchers[method] = this.#buildMatcher(method);
+    }
+    this.#middleware = this.#routes = this.#tries = void 0;
+    wildcardRegExpCache = createNullObject();
+    return matchers;
+  }
+  #buildMatcher(method) {
+    const middleware = this.#middleware[method];
+    const routes = this.#routes[method];
+    const trie = this.#tries[method];
+    const staticMap = createNullObject();
+    const handlerData = [];
+    const [regexp, indexReplacementMap, paramReplacementMap] = trie.buildRegExp();
+    for (const r of [middleware, routes]) {
+      for (const path in r) {
+        const handlers = r[path];
+        const pathData = trie.paths[path];
+        if (!pathData) {
+          staticMap[path] = [handlers.map(([h]) => [h, createNullObject()]), emptyParam];
+          continue;
+        }
+        handlerData[pathData[0]] = handlers.map(([h, handlerPath]) => [
+          h,
+          trie.paths[handlerPath][1].reduceRight((map, [key], i) => {
+            map[key] = paramReplacementMap[pathData[1][i][1]];
+            return map;
+          }, createNullObject())
+        ]);
+      }
+    }
+    return [regexp, indexReplacementMap.map((i) => handlerData[i]), staticMap];
+  }
+};
+
+// worker/node_modules/hono/dist/router/smart-router/router.js
+var SmartRouter = class {
+  static {
+    __name(this, "SmartRouter");
+  }
+  name = "SmartRouter";
+  #routers = [];
+  #routes = [];
+  constructor(init) {
+    this.#routers = init.routers;
+  }
+  add(method, path, handler) {
+    if (!this.#routes) {
+      throw new Error(MESSAGE_MATCHER_IS_ALREADY_BUILT);
+    }
+    this.#routes.push([method, path, handler]);
+  }
+  match(method, path) {
+    if (!this.#routes) {
+      throw new Error("Fatal error");
+    }
+    const routers = this.#routers;
+    const routes = this.#routes;
+    const len = routers.length;
+    let i = 0;
+    let res;
+    for (; i < len; i++) {
+      const router = routers[i];
+      try {
+        for (let i2 = 0, len2 = routes.length; i2 < len2; i2++) {
+          router.add(...routes[i2]);
+        }
+        res = router.match(method, path);
+      } catch (e) {
+        if (e instanceof UnsupportedPathError) {
+          continue;
+        }
+        throw e;
+      }
+      this.match = router.match.bind(router);
+      this.#routers = [router];
+      this.#routes = void 0;
+      break;
+    }
+    if (i === len) {
+      throw new Error("Fatal error");
+    }
+    this.name = `SmartRouter + ${this.activeRouter.name}`;
+    return res;
+  }
+  get activeRouter() {
+    if (this.#routes || this.#routers.length !== 1) {
+      throw new Error("No active router has been determined yet.");
+    }
+    return this.#routers[0];
+  }
+};
+
+// worker/node_modules/hono/dist/router/trie-router/node.js
+var emptyParams = createNullObject();
+var order = 0;
+var Node2 = class _Node2 {
+  static {
+    __name(this, "_Node");
+  }
+  #methods = [];
+  #children = createNullObject();
+  #patterns = [];
+  #pattern;
+  #params = emptyParams;
+  insert(method, path, handler) {
+    let curNode = this;
+    const parts = splitRoutingPath(path);
+    const possibleKeys = /* @__PURE__ */ new Set();
+    let i = 0;
+    for (const p of parts) {
+      const nextP = parts[++i];
+      const pattern = getPattern(p, nextP) || (nextP === void 0 && p && p.indexOf("*") === p.length - 1 ? p : null);
+      const isParam = Array.isArray(pattern);
+      const key = isParam ? pattern[0] : pattern || p;
+      const child = curNode.#children[key] ||= new _Node2();
+      if (pattern && !child.#pattern) {
+        child.#pattern = pattern;
+        curNode.#patterns.push(child);
+      }
+      curNode = child;
+      if (isParam) {
+        possibleKeys.add(pattern[1]);
+      }
+    }
+    curNode.#methods.push({
+      [method]: {
+        handler,
+        possibleKeys: [...possibleKeys],
+        score: ++order
+      }
+    });
+  }
+  #pushHandlerSets(handlerSets, node, method, nodeParams, params) {
+    for (let i = 0, len = node.#methods.length; i < len; i++) {
+      const m = node.#methods[i];
+      const handlerSet = m[method] || m[METHOD_NAME_ALL];
+      if (handlerSet) {
+        handlerSet.params = createNullObject();
+        handlerSets.push(handlerSet);
+        for (let i2 = 0, len2 = handlerSet.possibleKeys.length; i2 < len2; i2++) {
+          const key = handlerSet.possibleKeys[i2];
+          handlerSet.params[key] = params?.[key] && !i2 ? params[key] : nodeParams[key] ?? params?.[key];
+        }
+      }
+    }
+  }
+  search(method, path) {
+    const handlerSets = [];
+    this.#params = emptyParams;
+    const curNode = this;
+    let curNodes = [curNode];
+    const parts = splitPath(path);
+    const curNodesQueue = [];
+    const len = parts.length;
+    let partOffsets = null;
+    for (let i = 0; i < len; i++) {
+      const part = parts[i];
+      const isLast = i === len - 1;
+      const tempNodes = [];
+      for (let j = 0, len2 = curNodes.length; j < len2; j++) {
+        const node = curNodes[j];
+        const nextNode = node.#children[part];
+        if (nextNode) {
+          nextNode.#params = node.#params;
+          if (isLast) {
+            if (nextNode.#children["*"]) {
+              this.#pushHandlerSets(handlerSets, nextNode.#children["*"], method, node.#params);
+            }
+            this.#pushHandlerSets(handlerSets, nextNode, method, node.#params);
+          } else {
+            tempNodes.push(nextNode);
+          }
+        }
+        for (const child of node.#patterns) {
+          const pattern = child.#pattern;
+          const params = node.#params === emptyParams ? {} : { ...node.#params };
+          if (typeof pattern === "string") {
+            if (pattern === "*" || part.startsWith(pattern.slice(0, -1))) {
+              this.#pushHandlerSets(handlerSets, child, method, node.#params);
+              if (pattern === "*") {
+                child.#params = params;
+                tempNodes.push(child);
+              }
+            }
+            continue;
+          }
+          const [, name, matcher] = pattern;
+          if (!part && matcher === true) {
+            continue;
+          }
+          if (matcher !== true) {
+            if (!partOffsets) {
+              partOffsets = [];
+              let offset = path[0] === "/" ? 1 : 0;
+              for (let p = 0; p < len; p++) {
+                partOffsets[p] = offset;
+                offset += parts[p].length + 1;
+              }
+            }
+            const restPathString = path.slice(partOffsets[i]);
+            const m = matcher.exec(restPathString);
+            if (m) {
+              params[name] = m[0];
+              this.#pushHandlerSets(handlerSets, child, method, node.#params, params);
+              if (m[0].length === restPathString.length && child.#children["*"]) {
+                this.#pushHandlerSets(
+                  handlerSets,
+                  child.#children["*"],
+                  method,
+                  node.#params,
+                  params
+                );
+              }
+              for (const _ in child.#children) {
+                child.#params = params;
+                const componentCount = m[0].match(/\//g)?.length ?? 0;
+                const targetCurNodes = curNodesQueue[componentCount] ||= [];
+                targetCurNodes.push(child);
+                break;
+              }
+              continue;
+            }
+          }
+          if (matcher === true || matcher.test(part)) {
+            params[name] = part;
+            if (isLast) {
+              this.#pushHandlerSets(handlerSets, child, method, params, node.#params);
+              if (child.#children["*"]) {
+                this.#pushHandlerSets(
+                  handlerSets,
+                  child.#children["*"],
+                  method,
+                  params,
+                  node.#params
+                );
+              }
+            } else {
+              child.#params = params;
+              tempNodes.push(child);
+            }
+          }
+        }
+      }
+      const shifted = curNodesQueue.shift();
+      curNodes = shifted ? tempNodes.concat(shifted) : tempNodes;
+    }
+    if (handlerSets[1]) {
+      handlerSets.sort((a, b) => {
+        return a.score - b.score;
+      });
+    }
+    return [handlerSets.map(({ handler, params }) => [handler, params])];
+  }
+};
+
+// worker/node_modules/hono/dist/router/trie-router/router.js
+var TrieRouter = class {
+  static {
+    __name(this, "TrieRouter");
+  }
+  name = "TrieRouter";
+  #node = new Node2();
+  add(method, path, handler) {
+    for (const result of checkOptionalParameter(path) || [path]) {
+      this.#node.insert(method, result, handler);
+    }
+  }
+  match(method, path) {
+    return this.#node.search(method, path);
+  }
+};
+
+// worker/node_modules/hono/dist/hono.js
+var Hono2 = class extends Hono {
+  static {
+    __name(this, "Hono");
+  }
+  /**
+   * Creates an instance of the Hono class.
+   *
+   * @param options - Optional configuration options for the Hono instance.
+   */
+  constructor(options = {}) {
+    super(options);
+    this.router = options.router ?? new SmartRouter({
+      routers: [new RegExpRouter(), new TrieRouter()]
+    });
+  }
+};
+
+// worker/node_modules/hono/dist/utils/cookie.js
+var validCookieNameRegEx = /^[\w!#$%&'*.^`|~+-]+$/;
+var relaxedCookieNameRegEx = /^[!#-:<>-[\]-~]+$/;
+var validCookieValueRegEx = /^[ !#-:<-[\]-~]*$/;
+var trimCookieWhitespace = /* @__PURE__ */ __name((value) => {
+  let start = 0;
+  let end = value.length;
+  while (start < end) {
+    const charCode = value.charCodeAt(start);
+    if (charCode !== 32 && charCode !== 9) {
+      break;
+    }
+    start++;
+  }
+  while (end > start) {
+    const charCode = value.charCodeAt(end - 1);
+    if (charCode !== 32 && charCode !== 9) {
+      break;
+    }
+    end--;
+  }
+  return start === 0 && end === value.length ? value : value.slice(start, end);
+}, "trimCookieWhitespace");
+var parse = /* @__PURE__ */ __name((cookie, name) => {
+  if (name && cookie.indexOf(name) === -1) {
+    return {};
+  }
+  const pairs = cookie.split(";");
+  const parsedCookie = /* @__PURE__ */ Object.create(null);
+  for (const pairStr of pairs) {
+    const valueStartPos = pairStr.indexOf("=");
+    if (valueStartPos === -1) {
+      continue;
+    }
+    const cookieName = trimCookieWhitespace(pairStr.substring(0, valueStartPos));
+    if (name && name !== cookieName || !relaxedCookieNameRegEx.test(cookieName) || cookieName in parsedCookie) {
+      continue;
+    }
+    let cookieValue = trimCookieWhitespace(pairStr.substring(valueStartPos + 1));
+    if (cookieValue.startsWith('"') && cookieValue.endsWith('"')) {
+      cookieValue = cookieValue.slice(1, -1);
+    }
+    if (validCookieValueRegEx.test(cookieValue)) {
+      parsedCookie[cookieName] = tryDecodeURIComponent(cookieValue);
+      if (name) {
+        break;
+      }
+    }
+  }
+  return parsedCookie;
+}, "parse");
+var _serialize = /* @__PURE__ */ __name((name, value, opt = {}) => {
+  if (!validCookieNameRegEx.test(name)) {
+    throw new Error("Invalid cookie name");
+  }
+  let cookie = `${name}=${value}`;
+  if (name.startsWith("__Secure-") && !opt.secure) {
+    throw new Error("__Secure- Cookie must have Secure attributes");
+  }
+  if (name.startsWith("__Host-")) {
+    if (!opt.secure) {
+      throw new Error("__Host- Cookie must have Secure attributes");
+    }
+    if (opt.path !== "/") {
+      throw new Error('__Host- Cookie must have Path attributes with "/"');
+    }
+    if (opt.domain) {
+      throw new Error("__Host- Cookie must not have Domain attributes");
+    }
+  }
+  for (const key of ["domain", "path", "sameSite", "priority"]) {
+    if (opt[key] && /[;\r\n]/.test(opt[key])) {
+      throw new Error(`${key} must not contain ";", "\\r", or "\\n"`);
+    }
+  }
+  if (opt && typeof opt.maxAge === "number" && opt.maxAge >= 0) {
+    if (opt.maxAge > 3456e4) {
+      throw new Error(
+        "Cookies Max-Age SHOULD NOT be greater than 400 days (34560000 seconds) in duration."
+      );
+    }
+    cookie += `; Max-Age=${opt.maxAge | 0}`;
+  }
+  if (opt.domain && opt.prefix !== "host") {
+    cookie += `; Domain=${opt.domain}`;
+  }
+  if (opt.path) {
+    cookie += `; Path=${opt.path}`;
+  }
+  if (opt.expires) {
+    if (opt.expires.getTime() - Date.now() > 3456e7) {
+      throw new Error(
+        "Cookies Expires SHOULD NOT be greater than 400 days (34560000 seconds) in the future."
+      );
+    }
+    cookie += `; Expires=${opt.expires.toUTCString()}`;
+  }
+  if (opt.httpOnly) {
+    cookie += "; HttpOnly";
+  }
+  if (opt.secure) {
+    cookie += "; Secure";
+  }
+  if (opt.sameSite) {
+    cookie += `; SameSite=${opt.sameSite.charAt(0).toUpperCase() + opt.sameSite.slice(1)}`;
+  }
+  if (opt.priority) {
+    cookie += `; Priority=${opt.priority.charAt(0).toUpperCase() + opt.priority.slice(1)}`;
+  }
+  if (opt.partitioned) {
+    if (!opt.secure) {
+      throw new Error("Partitioned Cookie must have Secure attributes");
+    }
+    cookie += "; Partitioned";
+  }
+  return cookie;
+}, "_serialize");
+var serialize = /* @__PURE__ */ __name((name, value, opt) => {
+  value = encodeURIComponent(value);
+  return _serialize(name, value, opt);
+}, "serialize");
+
+// worker/node_modules/hono/dist/helper/cookie/index.js
+var getCookie = /* @__PURE__ */ __name((c, key, prefix) => {
+  const cookie = c.req.raw.headers.get("Cookie");
+  if (typeof key === "string") {
+    if (!cookie) {
+      return void 0;
+    }
+    let finalKey = key;
+    if (prefix === "secure") {
+      finalKey = "__Secure-" + key;
+    } else if (prefix === "host") {
+      finalKey = "__Host-" + key;
+    }
+    const obj2 = parse(cookie, finalKey);
+    return obj2[finalKey];
+  }
+  if (!cookie) {
+    return {};
+  }
+  const obj = parse(cookie);
+  return obj;
+}, "getCookie");
+var generateCookie = /* @__PURE__ */ __name((name, value, opt) => {
+  let cookie;
+  if (opt?.prefix === "secure") {
+    cookie = serialize("__Secure-" + name, value, { path: "/", ...opt, secure: true });
+  } else if (opt?.prefix === "host") {
+    cookie = serialize("__Host-" + name, value, {
+      ...opt,
+      path: "/",
+      secure: true,
+      domain: void 0
+    });
+  } else {
+    cookie = serialize(name, value, { path: "/", ...opt });
+  }
+  return cookie;
+}, "generateCookie");
+var setCookie = /* @__PURE__ */ __name((c, name, value, opt) => {
+  const cookie = generateCookie(name, value, opt);
+  c.header("Set-Cookie", cookie, { append: true });
+}, "setCookie");
+var deleteCookie = /* @__PURE__ */ __name((c, name, opt) => {
+  const deletedCookie = getCookie(c, name, opt?.prefix);
+  setCookie(c, name, "", { ...opt, maxAge: 0 });
+  return deletedCookie;
+}, "deleteCookie");
+
+// worker/src/db.ts
+function nowIso() {
+  return (/* @__PURE__ */ new Date()).toISOString();
+}
+__name(nowIso, "nowIso");
+function currentMonth() {
+  return nowIso().slice(0, 7);
+}
+__name(currentMonth, "currentMonth");
+function newId(bytes = 16) {
+  const b = crypto.getRandomValues(new Uint8Array(bytes));
+  return Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+}
+__name(newId, "newId");
+async function sha256Hex(input) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
+  return Array.from(new Uint8Array(digest), (x) => x.toString(16).padStart(2, "0")).join("");
+}
+__name(sha256Hex, "sha256Hex");
+async function getUserById(db, id) {
+  return db.prepare("SELECT * FROM users WHERE id = ?").bind(id).first();
+}
+__name(getUserById, "getUserById");
+async function getUserByEmail(db, email) {
+  return db.prepare("SELECT * FROM users WHERE email = ?").bind(email.toLowerCase()).first();
+}
+__name(getUserByEmail, "getUserByEmail");
+async function getSubscription(db, userId) {
+  return db.prepare("SELECT * FROM subscriptions WHERE user_id = ?").bind(userId).first();
+}
+__name(getSubscription, "getSubscription");
+var ACTIVE_STATUSES = /* @__PURE__ */ new Set(["active", "trialing"]);
+function isSubscriptionActive(sub) {
+  return !!sub && sub.tier !== "none" && ACTIVE_STATUSES.has(sub.status);
+}
+__name(isSubscriptionActive, "isSubscriptionActive");
+function resolvePlan(sub) {
+  if (isSubscriptionActive(sub)) return sub.tier;
+  return "trial";
+}
+__name(resolvePlan, "resolvePlan");
+async function creditBalance(db, userId) {
+  const row = await db.prepare("SELECT COALESCE(SUM(delta), 0) AS balance FROM credit_ledger WHERE user_id = ?").bind(userId).first();
+  return row?.balance ?? 0;
+}
+__name(creditBalance, "creditBalance");
+async function getMonthlyUsage(db, userId, month) {
+  const row = await db.prepare("SELECT debates_used FROM usage_monthly WHERE user_id = ? AND month = ?").bind(userId, month).first();
+  return row?.debates_used ?? 0;
+}
+__name(getMonthlyUsage, "getMonthlyUsage");
+async function incrementMonthlyUsage(db, userId, month) {
+  await db.prepare(
+    `INSERT INTO usage_monthly (user_id, month, debates_used) VALUES (?, ?, 1)
+       ON CONFLICT(user_id, month) DO UPDATE SET debates_used = debates_used + 1`
+  ).bind(userId, month).run();
+}
+__name(incrementMonthlyUsage, "incrementMonthlyUsage");
+
+// worker/src/orgs.ts
+init_config();
+
+// worker/src/billing.ts
+init_config();
+var STRIPE_API = "https://api.stripe.com/v1";
+async function stripePost(env, path, params) {
+  const body = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) body.append(key, value);
+  const res = await fetch(`${STRIPE_API}${path}`, {
+    method: "POST",
+    headers: {
+      // Stripe expects the secret key as the Basic-auth username, empty password.
+      Authorization: `Basic ${btoa(`${env.STRIPE_SECRET_KEY}:`)}`,
+      "Content-Type": "application/x-www-form-urlencoded"
+    },
+    body: body.toString()
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(`Stripe API ${path} failed (${res.status}): ${JSON.stringify(data)}`);
+  }
+  return data;
+}
+__name(stripePost, "stripePost");
+async function requireUser(c) {
+  return await getSessionUser(c);
+}
+__name(requireUser, "requireUser");
+var billingRouter = new Hono2();
+billingRouter.post("/api/billing/checkout", async (c) => {
+  const user = await requireUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  const body = await c.req.json().catch(() => ({}));
+  const { kind, item } = body;
+  const priceIds = getStripePriceIds(c.env);
+  const params = {
+    client_reference_id: user.id,
+    success_url: `${c.env.APP_URL}/app/account?checkout=success`,
+    cancel_url: `${c.env.APP_URL}/app/account?checkout=cancelled`
+  };
+  if (kind === "subscription" && (item === "debater" || item === "coach" || item === "champion")) {
+    const priceId = priceIds[item];
+    if (!priceId) return c.json({ error: "price not configured" }, 500);
+    params["mode"] = "subscription";
+    params["line_items[0][price]"] = priceId;
+    params["line_items[0][quantity]"] = "1";
+    params["metadata[userId]"] = user.id;
+    params["metadata[kind]"] = "subscription";
+    params["metadata[item]"] = item;
+  } else if (kind === "pack" && typeof item === "string") {
+    const pack = PACKS.find((p) => p.id === item);
+    if (!pack) return c.json({ error: "unknown pack" }, 400);
+    const priceId = priceIds[pack.id];
+    if (!priceId) return c.json({ error: "price not configured" }, 500);
+    params["mode"] = "payment";
+    params["line_items[0][price]"] = priceId;
+    params["line_items[0][quantity]"] = "1";
+    params["metadata[userId]"] = user.id;
+    params["metadata[kind]"] = "pack";
+    params["metadata[debates]"] = String(pack.debates);
+  } else {
+    return c.json({ error: "invalid kind/item" }, 400);
+  }
+  try {
+    const session = await stripePost(c.env, "/checkout/sessions", params);
+    if (!session.url) return c.json({ error: "checkout session missing url" }, 502);
+    return c.json({ url: session.url });
+  } catch (err) {
+    console.error("checkout failed", err);
+    return c.json({ error: "checkout failed" }, 502);
+  }
+});
+billingRouter.post("/api/billing/portal", async (c) => {
+  const user = await requireUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  let customerId = null;
+  const row = await c.env.DB.prepare(
+    "SELECT stripe_customer_id FROM subscriptions WHERE user_id = ?"
+  ).bind(user.id).first();
+  customerId = row?.stripe_customer_id ?? null;
+  try {
+    if (!customerId) {
+      const customerParams = {
+        "metadata[userId]": user.id
+      };
+      if (user.email) customerParams["email"] = user.email;
+      const customer = await stripePost(c.env, "/customers", customerParams);
+      customerId = customer.id;
+      await c.env.DB.prepare(
+        `INSERT INTO subscriptions (user_id, stripe_customer_id)
+         VALUES (?, ?)
+         ON CONFLICT(user_id) DO UPDATE SET
+           stripe_customer_id = excluded.stripe_customer_id`
+      ).bind(user.id, customerId).run();
+    }
+    const portal = await stripePost(c.env, "/billing_portal/sessions", {
+      customer: customerId,
+      return_url: `${c.env.APP_URL}/app/account`
+    });
+    if (!portal.url) return c.json({ error: "portal session missing url" }, 502);
+    return c.json({ url: portal.url });
+  } catch (err) {
+    console.error("portal failed", err);
+    return c.json({ error: "portal failed" }, 502);
+  }
+});
+billingRouter.get("/api/billing/prices", (c) => {
+  const tiers = Object.entries(TIERS).filter(([id]) => id !== "trial").map(([id, t]) => {
+    const debates = Number(t.debatesPerMonth ?? t.debates ?? 0);
+    return {
+      id,
+      name: String(t.name ?? id),
+      price: Math.round(Number(t.priceMonthly ?? t.price ?? 0) * 100),
+      currency: "usd",
+      interval: "month",
+      debates,
+      credits: debates,
+      description: String(t.blurb ?? "")
+    };
+  });
+  const packs = PACKS.map((p) => ({
+    id: p.id,
+    name: p.name,
+    price: Math.round(p.price * 100),
+    currency: "usd",
+    credits: p.debates,
+    debates: p.debates
+  }));
+  return c.json({ tiers, packs });
+});
+
+// worker/src/orgs.ts
+var ACTIVE_ORG_STATUSES = /* @__PURE__ */ new Set(["active", "trialing"]);
+async function isOrgMember(db, userId) {
+  const row = await db.prepare("SELECT 1 FROM org_members WHERE user_id = ? LIMIT 1").bind(userId).first();
+  return !!row;
+}
+__name(isOrgMember, "isOrgMember");
+async function getUserOrgs(db, userId) {
+  const rows = await db.prepare(
+    `SELECT o.*, m.role AS member_role, m.joined_at AS member_joined_at
+       FROM org_members m JOIN orgs o ON o.id = m.org_id
+       WHERE m.user_id = ? ORDER BY m.joined_at`
+  ).bind(userId).all();
+  return (rows.results ?? []).map((r) => ({
+    org: r,
+    role: r.member_role,
+    joined_at: r.member_joined_at
+  }));
+}
+__name(getUserOrgs, "getUserOrgs");
+async function getUserActiveOrgs(db, userId) {
+  const rows = await db.prepare(
+    `SELECT o.* FROM org_members m JOIN orgs o ON o.id = m.org_id
+       WHERE m.user_id = ? AND o.status IN ('active', 'trialing')
+       ORDER BY m.joined_at`
+  ).bind(userId).all();
+  return rows.results ?? [];
+}
+__name(getUserActiveOrgs, "getUserActiveOrgs");
+async function getOrgMonthlyUsage(db, orgId, month) {
+  const row = await db.prepare("SELECT sessions_used FROM org_usage_monthly WHERE org_id = ? AND month = ?").bind(orgId, month).first();
+  return row?.sessions_used ?? 0;
+}
+__name(getOrgMonthlyUsage, "getOrgMonthlyUsage");
+async function incrementOrgMonthlyUsage(db, orgId, month) {
+  await db.prepare(
+    `INSERT INTO org_usage_monthly (org_id, month, sessions_used) VALUES (?, ?, 1)
+       ON CONFLICT(org_id, month) DO UPDATE SET sessions_used = sessions_used + 1`
+  ).bind(orgId, month).run();
+}
+__name(incrementOrgMonthlyUsage, "incrementOrgMonthlyUsage");
+async function membershipRole(db, orgId, userId) {
+  const row = await db.prepare("SELECT role FROM org_members WHERE org_id = ? AND user_id = ?").bind(orgId, userId).first();
+  return row?.role ?? null;
+}
+__name(membershipRole, "membershipRole");
+async function getOrg(db, orgId) {
+  return db.prepare("SELECT * FROM orgs WHERE id = ?").bind(orgId).first();
+}
+__name(getOrg, "getOrg");
+var INVITE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+function newInviteCode() {
+  const b = crypto.getRandomValues(new Uint8Array(8));
+  return Array.from(b, (x) => INVITE_ALPHABET[x % INVITE_ALPHABET.length]).join("");
+}
+__name(newInviteCode, "newInviteCode");
+async function seatAvailability(db, orgId) {
+  const org = await getOrg(db, orgId);
+  if (!org) return { ok: false, error: "not_found" };
+  if (!ACTIVE_ORG_STATUSES.has(org.status)) return { ok: false, error: "subscription_inactive" };
+  const row = await db.prepare("SELECT COUNT(*) AS n FROM org_members WHERE org_id = ?").bind(orgId).first();
+  if ((row?.n ?? 0) >= org.seat_count) return { ok: false, error: "seats_exhausted" };
+  return { ok: true };
+}
+__name(seatAvailability, "seatAvailability");
+var orgsRouter = new Hono2();
+orgsRouter.post("/", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  const body = await c.req.json().catch(() => ({}));
+  const name = String(body.name ?? "").trim();
+  if (!name) return c.json({ error: "name_required" }, 400);
+  if (name.length > 120) return c.json({ error: "name_too_long" }, 400);
+  const id = newId();
+  await c.env.DB.prepare(
+    "INSERT INTO orgs (id, name, created_by, created_at) VALUES (?, ?, ?, ?)"
+  ).bind(id, name, user.id, nowIso()).run();
+  await c.env.DB.prepare(
+    "INSERT INTO org_members (org_id, user_id, role, joined_at) VALUES (?, ?, 'owner', ?)"
+  ).bind(id, user.id, nowIso()).run();
+  return c.json({ ok: true, org: { id, name } }, 201);
+});
+orgsRouter.get("/mine", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  const memberships = await getUserOrgs(c.env.DB, user.id);
+  const month = currentMonth();
+  const orgs = await Promise.all(
+    memberships.map(async (m) => {
+      const memberCount = (await c.env.DB.prepare("SELECT COUNT(*) AS n FROM org_members WHERE org_id = ?").bind(m.org.id).first())?.n ?? 0;
+      const sessionsUsed = await getOrgMonthlyUsage(c.env.DB, m.org.id, month);
+      return {
+        id: m.org.id,
+        name: m.org.name,
+        role: m.role,
+        status: m.org.status,
+        seatCount: m.org.seat_count,
+        memberCount,
+        sessionsUsed,
+        sessionsPool: m.org.seat_count * EDU.sessionsPerSeat,
+        subscriptionActive: ACTIVE_ORG_STATUSES.has(m.org.status)
+      };
+    })
+  );
+  return c.json({ orgs });
+});
+orgsRouter.get("/join/:code", async (c) => {
+  const code = c.req.param("code").toUpperCase().trim();
+  const invite = await c.env.DB.prepare("SELECT * FROM org_invites WHERE code = ?").bind(code).first();
+  if (!invite) return c.json({ error: "invalid_code" }, 404);
+  if (invite.uses >= invite.max_uses) return c.json({ error: "code_exhausted" }, 410);
+  if (invite.expires_at && invite.expires_at < nowIso())
+    return c.json({ error: "code_expired" }, 410);
+  const org = await getOrg(c.env.DB, invite.org_id);
+  if (!org) return c.json({ error: "invalid_code" }, 404);
+  return c.json({ ok: true, orgName: org.name, role: invite.role, code: invite.code });
+});
+orgsRouter.post("/join", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  const body = await c.req.json().catch(() => ({}));
+  const code = String(body.code ?? "").trim().toUpperCase();
+  if (!code) return c.json({ error: "code_required" }, 400);
+  const invite = await c.env.DB.prepare(
+    "SELECT org_id, role, code, max_uses, uses, expires_at FROM org_invites WHERE code = ?"
+  ).bind(code).first();
+  if (!invite) return c.json({ error: "invalid_code" }, 404);
+  if (invite.uses >= invite.max_uses) return c.json({ error: "code_exhausted" }, 410);
+  if (invite.expires_at && invite.expires_at < nowIso())
+    return c.json({ error: "code_expired" }, 410);
+  const already = await membershipRole(c.env.DB, invite.org_id, user.id);
+  if (already) return c.json({ error: "already_member" }, 409);
+  const seats = await seatAvailability(c.env.DB, invite.org_id);
+  if (!seats.ok) return c.json({ error: seats.error }, 403);
+  await c.env.DB.prepare(
+    "INSERT INTO org_members (org_id, user_id, role, joined_at) VALUES (?, ?, ?, ?)"
+  ).bind(invite.org_id, user.id, invite.role, nowIso()).run();
+  await c.env.DB.prepare("UPDATE org_invites SET uses = uses + 1 WHERE code = ?").bind(invite.code).run();
+  const org = await getOrg(c.env.DB, invite.org_id);
+  return c.json({ ok: true, org: { id: invite.org_id, name: org?.name ?? "", role: invite.role } });
+});
+orgsRouter.get("/:id", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  const org = await getOrg(c.env.DB, c.req.param("id"));
+  if (!org) return c.json({ error: "not_found" }, 404);
+  const role = await membershipRole(c.env.DB, org.id, user.id);
+  if (!role) return c.json({ error: "forbidden" }, 403);
+  const month = currentMonth();
+  const memberCount = (await c.env.DB.prepare("SELECT COUNT(*) AS n FROM org_members WHERE org_id = ?").bind(org.id).first())?.n ?? 0;
+  const sessionsUsed = await getOrgMonthlyUsage(c.env.DB, org.id, month);
+  const res = {
+    id: org.id,
+    name: org.name,
+    role,
+    status: org.status,
+    seatCount: org.seat_count,
+    memberCount,
+    sessionsUsed,
+    sessionsPool: org.seat_count * EDU.sessionsPerSeat,
+    subscriptionActive: ACTIVE_ORG_STATUSES.has(org.status)
+  };
+  if (role === "owner" || role === "teacher") {
+    const members = await c.env.DB.prepare(
+      `SELECT u.id, u.email, m.role, m.joined_at
+       FROM org_members m JOIN users u ON u.id = m.user_id
+       WHERE m.org_id = ? ORDER BY m.joined_at`
+    ).bind(org.id).all();
+    const invites = await c.env.DB.prepare(
+      "SELECT code, role, max_uses, uses, expires_at, created_at FROM org_invites WHERE org_id = ? ORDER BY created_at DESC"
+    ).bind(org.id).all();
+    res.members = members.results ?? [];
+    res.invites = (invites.results ?? []).map((inv) => ({
+      ...inv,
+      url: `${c.env.APP_URL}/app/#/join/${inv.code}`
+    }));
+  }
+  return c.json({ org: res });
+});
+orgsRouter.post("/:id/invites", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  const orgId = c.req.param("id");
+  const role = await membershipRole(c.env.DB, orgId, user.id);
+  if (role !== "owner" && role !== "teacher") return c.json({ error: "forbidden" }, 403);
+  const body = await c.req.json().catch(() => ({}));
+  const inviteRole = body.role === "teacher" ? "teacher" : "student";
+  if (inviteRole === "teacher" && role !== "owner")
+    return c.json({ error: "only_owner_invites_teachers" }, 403);
+  const maxUses = Math.min(1e3, Math.max(1, Number(body.maxUses ?? 50) || 50));
+  const expiresInDays = Number(body.expiresInDays ?? 30) || 30;
+  const expiresAt = expiresInDays > 0 ? new Date(Date.now() + expiresInDays * 864e5).toISOString() : null;
+  let code = "";
+  for (let i = 0; i < 5; i++) {
+    const candidate = newInviteCode();
+    const exists = await c.env.DB.prepare("SELECT 1 FROM org_invites WHERE code = ?").bind(candidate).first();
+    if (!exists) {
+      code = candidate;
+      break;
+    }
+  }
+  if (!code) return c.json({ error: "code_generation_failed" }, 500);
+  await c.env.DB.prepare(
+    `INSERT INTO org_invites (code, org_id, role, max_uses, expires_at, created_by, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).bind(code, orgId, inviteRole, maxUses, expiresAt, user.id, nowIso()).run();
+  return c.json(
+    { ok: true, code, url: `${c.env.APP_URL}/app/#/join/${code}` },
+    201
+  );
+});
+orgsRouter.delete("/:id/invites/:code", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  const orgId = c.req.param("id");
+  const role = await membershipRole(c.env.DB, orgId, user.id);
+  if (role !== "owner" && role !== "teacher") return c.json({ error: "forbidden" }, 403);
+  await c.env.DB.prepare("DELETE FROM org_invites WHERE code = ? AND org_id = ?").bind(c.req.param("code").toUpperCase(), orgId).run();
+  return c.json({ ok: true });
+});
+orgsRouter.get("/:id/members", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  const orgId = c.req.param("id");
+  const role = await membershipRole(c.env.DB, orgId, user.id);
+  if (role !== "owner" && role !== "teacher") return c.json({ error: "forbidden" }, 403);
+  const members = await c.env.DB.prepare(
+    `SELECT u.id, u.email, m.role, m.joined_at
+     FROM org_members m JOIN users u ON u.id = m.user_id
+     WHERE m.org_id = ? ORDER BY m.joined_at`
+  ).bind(orgId).all();
+  return c.json({ members: members.results ?? [] });
+});
+orgsRouter.delete("/:id/members/:userId", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  const orgId = c.req.param("id");
+  const targetId = c.req.param("userId");
+  const role = await membershipRole(c.env.DB, orgId, user.id);
+  if (role !== "owner") return c.json({ error: "forbidden" }, 403);
+  if (targetId === user.id) return c.json({ error: "cannot_remove_self" }, 400);
+  await c.env.DB.prepare("DELETE FROM org_members WHERE org_id = ? AND user_id = ?").bind(orgId, targetId).run();
+  return c.json({ ok: true });
+});
+orgsRouter.post("/:id/checkout", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  const orgId = c.req.param("id");
+  const role = await membershipRole(c.env.DB, orgId, user.id);
+  if (role !== "owner") return c.json({ error: "forbidden" }, 403);
+  const org = await getOrg(c.env.DB, orgId);
+  if (!org) return c.json({ error: "not_found" }, 404);
+  const body = await c.req.json().catch(() => ({}));
+  const seats = Math.min(5e3, Math.max(1, Math.floor(Number(body.seats ?? 0)) || 0));
+  if (!seats) return c.json({ error: "seats_required" }, 400);
+  const priceId = getStripePriceIds(c.env).eduSeat;
+  if (!priceId) return c.json({ error: "price not configured" }, 500);
+  try {
+    const session = await stripePost(c.env, "/checkout/sessions", {
+      client_reference_id: user.id,
+      mode: "subscription",
+      "line_items[0][price]": priceId,
+      "line_items[0][quantity]": String(seats),
+      "metadata[userId]": user.id,
+      "metadata[kind]": "org_subscription",
+      "metadata[orgId]": orgId,
+      "metadata[seats]": String(seats),
+      success_url: `${c.env.APP_URL}/app/org/${orgId}?checkout=success`,
+      cancel_url: `${c.env.APP_URL}/app/org/${orgId}?checkout=cancelled`
+    });
+    if (!session.url) return c.json({ error: "checkout session missing url" }, 502);
+    return c.json({ url: session.url });
+  } catch (err) {
+    console.error("org checkout failed", err);
+    return c.json({ error: "checkout failed" }, 502);
+  }
+});
+orgsRouter.post("/:id/portal", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  const orgId = c.req.param("id");
+  const role = await membershipRole(c.env.DB, orgId, user.id);
+  if (role !== "owner") return c.json({ error: "forbidden" }, 403);
+  const org = await getOrg(c.env.DB, orgId);
+  if (!org) return c.json({ error: "not_found" }, 404);
+  if (!org.stripe_customer_id) return c.json({ error: "no_subscription" }, 400);
+  try {
+    const portal = await stripePost(c.env, "/billing_portal/sessions", {
+      customer: org.stripe_customer_id,
+      return_url: `${c.env.APP_URL}/app/org/${orgId}`
+    });
+    if (!portal.url) return c.json({ error: "portal session missing url" }, 502);
+    return c.json({ url: portal.url });
+  } catch (err) {
+    console.error("org portal failed", err);
+    return c.json({ error: "portal failed" }, 502);
+  }
+});
+
+// worker/src/auth.ts
+var SESSION_COOKIE = "adversaryai_session";
+var SESSION_MAX_AGE = 60 * 60 * 24 * 30;
+var SALT_BYTES = 16;
+var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+async function hashPassword(password, saltHex) {
+  return sha256Hex(`${saltHex}:${password}`);
+}
+__name(hashPassword, "hashPassword");
+function timingSafeEqual(a, b) {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
+__name(timingSafeEqual, "timingSafeEqual");
+function cookieOptions() {
+  return {
+    httpOnly: true,
+    secure: true,
+    sameSite: "Lax",
+    path: "/",
+    maxAge: SESSION_MAX_AGE
+  };
+}
+__name(cookieOptions, "cookieOptions");
+async function createSession(c, userId) {
+  const token = newId(32);
+  const tokenHash = await sha256Hex(token);
+  const expiresAt = new Date(Date.now() + SESSION_MAX_AGE * 1e3).toISOString();
+  await c.env.DB.prepare("INSERT INTO sessions (id, user_id, token_hash, expires_at) VALUES (?, ?, ?, ?)").bind(newId(), userId, tokenHash, expiresAt).run();
+  setCookie(c, SESSION_COOKIE, token, cookieOptions());
+}
+__name(createSession, "createSession");
+function getSessionToken(c) {
+  const header = c.req.header("cookie");
+  if (!header) return null;
+  for (const part of header.split(";")) {
+    const eq = part.indexOf("=");
+    if (eq === -1) continue;
+    if (part.slice(0, eq).trim() === SESSION_COOKIE) {
+      return decodeURIComponent(part.slice(eq + 1).trim());
+    }
+  }
+  return null;
+}
+__name(getSessionToken, "getSessionToken");
+async function getSessionUser(c) {
+  const token = getSessionToken(c);
+  if (!token) return null;
+  const tokenHash = await sha256Hex(token);
+  const row = await c.env.DB.prepare(
+    `SELECT u.id, u.email FROM sessions s
+     JOIN users u ON u.id = s.user_id
+     WHERE s.token_hash = ? AND s.expires_at > ?`
+  ).bind(tokenHash, nowIso()).first();
+  return row ?? null;
+}
+__name(getSessionUser, "getSessionUser");
+var authRouter = new Hono2();
+authRouter.post("/signup", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const email = String(body.email ?? "").trim().toLowerCase();
+  const password = String(body.password ?? "");
+  const inviteCode = String(body.inviteCode ?? "").trim().toUpperCase();
+  if (!EMAIL_RE.test(email)) return c.json({ error: "invalid_email" }, 400);
+  if (password.length < 8) return c.json({ error: "password_too_short" }, 400);
+  let invite = null;
+  if (inviteCode) {
+    const row = await c.env.DB.prepare(
+      "SELECT org_id, role, code, max_uses, uses, expires_at FROM org_invites WHERE code = ?"
+    ).bind(inviteCode).first();
+    if (!row) return c.json({ error: "invalid_code" }, 404);
+    if (row.uses >= row.max_uses) return c.json({ error: "code_exhausted" }, 410);
+    if (row.expires_at && row.expires_at < nowIso()) return c.json({ error: "code_expired" }, 410);
+    invite = row;
+  }
+  if (invite) {
+    const seats = await seatAvailability(c.env.DB, invite.org_id);
+    if (!seats.ok) return c.json({ error: seats.error }, 403);
+  }
+  const existing = await getUserByEmail(c.env.DB, email);
+  if (existing) return c.json({ error: "email_taken" }, 409);
+  const salt = newId(SALT_BYTES);
+  const passwordHash = await hashPassword(password, salt);
+  const id = newId();
+  await c.env.DB.prepare(
+    "INSERT INTO users (id, email, password_hash, salt, created_at) VALUES (?, ?, ?, ?, ?)"
+  ).bind(id, email, passwordHash, salt, nowIso()).run();
+  if (invite) {
+    await c.env.DB.prepare(
+      "INSERT INTO org_members (org_id, user_id, role, joined_at) VALUES (?, ?, ?, ?)"
+    ).bind(invite.org_id, id, invite.role, nowIso()).run();
+    await c.env.DB.prepare("UPDATE org_invites SET uses = uses + 1 WHERE code = ?").bind(invite.code).run();
+  }
+  await createSession(c, id);
+  const orgs = await getUserOrgs(c.env.DB, id);
+  const org = orgs[0] ? { id: orgs[0].org.id, name: orgs[0].org.name, role: orgs[0].role } : null;
+  return c.json({ ok: true, user: { id, email, plan: "trial", org } }, 201);
+});
+authRouter.post("/login", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const email = String(body.email ?? "").trim().toLowerCase();
+  const password = String(body.password ?? "");
+  const user = email ? await getUserByEmail(c.env.DB, email) : null;
+  const hash = user ? await hashPassword(password, user.salt) : null;
+  if (!user || !hash || !timingSafeEqual(hash, user.password_hash)) {
+    return c.json({ error: "invalid_credentials" }, 401);
+  }
+  await createSession(c, user.id);
+  const sub = await getSubscription(c.env.DB, user.id);
+  return c.json({ ok: true, user: { id: user.id, email: user.email, plan: resolvePlan(sub) } });
+});
+authRouter.post("/logout", async (c) => {
+  const token = getSessionToken(c);
+  if (token) {
+    const tokenHash = await sha256Hex(token);
+    await c.env.DB.prepare("DELETE FROM sessions WHERE token_hash = ?").bind(tokenHash).run();
+  }
+  deleteCookie(c, SESSION_COOKIE, { path: "/" });
+  return c.json({ ok: true });
+});
+authRouter.get("/me", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  const sub = await getSubscription(c.env.DB, user.id);
+  const orgs = await getUserOrgs(c.env.DB, user.id);
+  const org = orgs[0] ? { id: orgs[0].org.id, name: orgs[0].org.name, role: orgs[0].role } : null;
+  return c.json({ id: user.id, email: user.email, plan: resolvePlan(sub), org });
+});
+
+// worker/src/model.ts
+async function callOnce(baseUrl, apiKey, model, systemPrompt, userInput, maxTokens) {
+  const res = await fetch(baseUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      // Never log this header value.
+      "api-key": apiKey
+    },
+    body: JSON.stringify({
+      // Azure AI Foundry routes by deployment name on this endpoint.
+      model,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userInput }
+      ],
+      max_tokens: maxTokens
+    })
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    console.error(`[deepseek] HTTP ${res.status} body: ${body.slice(0, 3e3)}`);
+    const err = new Error(
+      `DeepSeek request failed: HTTP ${res.status} ${body.slice(0, 300)}`
+    );
+    err.status = res.status;
+    throw err;
+  }
+  const data = await res.json();
+  const message = data?.choices?.[0]?.message ?? {};
+  const text = typeof message.content === "string" ? message.content.trim() : "";
+  return {
+    text,
+    hitTokenCap: data?.choices?.[0]?.finish_reason === "length"
+  };
+}
+__name(callOnce, "callOnce");
+async function* modelStream(env, systemPrompt, userInput, maxTokens, opts) {
+  const premium = !!opts?.premium;
+  const baseUrl = premium ? env.DEEPSEEK_PRO_URL : env.DEEPSEEK_BASE_URL;
+  const apiKey = premium ? env.FOUNDRY_KEY_DEEPSEEK_PRO : env.FOUNDRY_KEY;
+  const model = premium ? env.DEEPSEEK_PRO_MODEL : env.DEEPSEEK_BASE_MODEL;
+  if (!baseUrl) {
+    throw new Error(
+      premium ? "DEEPSEEK_PRO_URL is not configured" : "DEEPSEEK_BASE_URL is not configured"
+    );
+  }
+  if (!model) {
+    throw new Error(
+      premium ? "DEEPSEEK_PRO_MODEL is not configured" : "DEEPSEEK_BASE_MODEL is not configured"
+    );
+  }
+  if (!apiKey) {
+    throw new Error(
+      premium ? "FOUNDRY_KEY_DEEPSEEK_PRO is not configured" : "FOUNDRY_KEY is not configured"
+    );
+  }
+  const res = await fetch(baseUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      // Never log this header value.
+      "api-key": apiKey
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userInput }
+      ],
+      max_tokens: Math.max(1500, Math.floor(maxTokens)),
+      stream: true
+    })
+  });
+  if (!res.ok || !res.body) {
+    const body = await res.text().catch(() => "");
+    console.error(`[deepseek] stream HTTP ${res.status} body: ${body.slice(0, 3e3)}`);
+    const err = new Error(
+      `DeepSeek stream request failed: HTTP ${res.status} ${body.slice(0, 300)}`
+    );
+    err.status = res.status;
+    throw err;
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  try {
+    for (; ; ) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop() ?? "";
+      for (const line of lines) {
+        const t = line.trim();
+        if (!t.startsWith("data:")) continue;
+        const payload = t.slice(5).trim();
+        if (payload === "[DONE]") return;
+        if (!payload) continue;
+        try {
+          const json = JSON.parse(payload);
+          const delta = json?.choices?.[0]?.delta?.content;
+          if (typeof delta === "string" && delta) yield delta;
+        } catch {
+        }
+      }
+    }
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch {
+    }
+  }
+}
+__name(modelStream, "modelStream");
+async function modelText(env, systemPrompt, userInput, maxTokens, opts) {
+  const premium = !!opts?.premium;
+  const baseUrl = premium ? env.DEEPSEEK_PRO_URL : env.DEEPSEEK_BASE_URL;
+  const apiKey = premium ? env.FOUNDRY_KEY_DEEPSEEK_PRO : env.FOUNDRY_KEY;
+  const model = premium ? env.DEEPSEEK_PRO_MODEL : env.DEEPSEEK_BASE_MODEL;
+  if (!baseUrl) {
+    throw new Error(
+      premium ? "DEEPSEEK_PRO_URL is not configured" : "DEEPSEEK_BASE_URL is not configured"
+    );
+  }
+  if (!model) {
+    throw new Error(
+      premium ? "DEEPSEEK_PRO_MODEL is not configured" : "DEEPSEEK_BASE_MODEL is not configured"
+    );
+  }
+  if (!apiKey) {
+    throw new Error(
+      premium ? "FOUNDRY_KEY_DEEPSEEK_PRO is not configured" : "FOUNDRY_KEY is not configured"
+    );
+  }
+  let budget = Math.max(1500, Math.floor(maxTokens));
+  let result;
+  try {
+    result = await callOnce(baseUrl, apiKey, model, systemPrompt, userInput, budget);
+  } catch (err) {
+    if (err.status === 400) {
+      await new Promise((r) => setTimeout(r, 1500));
+      result = await callOnce(baseUrl, apiKey, model, systemPrompt, userInput, budget);
+    } else {
+      throw err;
+    }
+  }
+  if (result.hitTokenCap) {
+    budget += 1e3;
+    result = await callOnce(baseUrl, apiKey, model, systemPrompt, userInput, budget);
+  }
+  if (!result.text) {
+    throw new Error("Debate model returned an empty response");
+  }
+  return result.text;
+}
+__name(modelText, "modelText");
+
+// worker/src/tts.ts
+var VOICE_FALLBACKS = {
+  prosecutor: "en-US-DavisNeural",
+  professor: "en-US-JaneNeural",
+  contrarian: "en-US-TonyNeural",
+  coach: "en-US-AvaNeural"
+};
+var DEFAULT_VOICE = "en-US-AvaNeural";
+async function getVoices() {
+  try {
+    const mod = await Promise.resolve().then(() => (init_config(), config_exports));
+    if (mod?.PERSONALITY_VOICES && typeof mod.PERSONALITY_VOICES === "object") {
+      return { ...VOICE_FALLBACKS, ...mod.PERSONALITY_VOICES };
+    }
+  } catch {
+  }
+  return VOICE_FALLBACKS;
+}
+__name(getVoices, "getVoices");
+async function getFigureVoices() {
+  try {
+    const mod = await Promise.resolve().then(() => (init_config(), config_exports));
+    if (mod?.FIGURE_VOICES && typeof mod.FIGURE_VOICES === "object") {
+      return { ...mod.FIGURE_VOICES };
+    }
+  } catch {
+  }
+  return {};
+}
+__name(getFigureVoices, "getFigureVoices");
+async function getPersonaVisualVoices() {
+  try {
+    const mod = await Promise.resolve().then(() => (init_config(), config_exports));
+    if (mod?.PERSONA_VISUAL_VOICES && typeof mod.PERSONA_VISUAL_VOICES === "object") {
+      return { ...mod.PERSONA_VISUAL_VOICES };
+    }
+  } catch {
+  }
+  return {};
+}
+__name(getPersonaVisualVoices, "getPersonaVisualVoices");
+function escapeXml(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+}
+__name(escapeXml, "escapeXml");
+function arrayBufferToBase64(buf) {
+  const bytes = new Uint8Array(buf);
+  let s = "";
+  const CHUNK = 32768;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    s += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(s);
+}
+__name(arrayBufferToBase64, "arrayBufferToBase64");
+function estimateTimings(text, audioBytes) {
+  const durationMs = Math.max(1, Math.round(audioBytes * 8 / 48));
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [];
+  const perWord = durationMs / words.length;
+  return words.map((word, i) => ({
+    word,
+    startMs: Math.round(i * perWord),
+    endMs: Math.round((i + 1) * perWord)
+  }));
+}
+__name(estimateTimings, "estimateTimings");
+var PERSONALITY_SPEECH_STYLES = {
+  professor: { style: "narration-professional" },
+  contrarian: { style: "chat" },
+  coach: { style: "cheerful" }
+};
+async function resolveTtsVoice(personality, figureId, personaVisualId) {
+  const figureVoices = await getFigureVoices();
+  const personaVisualVoices = await getPersonaVisualVoices();
+  const voices = await getVoices();
+  const voice = voices[personality] || figureId && figureVoices[figureId] || personaVisualId && personaVisualVoices[personaVisualId] || DEFAULT_VOICE;
+  const express = PERSONALITY_SPEECH_STYLES[personality];
+  return { voice, style: express?.style, styledegree: express?.styledegree };
+}
+__name(resolveTtsVoice, "resolveTtsVoice");
+function buildSsml(voice, text, personality) {
+  const express = personality && PERSONALITY_SPEECH_STYLES[personality] || null;
+  const open = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="en-US"><voice name="${voice}">`;
+  const inner = express ? `<mstts:express-as style="${express.style}"` + (express.styledegree ? ` styledegree="${express.styledegree}"` : "") + `>${escapeXml(text)}</mstts:express-as>` : escapeXml(text);
+  return open + inner + `</voice></speak>`;
+}
+__name(buildSsml, "buildSsml");
+async function ttsDebateLine(env, text, personality, figureId, personaVisualId) {
+  if (!env.AZURE_SPEECH_KEY || !env.AZURE_SPEECH_REGION) {
+    return { audioBase64: null, timings: [], timingsEstimated: true };
+  }
+  const { voice } = await resolveTtsVoice(personality, figureId, personaVisualId);
+  const ssml = buildSsml(voice, text, personality);
+  const url = `https://${env.AZURE_SPEECH_REGION}.tts.speech.microsoft.com/cognitiveservices/v1`;
+  const headers = {
+    // Never log this header value.
+    "Ocp-Apim-Subscription-Key": env.AZURE_SPEECH_KEY,
+    "Content-Type": "application/ssml+xml",
+    "X-Microsoft-OutputFormat": "audio-24khz-96kbitrate-mono-mp3",
+    // Required: Azure's TTS front door rejects requests with no
+    // User-Agent (HTTP 400, empty body). Workers' fetch sends none
+    // by default.
+    "User-Agent": "AdversaryAI/1.0"
+  };
+  let res = await fetch(url, { method: "POST", headers, body: ssml });
+  if (!res.ok) {
+    await new Promise((r) => setTimeout(r, 1e3));
+    res = await fetch(url, { method: "POST", headers, body: ssml });
+  }
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Azure TTS failed: HTTP ${res.status} ${body.slice(0, 200)}`);
+  }
+  const audio = await res.arrayBuffer();
+  return {
+    audioBase64: arrayBufferToBase64(audio),
+    timings: estimateTimings(text, audio.byteLength),
+    timingsEstimated: true
+  };
+}
+__name(ttsDebateLine, "ttsDebateLine");
+
+// worker/src/debate.ts
+init_config();
+
+// worker/src/modes.ts
+var DEBATE_GROUND_RULES = " Ground rules: you are an OPPONENT in a debate, never a helper. Never offer to troubleshoot, fix, repair, or give practical how-to advice about the user's situation \u2014 if the user describes a personal problem, treat their claims as positions to attack, not as a support ticket. Challenge their ARGUMENT (logic, evidence, consistency), not their appliance. Stay adversarial and on the debate topic at all times; do not drift into advice, instructions, or customer support.";
+var PERSONALITY_PROMPTS = {
+  prosecutor: "You are The Prosecutor, a relentless cross-examining debate opponent. Attack weak premises, demand evidence for every claim, expose contradictions. Stay in character, keep replies under 120 words, end with a pointed question." + DEBATE_GROUND_RULES,
+  professor: "You are The Professor, a Socratic debate coach sparring as an opponent. Probe with sharp questions, guide the user to discover flaws in their own reasoning. Keep replies under 120 words." + DEBATE_GROUND_RULES,
+  contrarian: "You are The Contrarian. Whatever position the user takes, you steelman the strongest opposing case \u2014 the best version of the other side's argument, not a strawman. Keep replies under 120 words." + DEBATE_GROUND_RULES,
+  coach: "You are The Coach, a supportive sparring partner. Push back firmly but encouragingly, acknowledge good points, and after the debate give detailed scores. Keep replies under 120 words." + DEBATE_GROUND_RULES
+};
+var PERSONALITY_NAMES = {
+  prosecutor: "The Prosecutor",
+  professor: "The Professor",
+  contrarian: "The Contrarian",
+  coach: "The Coach"
+};
+var HISTORICAL_FIGURES = [
+  {
+    id: "lincoln",
+    name: "Abraham Lincoln",
+    era: "1809\u20131865 \xB7 16th U.S. President",
+    bio: "Led the United States through the Civil War, issued the Emancipation Proclamation, and argued the Union must be preserved.",
+    positions: [
+      "Preservation of the Union was his paramount duty, above all other aims.",
+      "Slavery was morally wrong; he opposed its expansion into new territories.",
+      'Government "of the people, by the people, for the people" must not perish.',
+      'Favored reconciliation after the war: "with malice toward none, with charity for all."'
+    ],
+    suggestedTopic: "Should a nation ever compromise with injustice to preserve unity?",
+    voice: "en-US-DavisNeural"
+  },
+  {
+    id: "churchill",
+    name: "Winston Churchill",
+    era: "1874\u20131965 \xB7 British Prime Minister",
+    bio: "Wartime leader of Britain through World War II; famed orator who framed the war as civilization\u2019s defense against tyranny.",
+    positions: [
+      "Never negotiate with tyrants from a position of weakness \u2014 appeasement invites aggression.",
+      "Democracy and liberty are worth any sacrifice.",
+      "Rhetoric and morale are weapons of war as real as armies.",
+      "Believed in British greatness and the empire \u2014 a view modern historians debate sharply."
+    ],
+    suggestedTopic: "Is appeasement ever the wiser course?",
+    voice: "en-US-BrianNeural"
+  },
+  {
+    id: "socrates",
+    name: "Socrates",
+    era: "c. 470\u2013399 BCE \xB7 Athenian philosopher",
+    bio: "Founder of Western moral philosophy; taught by relentless questioning and claimed only to know that he knew nothing.",
+    positions: [
+      '"The unexamined life is not worth living."',
+      "Professed ignorance as a starting point; truth emerges through questioning (the Socratic method).",
+      "Virtue is a kind of knowledge \u2014 no one does wrong willingly.",
+      "Questioned authorities, traditions, and popular opinion without exception."
+    ],
+    suggestedTopic: "Can virtue be taught?",
+    voice: "en-US-JasonNeural"
+  },
+  {
+    id: "douglass",
+    name: "Frederick Douglass",
+    era: "c. 1818\u20131895 \xB7 Abolitionist, orator, writer",
+    bio: "Escaped slavery and became the leading abolitionist voice of the 19th century, demanding full equality rather than gradualism.",
+    positions: [
+      'Demanded immediate abolition \u2014 "Power concedes nothing without a demand."',
+      "Came to read the U.S. Constitution as an anti-slavery document.",
+      "Insisted on full citizenship, suffrage, and equal protection for Black Americans.",
+      "Held that moral persuasion must be backed by political power."
+    ],
+    suggestedTopic: "Is gradual reform or immediate justice the right path?",
+    voice: "en-US-GuyNeural"
+  },
+  {
+    id: "mlk",
+    name: "Martin Luther King Jr.",
+    era: "1929\u20131968 \xB7 Civil rights leader",
+    bio: "Leader of the American civil rights movement; preached nonviolent resistance and judged people by character, not color.",
+    positions: [
+      "Nonviolent direct action as both moral principle and effective strategy.",
+      '"Injustice anywhere is a threat to justice everywhere."',
+      "Judged people by the content of their character, not the color of their skin.",
+      "Tied racial justice to economic justice and opposed the Vietnam War."
+    ],
+    suggestedTopic: "Is nonviolent resistance effective against entrenched power?",
+    voice: "en-US-ChristopherNeural"
+  },
+  {
+    id: "einstein",
+    name: "Albert Einstein",
+    era: "1879\u20131955 \xB7 Physicist",
+    bio: "Revolutionized physics with relativity; later a public voice for pacifism, curiosity, and independent thought.",
+    positions: [
+      '"Imagination is more important than knowledge."',
+      "Lifelong skeptic of authority and rote learning; prized independent thought.",
+      "Advocated pacifism and international cooperation after witnessing two world wars.",
+      'Believed the universe is rationally comprehensible \u2014 "God does not play dice."'
+    ],
+    suggestedTopic: "Does science make the world more moral?",
+    voice: "en-US-TonyNeural"
+  },
+  {
+    id: "aurelius",
+    name: "Marcus Aurelius",
+    era: "121\u2013180 CE \xB7 Roman emperor, Stoic philosopher",
+    bio: "Emperor of Rome who wrote the Meditations \u2014 private Stoic reflections on duty, reason, and impermanence.",
+    positions: [
+      "Control what you can; accept what you cannot (the dichotomy of control).",
+      "Reason over passion; act for the common good as a duty.",
+      '"The impediment to action advances action. What stands in the way becomes the way."',
+      "Remember impermanence (memento mori) to keep perspective."
+    ],
+    suggestedTopic: "Is the pursuit of happiness a worthy life goal?",
+    voice: "en-US-RogerNeural"
+  },
+  {
+    id: "voltaire",
+    name: "Voltaire",
+    era: "1694\u20131778 \xB7 French Enlightenment writer",
+    bio: "Sharpest pen of the Enlightenment; championed tolerance and reason against superstition and clerical power.",
+    positions: [
+      'Religious tolerance above all \u2014 "Think for yourselves and let others enjoy the privilege to do so too."',
+      'Defended free expression, famously paraphrased as: "I disapprove of what you say, but I will defend to the death your right to say it."',
+      "Used satire and ridicule as weapons against dogma and superstition.",
+      "Favored reason, science, and reform over revolution."
+    ],
+    suggestedTopic: "Should speech that offends ever be restricted?",
+    voice: "en-US-AndrewNeural"
+  },
+  {
+    id: "eleanor",
+    name: "Eleanor Roosevelt",
+    era: "1884\u20131962 \xB7 First Lady, diplomat, activist",
+    bio: "Redefined the role of First Lady, then chaired the committee that drafted the Universal Declaration of Human Rights.",
+    positions: [
+      "Human rights are universal \u2014 the UDHR applies to every person, everywhere.",
+      "Human dignity requires economic security, not just political liberty.",
+      '"No one can make you feel inferior without your consent."',
+      "Believed in courage in public life and persistent, practical reform."
+    ],
+    suggestedTopic: "Are human rights universal or culturally relative?",
+    voice: "en-US-SaraNeural"
+  },
+  {
+    id: "smith",
+    name: "Adam Smith",
+    era: "1723\u20131790 \xB7 Scottish economist and moral philosopher",
+    bio: "Author of The Wealth of Nations; argued free markets create prosperity, grounded in a moral philosophy of human sympathy.",
+    positions: [
+      'Free markets and the division of labor generate wealth \u2014 the "invisible hand."',
+      "Opposed monopolies, mercantilism, and crony privileges for the well-connected.",
+      "In The Theory of Moral Sentiments: human sympathy is the glue of society.",
+      "Accepted a limited role for government: defense, justice, and public works."
+    ],
+    suggestedTopic: "Should governments intervene in free markets?",
+    voice: "en-US-RyanNeural"
+  }
+];
+function figureById(id) {
+  return HISTORICAL_FIGURES.find((f) => f.id === id);
+}
+__name(figureById, "figureById");
+function debateSystemPrompt(setup) {
+  return PERSONALITY_PROMPTS[setup.persona] ?? PERSONALITY_PROMPTS.prosecutor;
+}
+__name(debateSystemPrompt, "debateSystemPrompt");
+function historicalSystemPrompt(setup) {
+  const figure = figureById(setup.figureId) ?? HISTORICAL_FIGURES[0];
+  const topic = (setup.topic ?? "").trim() || "general debate";
+  const bullets = figure.positions.map((p) => `- ${p}`).join("\n");
+  return `You are roleplaying as ${figure.name} (${figure.era}). You are debating the user on THIS TOPIC: "${topic}". Stay on the topic \u2014 every argument you make must engage with it directly, argued FROM this figure's actual documented positions and writings, summarized below. Do not invent views they never held, and do not break character. If asked about events after their lifetime, acknowledge honestly that you are an AI interpretation and cannot know them firsthand, then bring your answer back to the topic through the lens of what the figure did believe. Keep replies under 120 words and end with a pointed question when it fits the debate.
+
+Documented positions of ${figure.name}:
+${bullets}
+
+You are their debate opponent, never a helper: do not offer practical advice, instructions, or troubleshooting \u2014 argue their positions against the user's claims on the topic above.`;
+}
+__name(historicalSystemPrompt, "historicalSystemPrompt");
+var MODES = {
+  debate: {
+    id: "debate",
+    name: "Debate",
+    tagline: "Classic head-to-head debate",
+    description: "Pick an opponent personality and spar on any topic \u2014 from politics to philosophy to everyday arguments.",
+    icon: "\u{1F5E3}\uFE0F",
+    // Opponent selection lives in the frontend persona cards ("Choose your
+    // opponent") — no dropdown field here; a second picker was redundant.
+    setupFields: [],
+    systemPrompt: debateSystemPrompt,
+    scoringPrompt: /* @__PURE__ */ __name(() => 'You are a debate judge. Score this debate transcript 1-10 on logic, evidence, composure, rebuttal quality; return strict JSON {"dimensions": {"Logic": <1-10>, "Evidence": <1-10>, "Composure": <1-10>, "Rebuttal": <1-10>}, "overall": <1-10>, "notes": "<2-3 sentences of feedback>"}', "scoringPrompt"),
+    scoringDimensions: ["Logic", "Evidence", "Composure", "Rebuttal"],
+    introCopy: "Choose your opponent, name your topic, and start arguing. They will not go easy on you."
+  },
+  historical: {
+    id: "historical",
+    name: "Historical Figures",
+    tagline: "Argue with history's greatest minds",
+    description: "Debate Lincoln, Socrates, Churchill, and more \u2014 each grounded in their real documented views and writings.",
+    icon: "\u{1F3DB}\uFE0F",
+    setupFields: [
+      {
+        key: "figureId",
+        label: "Historical figure",
+        type: "select",
+        options: HISTORICAL_FIGURES.map((f) => ({ value: f.id, label: f.name })),
+        required: true,
+        help: "Each figure argues from their actual documented positions."
+      }
+    ],
+    systemPrompt: historicalSystemPrompt,
+    scoringPrompt: /* @__PURE__ */ __name(() => `You are a debate judge. Score the user's performance in this debate against a historical figure 1-10 on argument strength, use of evidence, composure, and adaptability; return strict JSON {"dimensions": {"Argument strength": <1-10>, "Use of evidence": <1-10>, "Composure": <1-10>, "Adaptability": <1-10>}, "overall": <1-10>, "notes": "<2-3 sentences of feedback>"}`, "scoringPrompt"),
+    scoringDimensions: ["Argument strength", "Use of evidence", "Composure", "Adaptability"],
+    introCopy: "Pick a figure from history and test your arguments against theirs.",
+    disclaimer: "An AI interpretation inspired by [Name]'s documented views \u2014 not the person, and not a historical authority."
+  },
+  acting: {
+    id: "acting",
+    name: "Acting Coach",
+    tagline: "Rehearse scenes with a scene partner",
+    description: "Run lines and rehearse scenes with an AI scene partner who stays in character and pushes your performance.",
+    icon: "\u{1F3AD}",
+    setupFields: [
+      {
+        key: "yourRole",
+        label: "Your character",
+        type: "text",
+        placeholder: "e.g. Hamlet",
+        required: true
+      },
+      {
+        key: "sceneContext",
+        label: "Scene context",
+        type: "textarea",
+        placeholder: "Describe the scene: setting, stakes, what just happened\u2026",
+        required: true
+      },
+      {
+        key: "partnerRole",
+        label: "Scene partner plays",
+        type: "text",
+        placeholder: "e.g. Ophelia",
+        help: "Leave blank and the coach will pick a fitting counterpart."
+      }
+    ],
+    systemPrompt: /* @__PURE__ */ __name((setup) => `You are an acting coach and scene partner. The user is rehearsing the role of "${setup.yourRole || "the lead"}" in this scene: ${setup.sceneContext || "an improvised scene"}. You play ${setup.partnerRole || "a fitting counterpart"} \u2014 stay in character, react truthfully to the user's choices, and keep the scene moving. Keep each response under 120 words, in character as the scene partner. Do not break character to give notes unless the user asks.`, "systemPrompt"),
+    scoringPrompt: /* @__PURE__ */ __name(() => `You are an acting coach judging a rehearsal transcript. Score the user's performance 1-10 on interpretation, pacing, emotional range, and presence; return strict JSON {"dimensions": {"Interpretation": <1-10>, "Pacing": <1-10>, "Emotional range": <1-10>, "Presence": <1-10>}, "overall": <1-10>, "notes": "<2-3 sentences of coaching feedback>"}`, "scoringPrompt"),
+    scoringDimensions: ["Interpretation", "Pacing", "Emotional range", "Presence"],
+    introCopy: "Describe your scene and start rehearsing. Your partner is ready when you are."
+  },
+  interview: {
+    id: "interview",
+    name: "Interview Prep",
+    tagline: "Practice job interviews under pressure",
+    description: "Mock interviews for the role you want \u2014 behavioral, technical, or panel \u2014 with honest feedback at the end.",
+    icon: "\u{1F4BC}",
+    setupFields: [
+      {
+        key: "jobTitle",
+        label: "Job title",
+        type: "text",
+        placeholder: "e.g. Senior Product Manager",
+        required: true
+      },
+      {
+        key: "company",
+        label: "Company",
+        type: "text",
+        placeholder: "e.g. A fast-growing fintech startup"
+      },
+      {
+        key: "interviewType",
+        label: "Interview type",
+        type: "select",
+        options: [
+          { value: "behavioral", label: 'Behavioral \u2014 "tell me about a time\u2026"' },
+          { value: "technical", label: "Technical / case-based" },
+          { value: "panel", label: "Panel \u2014 multiple interviewers" }
+        ],
+        required: true
+      }
+    ],
+    systemPrompt: /* @__PURE__ */ __name((setup) => `You are a tough but fair hiring manager conducting a ${setup.interviewType || "behavioral"} interview for the role of ${setup.jobTitle || "the position"}${setup.company ? ` at ${setup.company}` : ""}. Ask one question at a time, follow up on weak or vague answers, and probe for specifics, metrics, and real examples. Keep each message under 120 words. Begin with a brief greeting and your first question.`, "systemPrompt"),
+    scoringPrompt: /* @__PURE__ */ __name(() => 'You are a hiring manager reviewing a mock interview transcript. Score the candidate 1-10 on clarity, relevance, confidence, and structure; return strict JSON {"dimensions": {"Clarity": <1-10>, "Relevance": <1-10>, "Confidence": <1-10>, "Structure": <1-10>}, "overall": <1-10>, "notes": "<2-3 sentences of feedback>"}', "scoringPrompt"),
+    scoringDimensions: ["Clarity", "Relevance", "Confidence", "Structure"],
+    introCopy: "Tell me the role and interview type. I\u2019ll ask the questions \u2014 you bring the answers."
+  },
+  negotiation: {
+    id: "negotiation",
+    name: "Negotiation Trainer",
+    tagline: "Hone your deal-making",
+    description: "Practice high-stakes negotiations \u2014 salary, contracts, partnerships \u2014 against a counterpart who plays to win.",
+    icon: "\u{1F91D}",
+    setupFields: [
+      {
+        key: "scenario",
+        label: "Negotiation scenario",
+        type: "textarea",
+        placeholder: "e.g. Negotiating a job offer: I want $180k base and remote work\u2026",
+        required: true
+      },
+      {
+        key: "yourGoal",
+        label: "Your goal",
+        type: "text",
+        placeholder: "e.g. $180k base, fully remote",
+        required: true
+      },
+      {
+        key: "counterpartRole",
+        label: "Counterpart role",
+        type: "text",
+        placeholder: "e.g. Hiring manager",
+        help: "Who sits across the table from you?"
+      }
+    ],
+    systemPrompt: /* @__PURE__ */ __name((setup) => `You are a skilled negotiator playing the ${setup.counterpartRole || "counterpart"} in this negotiation: ${setup.scenario || "a business deal"}. The user's goal is: ${setup.yourGoal || "to get the best deal possible"}. Negotiate firmly and realistically \u2014 use anchoring, trade concessions, and test the user's resolve. Do not cave easily. Keep each message under 120 words.`, "systemPrompt"),
+    scoringPrompt: /* @__PURE__ */ __name(() => 'You are a negotiation coach reviewing a mock negotiation transcript. Score the user 1-10 on strategy, value creation, firmness, and rapport; return strict JSON {"dimensions": {"Strategy": <1-10>, "Value creation": <1-10>, "Firmness": <1-10>, "Rapport": <1-10>}, "overall": <1-10>, "notes": "<2-3 sentences of feedback>"}', "scoringPrompt"),
+    scoringDimensions: ["Strategy", "Value creation", "Firmness", "Rapport"],
+    introCopy: "Set the scene and your goal. Your counterpart is already at the table."
+  },
+  sales: {
+    id: "sales",
+    name: "Sales Roleplay",
+    tagline: "Practice pitches and objection handling",
+    description: "Roleplay discovery calls and demos with a skeptical buyer. Handle objections, frame value, and close.",
+    icon: "\u{1F4B0}",
+    setupFields: [
+      {
+        key: "product",
+        label: "Product or service",
+        type: "textarea",
+        placeholder: "What are you selling? Key features, price point\u2026",
+        required: true
+      },
+      {
+        key: "buyerPersona",
+        label: "Buyer persona",
+        type: "text",
+        placeholder: "e.g. Skeptical CFO at a mid-size company",
+        required: true
+      }
+    ],
+    systemPrompt: /* @__PURE__ */ __name((setup) => `You are a skeptical buyer: ${setup.buyerPersona || "a cautious decision-maker"}. The user is selling you this: ${setup.product || "their product"}. Be realistic \u2014 raise budget concerns, demand proof, compare against competitors, and stall. Only agree to buy if the user genuinely earns it. Keep each message under 120 words.`, "systemPrompt"),
+    scoringPrompt: /* @__PURE__ */ __name(() => 'You are a sales coach reviewing a sales roleplay transcript. Score the salesperson 1-10 on discovery, objection handling, value framing, and close; return strict JSON {"dimensions": {"Discovery": <1-10>, "Objection handling": <1-10>, "Value framing": <1-10>, "Close": <1-10>}, "overall": <1-10>, "notes": "<2-3 sentences of feedback>"}', "scoringPrompt"),
+    scoringDimensions: ["Discovery", "Objection handling", "Value framing", "Close"],
+    introCopy: "Tell me what you\u2019re selling and who\u2019s buying. Then pitch me."
+  },
+  difficult: {
+    id: "difficult",
+    name: "Difficult Conversations",
+    tagline: "Rehearse hard talks with empathy",
+    description: "Practice the conversations you dread \u2014 feedback, boundaries, breakups, bad news \u2014 with a realistic partner.",
+    icon: "\u{1F4AC}",
+    setupFields: [
+      {
+        key: "situation",
+        label: "The situation",
+        type: "textarea",
+        placeholder: "e.g. I need to tell my co-founder I want to step back from the company\u2026",
+        required: true
+      },
+      {
+        key: "otherParty",
+        label: "The other person",
+        type: "text",
+        placeholder: "e.g. My co-founder, who is also my friend",
+        required: true
+      },
+      {
+        key: "desiredOutcome",
+        label: "Desired outcome",
+        type: "text",
+        placeholder: "e.g. Part ways without destroying the friendship"
+      }
+    ],
+    systemPrompt: /* @__PURE__ */ __name((setup) => `You are roleplaying as ${setup.otherParty || "the other person"} in this difficult conversation: ${setup.situation || "a hard talk"}. React like a real human \u2014 with feelings, defensiveness, misunderstandings, and moments of openness. Do not make it easy, but do respond genuinely when the user shows empathy and clarity. The user's hoped-for outcome: ${setup.desiredOutcome || "a respectful resolution"}. Keep each message under 120 words.`, "systemPrompt"),
+    scoringPrompt: /* @__PURE__ */ __name(() => 'You are a communication coach reviewing a difficult-conversation roleplay transcript. Score the user 1-10 on empathy, clarity, composure, and resolution focus; return strict JSON {"dimensions": {"Empathy": <1-10>, "Clarity": <1-10>, "Composure": <1-10>, "Resolution focus": <1-10>}, "overall": <1-10>, "notes": "<2-3 sentences of feedback>"}', "scoringPrompt"),
+    scoringDimensions: ["Empathy", "Clarity", "Composure", "Resolution focus"],
+    introCopy: "Describe the conversation you\u2019re dreading. Let\u2019s rehearse it until it feels manageable."
+  },
+  rapbattle: {
+    id: "rapbattle",
+    name: "Rap Battle",
+    tagline: "Trade bars with a battle MC",
+    description: "Go bar-for-bar against a battle MC \u2014 flow, wordplay, rebuttals. Sharp and clever, always clean.",
+    icon: "\u{1F3A4}",
+    // Strictly no profanity: enforced by the system prompt AND a server-side
+    // output filter (see maskProfanity in debate.ts).
+    clean: true,
+    // Not available to education org members (schools).
+    educationExcluded: true,
+    setupFields: [
+      {
+        key: "theme",
+        label: "Battle theme",
+        type: "text",
+        placeholder: "e.g. who really runs this city\u2026 (leave blank for open battle)"
+      },
+      {
+        key: "mcName",
+        label: "Your opponent's MC name",
+        type: "text",
+        placeholder: "e.g. Verse Vice (leave blank and I\u2019ll pick one)"
+      }
+    ],
+    systemPrompt: /* @__PURE__ */ __name((setup) => `You are ${setup.mcName || "Verse Vice"}, a battle MC, in a friendly rap battle against the user${setup.theme ? ` on the theme: ${setup.theme}` : ""}. Trade bars: answer their last verse with clever rebuttals, sharp wordplay, and total confidence. Keep every response to 8-16 bars of short punchy lines. STRICT RULE: absolutely no profanity, slurs, or vulgar language \u2014 not even masked with symbols. The cleverest disses never need curse words. Stay in character as a battle rapper the whole time; never break character to explain or lecture. Hype the crowd, respect the craft.`, "systemPrompt"),
+    scoringPrompt: /* @__PURE__ */ __name(() => 'You are a rap-battle judge reviewing a battle transcript. Score the user 1-10 on flow, wordplay, rebuttal quality, and stage presence; return strict JSON {"dimensions": {"Flow": <1-10>, "Wordplay": <1-10>, "Rebuttals": <1-10>, "Presence": <1-10>}, "overall": <1-10>, "notes": "<2-3 sentences of feedback>"}', "scoringPrompt"),
+    scoringDimensions: ["Flow", "Wordplay", "Rebuttals", "Presence"],
+    introCopy: "Step to the mic. Eight bars minimum \u2014 keep it clean, keep it clever, and come harder than Verse Vice."
+  },
+  witness: {
+    id: "witness",
+    name: "Evangelism Training",
+    tagline: "Practice sharing the gospel",
+    description: "Rehearse gospel conversations with a realistic partner \u2014 the curious, the skeptical, the hurting.",
+    icon: "\u271D\uFE0F",
+    setupFields: [
+      {
+        key: "who",
+        label: "Who are you talking to?",
+        type: "text",
+        placeholder: "e.g. my skeptical coworker Jake",
+        required: true
+      },
+      {
+        key: "theirView",
+        label: "Where are they coming from?",
+        type: "textarea",
+        placeholder: "e.g. thinks faith is a crutch, had a bad experience at church as a kid\u2026"
+      },
+      {
+        key: "setting",
+        label: "The setting",
+        type: "text",
+        placeholder: "e.g. lunch break at work (optional)"
+      }
+    ],
+    systemPrompt: /* @__PURE__ */ __name((setup) => `You are roleplaying as ${setup.who || "someone open but unsure"} in a gospel conversation${setup.setting ? ` (${setup.setting})` : ""}. Where they are coming from: ${setup.theirView || "curious but skeptical"}. Be a REAL person: ask honest questions, raise genuine objections, share real doubts and hurts. Do not be a strawman who folds at the first Bible verse, and do not be cruel or mocking either. If the user truly listens, shows compassion, and explains the gospel clearly, let yourself be genuinely moved \u2014 ask deeper questions, admit what resonates. If they preach at you or dodge your questions, push back like a real person would. Keep each message under 120 words. Never break character.`, "systemPrompt"),
+    scoringPrompt: /* @__PURE__ */ __name(() => 'You are a mentor reviewing an evangelism-training roleplay transcript. Score the user 1-10 on gospel clarity, compassion, listening, and handling objections; return strict JSON {"dimensions": {"Clarity": <1-10>, "Compassion": <1-10>, "Listening": <1-10>, "Objections": <1-10>}, "overall": <1-10>, "notes": "<2-3 sentences of warm, honest feedback>"}', "scoringPrompt"),
+    scoringDimensions: ["Clarity", "Compassion", "Listening", "Objections"],
+    introCopy: "Tell me who you want to reach. They\u2019ll ask the hard questions \u2014 so you\u2019re ready when it counts."
+  },
+  thesis: {
+    id: "thesis",
+    name: "Thesis Defense",
+    tagline: "Defend your thesis before a committee",
+    description: "Face a panel of sharp examiners who probe your argument, your evidence, and your methodology.",
+    icon: "\u{1F393}",
+    setupFields: [
+      {
+        key: "thesisStatement",
+        label: "Thesis statement",
+        type: "textarea",
+        placeholder: "State your central claim in a few sentences\u2026",
+        required: true
+      },
+      {
+        key: "field",
+        label: "Field of study",
+        type: "text",
+        placeholder: "e.g. Behavioral economics",
+        required: true
+      }
+    ],
+    systemPrompt: /* @__PURE__ */ __name((setup) => `You are a panel of exacting thesis examiners in ${setup.field || "the user's field"}. The candidate defends this thesis: "${setup.thesisStatement || "their thesis"}". Probe the argument relentlessly: challenge the methodology, demand evidence, raise counterarguments and edge cases. One examiner speaks at a time; keep each message under 120 words. Begin with the committee's first question.`, "systemPrompt"),
+    scoringPrompt: /* @__PURE__ */ __name(() => 'You are the chair of a thesis examination committee reviewing a defense transcript. Score the candidate 1-10 on rigor, evidence, defense under pressure, and clarity; return strict JSON {"dimensions": {"Rigor": <1-10>, "Evidence": <1-10>, "Defense under pressure": <1-10>, "Clarity": <1-10>}, "overall": <1-10>, "notes": "<2-3 sentences of feedback>"}', "scoringPrompt"),
+    scoringDimensions: ["Rigor", "Evidence", "Defense under pressure", "Clarity"],
+    introCopy: "State your thesis. The committee is seated and the questioning begins now."
+  }
+};
+function getMode(id) {
+  return id && MODES[id] || MODES.debate;
+}
+__name(getMode, "getMode");
+var modesRouter = new Hono2();
+modesRouter.get("/", async (c) => {
+  let hideEducationExcluded = false;
+  try {
+    const user = await getSessionUser(c);
+    if (user) hideEducationExcluded = await isOrgMember(c.env.DB, user.id);
+  } catch {
+  }
+  const modes = Object.values(MODES).filter((m) => !(hideEducationExcluded && m.educationExcluded)).map((m) => {
+    const pub = {
+      id: m.id,
+      name: m.name,
+      tagline: m.tagline,
+      description: m.description,
+      icon: m.icon,
+      setupFields: m.setupFields,
+      introCopy: m.introCopy
+    };
+    if (m.disclaimer) pub.disclaimer = m.disclaimer;
+    if (m.id === "historical") {
+      pub.figures = HISTORICAL_FIGURES.map((f) => ({
+        id: f.id,
+        name: f.name,
+        era: f.era,
+        bio: f.bio,
+        positions: f.positions,
+        suggestedTopic: f.suggestedTopic,
+        voice: f.voice
+      }));
+    }
+    return pub;
+  });
+  return c.json({ modes });
+});
+
+// worker/src/debate.ts
+var FALLBACK_QUOTAS = { debater: 30, coach: 150, champion: 25 };
+async function getTierQuotas() {
+  const quotas = { ...FALLBACK_QUOTAS };
+  try {
+    const mod = await Promise.resolve().then(() => (init_config(), config_exports));
+    const tiers = mod?.TIERS;
+    if (tiers && typeof tiers === "object") {
+      for (const [key, value] of Object.entries(tiers)) {
+        const v = value;
+        const n = Number(v?.debatesPerMonth ?? v?.debates ?? v?.quota ?? v);
+        if (Number.isFinite(n) && n > 0) quotas[key] = n;
+      }
+    }
+  } catch {
+  }
+  return quotas;
+}
+__name(getTierQuotas, "getTierQuotas");
+async function enforceUsage(c, userId, email) {
+  const db = c.env.DB;
+  const month = currentMonth();
+  if (isOwnerEmail(email, c.env)) return true;
+  const activeOrgs = await getUserActiveOrgs(db, userId);
+  for (const org of activeOrgs) {
+    const pool = org.seat_count * EDU.sessionsPerSeat;
+    if (pool <= 0) continue;
+    const used = await getOrgMonthlyUsage(db, org.id, month);
+    if (used < pool) {
+      await incrementOrgMonthlyUsage(db, org.id, month);
+      return true;
+    }
+  }
+  const quotas = await getTierQuotas();
+  const sub = await getSubscription(db, userId);
+  if (isSubscriptionActive(sub)) {
+    const quota = quotas[sub.tier] ?? 0;
+    const used = await getMonthlyUsage(db, userId, month);
+    if (used < quota) {
+      await incrementMonthlyUsage(db, userId, month);
+      return true;
+    }
+  }
+  if (await creditBalance(db, userId) > 0) {
+    await db.prepare("INSERT INTO credit_ledger (user_id, delta, reason, created_at) VALUES (?, -1, ?, ?)").bind(userId, "debate", nowIso()).run();
+    return true;
+  }
+  const trialQuota = quotas["trial"] ?? 3;
+  const user = await db.prepare("SELECT trial_debates_used FROM users WHERE id = ?").bind(userId).first();
+  if (user && user.trial_debates_used < trialQuota) {
+    await db.prepare("UPDATE users SET trial_debates_used = trial_debates_used + 1 WHERE id = ?").bind(userId).run();
+    return true;
+  }
+  return false;
+}
+__name(enforceUsage, "enforceUsage");
+async function isPremium(c, userId, email) {
+  if (isOwnerEmail(email, c.env)) return true;
+  const sub = await getSubscription(c.env.DB, userId);
+  return !!sub && isSubscriptionActive(sub) && sub.tier === "champion";
+}
+__name(isPremium, "isPremium");
+function parseSetup(raw2) {
+  if (!raw2) return {};
+  try {
+    const obj = JSON.parse(raw2);
+    if (obj && typeof obj === "object") {
+      const out = {};
+      for (const [k, v] of Object.entries(obj)) {
+        if (typeof v === "string") out[k] = v;
+      }
+      return out;
+    }
+  } catch {
+  }
+  return {};
+}
+__name(parseSetup, "parseSetup");
+function getOwnedDebate(c, debateId, userId) {
+  return c.env.DB.prepare("SELECT * FROM debates WHERE id = ? AND user_id = ?").bind(debateId, userId).first();
+}
+__name(getOwnedDebate, "getOwnedDebate");
+function opponentLabel(debate, mode) {
+  if (debate.mode === "historical") {
+    const fig = figureById(parseSetup(debate.setup_json).figureId);
+    if (fig) return fig.name;
+  }
+  return PERSONALITY_NAMES[debate.personality] ?? mode.name;
+}
+__name(opponentLabel, "opponentLabel");
+function formatTranscript(turns, opponentName) {
+  return turns.map((t) => `${t.role === "user" ? "User" : opponentName}: ${t.text}`).join("\n\n");
+}
+__name(formatTranscript, "formatTranscript");
+var PROFANITY_PATTERN = /\b(f+u+c+k+|s+h+i+t+|b+i+t+c+h+|a+s+s+(h+o+l+e+)?|d+a+m+n+|d+i+c+k+|p+u+s+s+y+|c+u+n+t+|w+h+o+r+e+|s+l+u+t+|n+i+g+g+[aeiou]+|f+a+g+(g+o+t+)?|t+i+t+s+|b+o+o+b+s?|p+e+n+i+s+|v+a+g+i+n+a+|c+l+i+t+|o+r+g+a+s+m+|m+a+s+t+u+r+b+a+t+e+|p+o+r+n+|h+e+n+t+a+i+|r+a+p+i+s+t+|m+o+l+e+s+t+)\b/gi;
+function maskProfanity(text) {
+  PROFANITY_PATTERN.lastIndex = 0;
+  return text.replace(PROFANITY_PATTERN, "****");
+}
+__name(maskProfanity, "maskProfanity");
+function parseScores(raw2, dimensions) {
+  const fallback = /* @__PURE__ */ __name(() => ({
+    overall: null,
+    notes: "",
+    dimensions: dimensions.map((label) => ({ label, score: null }))
+  }), "fallback");
+  const coerce = /* @__PURE__ */ __name((v) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.min(10, Math.max(1, Math.round(n))) : null;
+  }, "coerce");
+  const pick = /* @__PURE__ */ __name((obj) => {
+    const dimObj = obj?.dimensions && typeof obj.dimensions === "object" ? obj.dimensions : obj;
+    const lower = {};
+    if (dimObj && typeof dimObj === "object") {
+      for (const [k, v] of Object.entries(dimObj)) lower[k.toLowerCase()] = v;
+    }
+    return {
+      overall: coerce(obj?.overall),
+      notes: typeof obj?.notes === "string" ? obj.notes.slice(0, 2e3) : "",
+      dimensions: dimensions.map((label) => ({
+        label,
+        score: coerce(lower[label.toLowerCase()])
+      }))
+    };
+  }, "pick");
+  try {
+    return pick(JSON.parse(raw2));
+  } catch {
+  }
+  const m = raw2.match(/\{[\s\S]*\}/);
+  if (m) {
+    try {
+      return pick(JSON.parse(m[0]));
+    } catch {
+    }
+  }
+  const fb = fallback();
+  fb.notes = raw2.slice(0, 500);
+  return fb;
+}
+__name(parseScores, "parseScores");
+function emptyScores(dimensions, notes) {
+  return {
+    overall: null,
+    notes,
+    dimensions: dimensions.map((label) => ({ label, score: null }))
+  };
+}
+__name(emptyScores, "emptyScores");
+var debateRouter = new Hono2();
+debateRouter.post("/start", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  const body = await c.req.json().catch(() => ({}));
+  const rawMode = String(body.mode ?? "");
+  const legacyPersonality = String(body.personality ?? "");
+  const topic = String(body.topic ?? "").trim();
+  const rawSetup = body.setup && typeof body.setup === "object" ? body.setup : {};
+  if (rawMode && !MODES[rawMode]) return c.json({ error: "invalid_mode" }, 400);
+  const mode = getMode(rawMode || void 0);
+  if (mode.educationExcluded && await isOrgMember(c.env.DB, user.id)) {
+    return c.json({ error: "mode_not_available_for_education" }, 403);
+  }
+  let persona = "";
+  const pBody = body.persona;
+  const pSetup = rawSetup.persona;
+  if (typeof pBody === "string" && pBody.trim()) persona = pBody.trim();
+  else if (typeof pSetup === "string" && pSetup.trim()) persona = pSetup.trim();
+  else if (legacyPersonality.trim()) persona = legacyPersonality.trim();
+  if (!topic) return c.json({ error: "topic_required" }, 400);
+  if (topic.length > 300) return c.json({ error: "topic_too_long" }, 400);
+  const setup = {};
+  for (const [k, v] of Object.entries(rawSetup)) {
+    if (typeof v === "string" && v.length <= 2e3) setup[k] = v;
+  }
+  if (body.judge === true) setup.judge = "1";
+  let actorId = "";
+  let figureId;
+  if (mode.id === "debate") {
+    actorId = PERSONALITY_PROMPTS[persona] ? persona : "prosecutor";
+    setup.persona = actorId;
+  } else if (mode.id === "historical") {
+    const fig = figureById(typeof rawSetup.figureId === "string" ? rawSetup.figureId : "");
+    if (!fig) return c.json({ error: "invalid_figure" }, 400);
+    figureId = fig.id;
+    actorId = fig.id;
+    setup.figureId = fig.id;
+  }
+  const allowed = await enforceUsage(c, user.id, user.email);
+  if (!allowed) return c.json({ error: "quota_exhausted" }, 402);
+  const debateId = newId();
+  await c.env.DB.prepare(
+    "INSERT INTO debates (id, user_id, personality, topic, mode, setup_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+  ).bind(debateId, user.id, actorId, topic, mode.id, JSON.stringify(setup), nowIso()).run();
+  return c.json({ debateId }, 201);
+});
+debateRouter.post("/turn", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  const body = await c.req.json().catch(() => ({}));
+  const debateId = String(body.debateId ?? "");
+  const text = String(body.text ?? "").trim();
+  if (!debateId || !text) return c.json({ error: "debateId_and_text_required" }, 400);
+  if (text.length > 4e3) return c.json({ error: "text_too_long" }, 400);
+  const debate = await getOwnedDebate(c, debateId, user.id);
+  if (!debate) return c.json({ error: "debate_not_found" }, 404);
+  if (debate.ended_at) return c.json({ error: "debate_ended" }, 400);
+  await c.env.DB.prepare("INSERT INTO turns (debate_id, role, text, created_at) VALUES (?, ?, ?, ?)").bind(debateId, "user", text, nowIso()).run();
+  const mode = getMode(debate.mode);
+  const setup = parseSetup(debate.setup_json);
+  const systemPrompt = mode.systemPrompt({ ...setup, topic: debate.topic });
+  const history = await c.env.DB.prepare(
+    "SELECT role, text FROM turns WHERE debate_id = ? ORDER BY id DESC LIMIT 20"
+  ).bind(debateId).all();
+  const transcript = formatTranscript(
+    [...history.results ?? []].reverse(),
+    opponentLabel(debate, mode)
+  );
+  const rawReply = await modelText(
+    c.env,
+    systemPrompt,
+    `Session transcript:
+
+${transcript}
+
+Respond to the user's latest message.`,
+    1500,
+    { premium: await isPremium(c, user.id, user.email) }
+  );
+  const reply = mode.clean ? maskProfanity(rawReply) : rawReply;
+  await c.env.DB.prepare("INSERT INTO turns (debate_id, role, text, created_at) VALUES (?, ?, ?, ?)").bind(debateId, "assistant", reply, nowIso()).run();
+  const figureId = debate.mode === "historical" ? figureById(setup.figureId)?.id : void 0;
+  const personaVisualId = typeof setup.personaVisual === "string" ? setup.personaVisual : void 0;
+  let tts;
+  try {
+    tts = await ttsDebateLine(c.env, reply, debate.personality, figureId, personaVisualId);
+  } catch (err) {
+    console.error("TTS failed, returning text-only turn:", err instanceof Error ? err.message : err);
+    tts = { audioBase64: null, timings: [], timingsEstimated: true };
+  }
+  const voiceInfo = await resolveTtsVoice(debate.personality, figureId, personaVisualId).catch(() => null);
+  return c.json({
+    reply,
+    audioBase64: tts.audioBase64,
+    timings: tts.timings,
+    timingsEstimated: tts.timingsEstimated,
+    audioFailed: !tts.audioBase64,
+    ttsVoice: voiceInfo?.voice ?? null,
+    ttsStyle: voiceInfo?.style ?? null,
+    ttsStyleDegree: voiceInfo?.styledegree ?? null
+  });
+});
+debateRouter.post("/turn-stream", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  const body = await c.req.json().catch(() => ({}));
+  const debateId = String(body.debateId ?? "");
+  const text = String(body.text ?? "").trim();
+  if (!debateId || !text) return c.json({ error: "debateId_and_text_required" }, 400);
+  if (text.length > 4e3) return c.json({ error: "text_too_long" }, 400);
+  const debate = await getOwnedDebate(c, debateId, user.id);
+  if (!debate) return c.json({ error: "debate_not_found" }, 404);
+  if (debate.ended_at) return c.json({ error: "debate_ended" }, 400);
+  await c.env.DB.prepare("INSERT INTO turns (debate_id, role, text, created_at) VALUES (?, ?, ?, ?)").bind(debateId, "user", text, nowIso()).run();
+  const mode = getMode(debate.mode);
+  const setup = parseSetup(debate.setup_json);
+  const systemPrompt = mode.systemPrompt({ ...setup, topic: debate.topic });
+  const history = await c.env.DB.prepare(
+    "SELECT role, text FROM turns WHERE debate_id = ? ORDER BY id DESC LIMIT 20"
+  ).bind(debateId).all();
+  const transcript = formatTranscript(
+    [...history.results ?? []].reverse(),
+    opponentLabel(debate, mode)
+  );
+  const premium = await isPremium(c, user.id, user.email);
+  const userInput = `Session transcript:
+
+${transcript}
+
+Respond to the user's latest message.`;
+  const figureId = debate.mode === "historical" ? figureById(setup.figureId)?.id : void 0;
+  const personaVisualId = typeof setup.personaVisual === "string" ? setup.personaVisual : void 0;
+  const voiceInfo = await resolveTtsVoice(debate.personality, figureId, personaVisualId).catch(() => null);
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      const send = /* @__PURE__ */ __name((obj) => {
+        try {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}
+
+`));
+        } catch {
+        }
+      }, "send");
+      send({
+        t: "hello",
+        ttsVoice: voiceInfo?.voice ?? null,
+        ttsStyle: voiceInfo?.style ?? null,
+        ttsStyleDegree: voiceInfo?.styledegree ?? null
+      });
+      let full = "";
+      try {
+        for await (const tok of modelStream(c.env, systemPrompt, userInput, 2e3, { premium })) {
+          full += tok;
+          send({ t: "tok", c: tok });
+        }
+        full = full.trim();
+        if (!full) throw new Error("Debate model returned an empty response");
+        if (mode.clean) full = maskProfanity(full);
+        await c.env.DB.prepare("INSERT INTO turns (debate_id, role, text, created_at) VALUES (?, ?, ?, ?)").bind(debateId, "assistant", full, nowIso()).run();
+        let tts;
+        try {
+          tts = await ttsDebateLine(c.env, full, debate.personality, figureId, personaVisualId);
+        } catch (err) {
+          console.error("TTS failed, returning text-only turn:", err instanceof Error ? err.message : err);
+          tts = { audioBase64: null, timings: [], timingsEstimated: true };
+        }
+        send({
+          t: "done",
+          audioBase64: tts.audioBase64,
+          timings: tts.timings,
+          timingsEstimated: tts.timingsEstimated,
+          audioFailed: !tts.audioBase64
+        });
+      } catch (err) {
+        console.error("turn-stream failed:", err instanceof Error ? err.message : err);
+        send({ t: "err", message: "The opponent hit a snag \u2014 try sending that again." });
+      } finally {
+        try {
+          controller.close();
+        } catch {
+        }
+      }
+    }
+  });
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no"
+    }
+  });
+});
+debateRouter.post("/end", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  const body = await c.req.json().catch(() => ({}));
+  const debateId = String(body.debateId ?? "");
+  if (!debateId) return c.json({ error: "debateId_required" }, 400);
+  const debate = await getOwnedDebate(c, debateId, user.id);
+  if (!debate) return c.json({ error: "debate_not_found" }, 404);
+  if (debate.ended_at) return c.json({ error: "debate_already_ended" }, 400);
+  const mode = getMode(debate.mode);
+  const turns = await c.env.DB.prepare(
+    "SELECT role, text FROM turns WHERE debate_id = ? ORDER BY id ASC"
+  ).bind(debateId).all();
+  const transcript = formatTranscript(turns.results ?? [], opponentLabel(debate, mode));
+  let scores;
+  try {
+    const raw2 = await modelText(
+      c.env,
+      mode.scoringPrompt(),
+      `Session topic: ${debate.topic}
+
+${transcript}`,
+      2e3,
+      { premium: await isPremium(c, user.id, user.email) }
+    );
+    scores = parseScores(raw2, mode.scoringDimensions);
+  } catch {
+    scores = emptyScores(mode.scoringDimensions, "Scoring unavailable.");
+  }
+  await c.env.DB.prepare("UPDATE debates SET ended_at = ? WHERE id = ?").bind(nowIso(), debateId).run();
+  return c.json({ scores });
+});
+var JUDGE_COMPETITIVE_MODES = /* @__PURE__ */ new Set(["debate", "historical", "negotiation", "sales", "thesis"]);
+var JUDGE_CRITERIA = ["argumentation", "evidence", "rebuttal", "composure"];
+function judgePrompt(competitive, opponentLabel2) {
+  const outcomeRule = competitive ? 'Declare a winner: "you", "opponent", or "draw" (draw only for genuinely even performances). Set "assessment" to null.' : `Set "winner" to null. Instead give an overall assessment of the human's performance: "strong", "developing", or "needs_work".`;
+  return [
+    "You are an impartial judge. You did NOT participate in the conversation below and you have no stake in its outcome.",
+    "",
+    "The two sides:",
+    '- "You": the human, who was practicing.',
+    `- "${opponentLabel2}": their AI sparring partner.`,
+    "",
+    "Score BOTH sides by identical standards on each criterion, 1-10:",
+    "- argumentation: quality and structure of arguments",
+    "- evidence: use of facts, examples, and reasoning to support claims",
+    "- rebuttal: direct engagement with the other side\u2019s points",
+    "- composure: clarity, focus, and steadiness under pressure",
+    "",
+    "Rules of impartiality:",
+    '- Judge the arguments as presented, not the speakers. Neither the "You" label nor the "AI" label earns favor or penalty.',
+    "- Do not favor the side you personally agree with. Apply the rubric mechanically, the same way to both sides.",
+    "- Do not reward length over substance. Penalize dodged questions and unsupported claims equally on both sides.",
+    `- ${outcomeRule}`,
+    "",
+    "Return ONLY valid JSON, no other text:",
+    "{",
+    '  "winner": "you" | "opponent" | "draw" | null,',
+    '  "assessment": "strong" | "developing" | "needs_work" | null,',
+    '  "you": {"argumentation": n, "evidence": n, "rebuttal": n, "composure": n},',
+    '  "opponent": {"argumentation": n, "evidence": n, "rebuttal": n, "composure": n},',
+    '  "reasoning": "2-4 sentences explaining the verdict, citing specific moments",',
+    '  "turningPoint": "the single exchange that decided it, or null"',
+    "}"
+  ].join("\n");
+}
+__name(judgePrompt, "judgePrompt");
+function parseVerdict(raw2, competitive) {
+  const fallback = {
+    winner: null,
+    assessment: null,
+    you: {},
+    opponent: {},
+    reasoning: "The judge could not reach a verdict.",
+    turningPoint: null
+  };
+  let data;
+  try {
+    const cleaned = raw2.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+    data = JSON.parse(cleaned);
+  } catch {
+    return fallback;
+  }
+  const clampScore = /* @__PURE__ */ __name((v) => {
+    const n = typeof v === "number" ? Math.round(v) : parseInt(String(v ?? ""), 10);
+    return Number.isFinite(n) ? Math.min(10, Math.max(1, n)) : 5;
+  }, "clampScore");
+  const side = /* @__PURE__ */ __name((v) => {
+    const obj = v && typeof v === "object" ? v : {};
+    const out = {};
+    for (const k of JUDGE_CRITERIA) out[k] = clampScore(obj[k]);
+    return out;
+  }, "side");
+  const winnerRaw = String(data.winner ?? "");
+  const winner = competitive && (winnerRaw === "you" || winnerRaw === "opponent" || winnerRaw === "draw") ? winnerRaw : null;
+  const assessRaw = String(data.assessment ?? "");
+  const assessment = !competitive && (assessRaw === "strong" || assessRaw === "developing" || assessRaw === "needs_work") ? assessRaw : null;
+  return {
+    winner,
+    assessment,
+    you: side(data.you),
+    opponent: side(data.opponent),
+    reasoning: String(data.reasoning ?? fallback.reasoning).slice(0, 2e3),
+    turningPoint: typeof data.turningPoint === "string" && data.turningPoint.trim() ? data.turningPoint.slice(0, 500) : null
+  };
+}
+__name(parseVerdict, "parseVerdict");
+debateRouter.post("/judge", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  const body = await c.req.json().catch(() => ({}));
+  const debateId = String(body.debateId ?? "");
+  if (!debateId) return c.json({ error: "debateId_required" }, 400);
+  const debate = await getOwnedDebate(c, debateId, user.id);
+  if (!debate) return c.json({ error: "debate_not_found" }, 404);
+  if (!debate.ended_at) return c.json({ error: "session_not_ended" }, 400);
+  if (parseSetup(debate.setup_json).judge !== "1") return c.json({ error: "judge_not_enabled" }, 403);
+  const cached = await c.env.DB.prepare("SELECT * FROM verdicts WHERE debate_id = ?").bind(debateId).first();
+  if (cached) {
+    return c.json({
+      verdict: {
+        winner: cached.winner,
+        assessment: cached.assessment,
+        ...JSON.parse(cached.scores_json),
+        reasoning: cached.reasoning,
+        turningPoint: cached.turning_point
+      },
+      cached: true
+    });
+  }
+  const mode = getMode(debate.mode);
+  const turns = await c.env.DB.prepare(
+    "SELECT role, text FROM turns WHERE debate_id = ? ORDER BY id ASC"
+  ).bind(debateId).all();
+  const rows = turns.results ?? [];
+  const hasYou = rows.some((t) => t.role === "you" && t.text.trim());
+  const hasOpponent = rows.some((t) => t.role !== "you" && t.text.trim());
+  if (!hasYou || !hasOpponent) return c.json({ error: "insufficient_transcript" }, 400);
+  const competitive = JUDGE_COMPETITIVE_MODES.has(mode.id);
+  const transcript = formatTranscript(rows, opponentLabel(debate, mode));
+  let verdict;
+  try {
+    const raw2 = await modelText(
+      c.env,
+      judgePrompt(competitive, opponentLabel(debate, mode)),
+      `Session topic: ${debate.topic}
+
+${transcript}`,
+      1500,
+      { premium: await isPremium(c, user.id, user.email) }
+    );
+    verdict = parseVerdict(raw2, competitive);
+  } catch {
+    return c.json({ error: "judge_unavailable" }, 502);
+  }
+  await c.env.DB.prepare(
+    "INSERT INTO verdicts (debate_id, winner, assessment, scores_json, reasoning, turning_point, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+  ).bind(
+    debateId,
+    verdict.winner,
+    verdict.assessment,
+    JSON.stringify({ you: verdict.you, opponent: verdict.opponent }),
+    verdict.reasoning,
+    verdict.turningPoint,
+    nowIso()
+  ).run();
+  return c.json({ verdict, cached: false });
+});
+var debatesRouter = new Hono2();
+debatesRouter.get("/", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  const rows = await c.env.DB.prepare(
+    "SELECT id, personality, topic, mode, ended_at, created_at, setup_json FROM debates WHERE user_id = ? ORDER BY created_at DESC"
+  ).bind(user.id).all();
+  const debates = (rows.results ?? []).map((r) => {
+    let judgeEnabled = false;
+    let personaVisual;
+    let setup = {};
+    try {
+      setup = JSON.parse(r.setup_json ?? "{}");
+      judgeEnabled = setup.judge === "1";
+      if (typeof setup.personaVisual === "string" && setup.personaVisual) {
+        personaVisual = setup.personaVisual;
+      }
+    } catch {
+    }
+    let personaLabel;
+    if (r.mode === "historical") {
+      const fig = figureById(typeof setup.figureId === "string" ? setup.figureId : "");
+      if (fig) personaLabel = fig.name;
+    }
+    const { setup_json: _omitted, ...rest } = r;
+    return { ...rest, judgeEnabled, personaVisual, personaLabel };
+  });
+  return c.json({ debates });
+});
+debatesRouter.get("/:id", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  const debate = await getOwnedDebate(c, c.req.param("id"), user.id);
+  if (!debate) return c.json({ error: "debate_not_found" }, 404);
+  const turns = await c.env.DB.prepare(
+    "SELECT id, role, text, created_at FROM turns WHERE debate_id = ? ORDER BY id ASC"
+  ).bind(debate.id).all();
+  return c.json({ debate, turns: turns.results ?? [] });
+});
+
+// worker/src/account.ts
+init_config();
+var accountRouter = new Hono2();
+accountRouter.get("/", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  const db = c.env.DB;
+  const fullUser = await getUserById(db, user.id);
+  const email = fullUser?.email ?? user.email;
+  const owner = isOwnerEmail(email, c.env);
+  const sub = await getSubscription(db, user.id);
+  const month = currentMonth();
+  const debatesUsed = await getMonthlyUsage(db, user.id, month);
+  let quota = 0;
+  if (isSubscriptionActive(sub)) {
+    const quotas = await getTierQuotas();
+    quota = quotas[sub.tier] ?? 0;
+  }
+  return c.json({
+    email,
+    plan: owner ? "owner" : resolvePlan(sub),
+    subscription: sub ? { tier: sub.tier, status: sub.status, current_period_end: sub.current_period_end } : null,
+    usage: { month, debates_used: debatesUsed, quota: owner ? -1 : quota },
+    creditBalance: await creditBalance(db, user.id),
+    trialUsed: fullUser?.trial_debates_used ?? 0
+  });
+});
+
+// worker/src/webhooks.ts
+init_config();
+var webhookRouter = new Hono2();
+var SIGNATURE_TOLERANCE_SECONDS = 300;
+function toHex(buf) {
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+__name(toHex, "toHex");
+function timingSafeEqual2(a, b) {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+__name(timingSafeEqual2, "timingSafeEqual");
+async function verifyStripeSignature(payload, header, secret) {
+  if (!header || !secret) return false;
+  let timestamp = null;
+  const signatures = [];
+  for (const part of header.split(",")) {
+    const eq = part.indexOf("=");
+    if (eq === -1) continue;
+    const key2 = part.slice(0, eq).trim();
+    const value = part.slice(eq + 1).trim();
+    if (key2 === "t") timestamp = value;
+    else if (key2 === "v1" && value) signatures.push(value);
+  }
+  if (!timestamp || signatures.length === 0) return false;
+  const ts = Number(timestamp);
+  if (!Number.isFinite(ts)) return false;
+  if (Math.abs(Date.now() / 1e3 - ts) > SIGNATURE_TOLERANCE_SECONDS) return false;
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const mac = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode(`${timestamp}.${payload}`)
+  );
+  const expectedHex = toHex(mac);
+  return signatures.some((sig) => timingSafeEqual2(sig, expectedHex));
+}
+__name(verifyStripeSignature, "verifyStripeSignature");
+function tierFromPriceId(priceIds, priceId) {
+  if (priceIds.debater && priceId === priceIds.debater) return "debater";
+  if (priceIds.coach && priceId === priceIds.coach) return "coach";
+  if (priceIds.champion && priceId === priceIds.champion) return "champion";
+  return null;
+}
+__name(tierFromPriceId, "tierFromPriceId");
+async function handleCheckoutSessionCompleted(env, session) {
+  const db = env.DB;
+  const metadata = session.metadata ?? {};
+  const kind = metadata.kind;
+  if (kind === "pack") {
+    const userId = metadata.userId;
+    const debates = parseInt(metadata.debates ?? "0", 10);
+    const paymentIntent = typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id ?? null;
+    if (!userId || !Number.isFinite(debates) || debates <= 0 || !paymentIntent) return;
+    const existing = await db.prepare("SELECT 1 FROM credit_ledger WHERE stripe_payment_id = ?").bind(paymentIntent).first();
+    if (existing) return;
+    await db.prepare(
+      "INSERT INTO credit_ledger (user_id, delta, reason, stripe_payment_id) VALUES (?, ?, ?, ?)"
+    ).bind(userId, debates, "pack_purchase", paymentIntent).run();
+    return;
+  }
+  if (kind === "org_subscription") {
+    const orgId = metadata.orgId;
+    const seats = parseInt(metadata.seats ?? "0", 10);
+    const subscriptionId = typeof session.subscription === "string" ? session.subscription : session.subscription?.id ?? null;
+    const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id ?? null;
+    if (!orgId || !Number.isFinite(seats) || seats <= 0 || !subscriptionId) return;
+    const existing = await db.prepare("SELECT 1 FROM orgs WHERE stripe_subscription_id = ?").bind(subscriptionId).first();
+    if (existing) return;
+    await db.prepare(
+      `UPDATE orgs SET stripe_customer_id = ?, stripe_subscription_id = ?,
+           seat_count = ?, status = 'active' WHERE id = ?`
+    ).bind(customerId, subscriptionId, seats, orgId).run();
+    return;
+  }
+  if (kind === "subscription") {
+    const userId = metadata.userId;
+    const item = metadata.item;
+    const subscriptionId = typeof session.subscription === "string" ? session.subscription : session.subscription?.id ?? null;
+    const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id ?? null;
+    if (!userId || item !== "debater" && item !== "coach" && item !== "champion" || !subscriptionId) return;
+    const existing = await db.prepare("SELECT 1 FROM subscriptions WHERE stripe_subscription_id = ?").bind(subscriptionId).first();
+    if (existing) return;
+    await db.prepare(
+      `INSERT INTO subscriptions (user_id, stripe_customer_id, stripe_subscription_id, tier, status)
+         VALUES (?, ?, ?, ?, 'active')
+         ON CONFLICT(user_id) DO UPDATE SET
+           stripe_customer_id = excluded.stripe_customer_id,
+           stripe_subscription_id = excluded.stripe_subscription_id,
+           tier = excluded.tier,
+           status = excluded.status`
+    ).bind(userId, customerId, subscriptionId, item).run();
+  }
+}
+__name(handleCheckoutSessionCompleted, "handleCheckoutSessionCompleted");
+async function handleSubscriptionUpdated(env, sub) {
+  const priceId = sub.items?.data?.[0]?.price?.id;
+  const tier = priceId ? tierFromPriceId(getStripePriceIds(env), priceId) : null;
+  await env.DB.prepare(
+    `UPDATE subscriptions
+     SET status = ?,
+         tier = COALESCE(?, tier),
+         current_period_start = ?,
+         current_period_end = ?
+     WHERE stripe_subscription_id = ?`
+  ).bind(
+    sub.status ?? null,
+    tier,
+    sub.current_period_start ?? null,
+    sub.current_period_end ?? null,
+    sub.id
+  ).run();
+  const eduPriceId = getStripePriceIds(env).eduSeat;
+  if (eduPriceId && priceId === eduPriceId) {
+    const quantity = Number(sub.items?.data?.[0]?.quantity ?? sub.quantity ?? NaN);
+    await env.DB.prepare(
+      `UPDATE orgs
+       SET status = ?,
+           seat_count = CASE WHEN ? > 0 THEN ? ELSE seat_count END,
+           current_period_end = ?
+       WHERE stripe_subscription_id = ?`
+    ).bind(
+      sub.status ?? null,
+      Number.isFinite(quantity) ? quantity : 0,
+      Number.isFinite(quantity) ? quantity : 0,
+      sub.current_period_end ?? null,
+      sub.id
+    ).run();
+  }
+}
+__name(handleSubscriptionUpdated, "handleSubscriptionUpdated");
+async function handleSubscriptionDeleted(env, sub) {
+  await env.DB.prepare(
+    `UPDATE subscriptions SET status = 'canceled', tier = 'none'
+     WHERE stripe_subscription_id = ?`
+  ).bind(sub.id).run();
+  await env.DB.prepare(
+    `UPDATE orgs SET status = 'canceled', seat_count = 0
+     WHERE stripe_subscription_id = ?`
+  ).bind(sub.id).run();
+}
+__name(handleSubscriptionDeleted, "handleSubscriptionDeleted");
+async function handleInvoicePaymentFailed(env, invoice) {
+  const subscriptionId = typeof invoice.subscription === "string" ? invoice.subscription : invoice.subscription?.id ?? null;
+  if (!subscriptionId) return;
+  await env.DB.prepare(
+    `UPDATE subscriptions SET status = 'past_due' WHERE stripe_subscription_id = ?`
+  ).bind(subscriptionId).run();
+  await env.DB.prepare(
+    `UPDATE orgs SET status = 'past_due' WHERE stripe_subscription_id = ?`
+  ).bind(subscriptionId).run();
+}
+__name(handleInvoicePaymentFailed, "handleInvoicePaymentFailed");
+async function handleEvent(env, event) {
+  const data = event.data?.object ?? {};
+  switch (event.type) {
+    case "checkout.session.completed":
+      await handleCheckoutSessionCompleted(env, data);
+      break;
+    case "customer.subscription.updated":
+      await handleSubscriptionUpdated(env, data);
+      break;
+    case "customer.subscription.deleted":
+      await handleSubscriptionDeleted(env, data);
+      break;
+    case "invoice.payment_failed":
+      await handleInvoicePaymentFailed(env, data);
+      break;
+    default:
+      break;
+  }
+}
+__name(handleEvent, "handleEvent");
+webhookRouter.post("/api/webhooks/stripe", async (c) => {
+  const payload = await c.req.text();
+  let verified = false;
+  try {
+    verified = await verifyStripeSignature(
+      payload,
+      c.req.header("stripe-signature"),
+      c.env.STRIPE_WEBHOOK_SECRET
+    );
+  } catch (err) {
+    console.error("webhook signature verification error", err);
+  }
+  if (!verified) return c.json({ error: "invalid signature" }, 400);
+  let event;
+  try {
+    event = JSON.parse(payload);
+  } catch {
+    return c.json({ error: "invalid json" }, 400);
+  }
+  try {
+    await handleEvent(c.env, event);
+  } catch (err) {
+    console.error("webhook handler error", event.type, err);
+  }
+  return c.json({ received: true });
+});
+
+// worker/src/speech.ts
+var speechRouter = new Hono2();
+speechRouter.post("/token", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  const region = c.env.AZURE_SPEECH_REGION;
+  const key = c.env.AZURE_SPEECH_KEY;
+  if (!region || !key) {
+    return c.json({ error: "speech_not_configured" }, 503);
+  }
+  const url = `https://${region}.api.cognitive.microsoft.com/sts/v1.0/issueToken`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      // Never log this header value.
+      "Ocp-Apim-Subscription-Key": key,
+      "Content-Type": "application/x-www-form-urlencoded",
+      "User-Agent": "AdversaryAI/1.0"
+    },
+    body: ""
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    console.error("Speech token mint failed:", res.status, body.slice(0, 200));
+    return c.json({ error: "token_failed" }, 502);
+  }
+  const token = (await res.text()).trim();
+  if (!token) return c.json({ error: "token_failed" }, 502);
+  return c.json({ token, region, expiresIn: 600 });
+});
+
+// worker/src/index.ts
+var app = new Hono2();
+app.onError((err, c) => {
+  console.error("Unhandled error:", err);
+  return c.json({ error: "internal_error" }, 500);
+});
+app.get("/health", (c) => c.json({ ok: true }));
+app.get("/app", (c) => c.redirect("/app/", 301));
+app.route("/api/auth", authRouter);
+app.route("/api/debate", debateRouter);
+app.route("/api/debates", debatesRouter);
+app.route("/api/modes", modesRouter);
+app.route("/api/account", accountRouter);
+app.route("/api/speech", speechRouter);
+app.route("/api/orgs", orgsRouter);
+app.route("/", billingRouter);
+app.route("/", webhookRouter);
+var index_default = app;
+export {
+  index_default as default
+};
+//# sourceMappingURL=index.js.map
