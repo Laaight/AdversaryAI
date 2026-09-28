@@ -1,14 +1,21 @@
 {
   "name": "adversaryai",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "private": true,
-  "description": "AdversaryAI — AI sparring partner for debates, interviews, negotiations, and coaching",
+  "description": "AdversaryAI \u2014 AI sparring partner for debates, interviews, negotiations, and coaching",
   "scripts": {
-    "deploy": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy.ps1",
+    "build": "node scripts/build.mjs",
+    "deploy": "npm run build && powershell -ExecutionPolicy Bypass -File ./scripts/deploy.ps1",
+    "deploy:only": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy.ps1",
     "tail": "powershell -ExecutionPolicy Bypass -File ./scripts/tail.ps1",
     "d1:query": "powershell -ExecutionPolicy Bypass -File ./scripts/d1-query.ps1"
   },
   "devDependencies": {
+    "esbuild": "^0.25.0",
+    "livekit-client": "2.15.7",
+    "microsoft-cognitiveservices-speech-sdk": "^1.40.0",
+    "postcss": "^8.4.47",
+    "tailwindcss": "~3.4.17",
     "wrangler": "^4.141.0"
   }
 }
