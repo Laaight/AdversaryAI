@@ -5913,6 +5913,123 @@ speechRouter.post("/token", async (c) => {
 // run up an unbounded video bill.
 var avatarRouter = new Hono2();
 var AVATAR_VISUAL_KEYS = ["man-pro", "woman-pro", "older-man", "older-woman", "man-casual", "woman-casual", "teen-boy", "teen-girl", "default-masc", "default-fem"];
+// Each persona "look" and what kind of LiveAvatar actor should play it.
+var AVATAR_VISUAL_PROFILE = {
+  "man-pro": { g: "m", want: /(business|suit|doctor|lawyer|professional|office|formal|executive|ceo|consult|manager|teacher|anchor|host)/ },
+  "woman-pro": { g: "f", want: /(business|suit|doctor|lawyer|professional|office|formal|executive|ceo|consult|manager|teacher|anchor|host)/ },
+  "older-man": { g: "m", want: /(senior|elder|older|old|grand|retired|mature)/ },
+  "older-woman": { g: "f", want: /(senior|elder|older|old|grand|retired|mature)/ },
+  "man-casual": { g: "m", want: /(casual|home|sofa|couch|outdoor|hoodie|sweater|relax|street)/ },
+  "woman-casual": { g: "f", want: /(casual|home|sofa|couch|outdoor|hoodie|sweater|relax|street)/ },
+  "teen-boy": { g: "m", want: /(young|youth|teen|student|college|kid)/ },
+  "teen-girl": { g: "f", want: /(young|youth|teen|student|college|kid)/ },
+  "default-masc": { g: "m", want: null },
+  "default-fem": { g: "f", want: null }
+};
+var FEMALE_NAMES = new Set("anna ann anne amy amelia alice alexa alexandra aria ava bella brenda carla carol caroline chloe claire dana daisy diana elena elenora eleanor elizabeth ella ellie emily emma eva fiona grace hannah helen isabella jane jennifer jenny jessica jill joan judy julia june karen kate katya kayla kelly kim kristin laura lea leah lily linda lisa lucy maria marie mary maya mia monica nancy natalie nina olivia paige rachel rebecca rika rose ruby sara sarah shelby sofia sophia susan tina valeria vanessa victoria wendy zoe".split(" "));
+var MALE_NAMES = new Set("aaron adam alex alan andrew anthony ben benjamin bill brian bryan carl charles chris daniel dave david dexter eddie edward eric ethan frank gary george graham greg harry henry jack jacob james jason jeff joe john jonathan josh justin kevin leo liam lucas marcus mark matt max michael mike nathan nick noah oliver owen patrick paul pedro peter richard rick robert ryan sam santa scott sean shawn silas simon steve steven thomas tim tom tony tyler victor wayne william".split(" "));
+function avatarGender(a) {
+  const g = String(a.gender || "").toLowerCase();
+  if (/^(f|female|woman|women|girl)$/.test(g)) return "f";
+  if (/^(m|male|man|men|boy)$/.test(g)) return "m";
+  const text = ` ${String(a.text || a.name || "").toLowerCase()} `;
+  if (/\b(female|woman|women|girl|lady|she|her)\b/.test(text)) return "f";
+  if (/\b(male|man|men|boy|guy|gentleman|he|his)\b/.test(text)) return "m";
+  const first = String(a.name || "").toLowerCase().split(/[^a-z]+/).find(Boolean) || "";
+  if (FEMALE_NAMES.has(first)) return "f";
+  if (MALE_NAMES.has(first)) return "m";
+  return null;
+}
+// LiveAvatar catalog (the owner's own avatars + public stock actors), cached for 12h.
+async function fetchAvatarCatalog(env, db, { fresh = false } = {}) {
+  if (!fresh) {
+    try {
+      const row = await db.prepare("SELECT value FROM app_config WHERE key = 'liveavatar_catalog'").first();
+      const cached = row?.value ? JSON.parse(row.value) : null;
+      if (cached?.at && Date.now() - cached.at < 12 * 3600e3 && Array.isArray(cached.avatars) && cached.avatars.length) return cached.avatars;
+    } catch {
+    }
+  }
+  const pick = (a, own) => {
+    const tags = Array.isArray(a.tags) ? a.tags.join(" ") : String(a.tags ?? "");
+    return {
+      id: a.id ?? a.avatar_id,
+      name: a.name ?? a.avatar_name ?? a.id,
+      image: a.preview_url ?? a.image_url ?? a.thumbnail_url ?? a.preview_image_url ?? null,
+      gender: a.gender ?? null,
+      text: [a.name, a.avatar_name, a.description, tags, a.category, a.style].filter(Boolean).join(" ").slice(0, 400),
+      own
+    };
+  };
+  const out = [];
+  for (const [path, own] of [["/v1/avatars?page_size=100", true], ["/v1/avatars/public?page_size=100", false]]) {
+    const r = await liveAvatarFetch(env, path);
+    const d = r.data?.data;
+    const list = Array.isArray(d) ? d : d?.results ?? d?.items ?? d?.data ?? [];
+    for (const a of list) out.push(pick(a, own));
+  }
+  const avatars = out.filter((a) => a.id);
+  if (avatars.length) {
+    await db.prepare("INSERT OR REPLACE INTO app_config (key, value, updated_at) VALUES ('liveavatar_catalog', ?, ?)").bind(JSON.stringify({ at: Date.now(), avatars }), nowIso()).run().catch(() => {
+    });
+  }
+  return avatars;
+}
+__name(fetchAvatarCatalog, "fetchAvatarCatalog");
+// Pick a gender-matched, look-appropriate stock actor for each persona look, keeping them distinct.
+function autoAssignAvatars(catalog, map, keys) {
+  const pool = catalog.filter((a) => !a.own).length >= 2 ? catalog.filter((a) => !a.own) : catalog;
+  const withG = pool.map((a, i) => ({ ...a, g: avatarGender(a), i, low: String(a.text || a.name || "").toLowerCase() }));
+  const used = new Set(Object.values(map));
+  const out = { ...map };
+  for (const key of keys) {
+    const prof = AVATAR_VISUAL_PROFILE[key];
+    if (!prof) continue;
+    const gendered = withG.filter((a) => a.g === prof.g);
+    const cands = gendered.length ? gendered : withG.filter((a) => a.g == null);
+    if (!cands.length) continue;
+    const score = (a) => (prof.want && prof.want.test(a.low) ? 10 : 0) + (used.has(a.id) ? -20 : 0) - a.i / 1e3;
+    const best = cands.slice().sort((x, y) => score(y) - score(x))[0];
+    out[key] = best.id;
+    used.add(best.id);
+  }
+  return out;
+}
+__name(autoAssignAvatars, "autoAssignAvatars");
+// The map every session uses. Persona looks with no avatar get one automatically (so Champion
+// works with zero setup); "none" means the owner explicitly wants that look to stay 3D.
+// Historical figures are never auto-assigned — only an explicit owner pick.
+async function resolveAvatarMap(env, db) {
+  const map = await getAvatarMap(db);
+  if (!env.LIVEAVATAR_API_KEY) return map;
+  let autoV = null;
+  try {
+    autoV = (await db.prepare("SELECT value FROM app_config WHERE key = 'liveavatar_auto_v'").first())?.value ?? null;
+  } catch {
+  }
+  // First run of auto-assign: replace earlier hand picks (they were made before gender matching existed).
+  const keys = autoV === "1" ? AVATAR_VISUAL_KEYS.filter((k) => !map[k]) : AVATAR_VISUAL_KEYS;
+  if (!keys.length) return map;
+  let catalog = [];
+  try {
+    catalog = await fetchAvatarCatalog(env, db);
+  } catch (e) {
+    console.error("avatar catalog failed", e?.message || e);
+  }
+  if (!catalog.length) return map;
+  const next = autoAssignAvatars(catalog, autoV === "1" ? map : Object.fromEntries(Object.entries(map).filter(([k]) => !AVATAR_VISUAL_KEYS.includes(k))), keys);
+  await db.batch([
+    db.prepare("INSERT OR REPLACE INTO app_config (key, value, updated_at) VALUES ('liveavatar_map', ?, ?)").bind(JSON.stringify(next), nowIso()),
+    db.prepare("INSERT OR REPLACE INTO app_config (key, value, updated_at) VALUES ('liveavatar_auto_v', '1', ?)").bind(nowIso())
+  ]).catch((e) => console.error("avatar map save failed", e?.message || e));
+  return next;
+}
+__name(resolveAvatarMap, "resolveAvatarMap");
+function avatarIdFor(map, key) {
+  const v = map[key];
+  return v && v !== "none" ? v : null;
+}
+__name(avatarIdFor, "avatarIdFor");
 var avatarTablesReady = false;
 async function ensureAvatarTables(db) {
   if (avatarTablesReady) return;
@@ -5981,15 +6098,22 @@ avatarRouter.get("/status", async (c) => {
   if (!user) return c.json({ error: "unauthorized" }, 401);
   const st = await avatarStatus(c, user);
   let mapped = null;
+  let avatarImage = null;
   const debateId = c.req.query("debateId");
   if (debateId && st.enabled && st.eligible) {
     const debate = await getOwnedDebate(c, debateId, user.id);
     if (debate) {
-      const map = await getAvatarMap(c.env.DB);
-      mapped = !!map[avatarKeyForDebate(debate)];
+      const map = await resolveAvatarMap(c.env, c.env.DB);
+      const id = avatarIdFor(map, avatarKeyForDebate(debate));
+      mapped = !!id;
+      if (id) {
+        // Still of the actor, shown while the live video connects (instead of the 3D model).
+        const cat = await fetchAvatarCatalog(c.env, c.env.DB).catch(() => []);
+        avatarImage = cat.find((a) => a.id === id)?.image || null;
+      }
     }
   }
-  return c.json({ ...st, capMinutes: Math.round(st.capSeconds / 60), remainingMinutes: Math.floor(st.remainingSeconds / 60), mapped });
+  return c.json({ ...st, capMinutes: Math.round(st.capSeconds / 60), remainingMinutes: Math.floor(st.remainingSeconds / 60), mapped, avatarImage });
 });
 avatarRouter.post("/session", async (c) => {
   const user = await getSessionUser(c);
@@ -6002,8 +6126,8 @@ avatarRouter.post("/session", async (c) => {
   const debate = await getOwnedDebate(c, String(body.debateId ?? ""), user.id);
   if (!debate) return c.json({ error: "debate_not_found" }, 404);
   if (debate.ended_at) return c.json({ error: "debate_ended" }, 400);
-  const map = await getAvatarMap(c.env.DB);
-  const avatarId = map[avatarKeyForDebate(debate)];
+  const map = await resolveAvatarMap(c.env, c.env.DB);
+  const avatarId = avatarIdFor(map, avatarKeyForDebate(debate));
   if (!avatarId) return c.json({ error: "no_avatar_for_persona" }, 404);
   // LiveAvatar caps session length per plan and rejects anything longer with a 400.
   // Start at 20 min (or the user's remaining minutes) and step down until it's accepted;
@@ -6081,27 +6205,15 @@ avatarRouter.get("/catalog", async (c) => {
   const user = await getSessionUser(c);
   if (!user || !isOwnerEmail(user.email, c.env)) return c.json({ error: "forbidden" }, 403);
   if (!c.env.LIVEAVATAR_API_KEY) return c.json({ error: "photoreal_not_configured" }, 503);
-  const pick = /* @__PURE__ */ __name((a) => ({
-    id: a.id ?? a.avatar_id,
-    name: a.name ?? a.avatar_name ?? a.id,
-    image: a.preview_url ?? a.image_url ?? a.thumbnail_url ?? a.preview_image_url ?? null,
-    gender: a.gender ?? null
-  }), "pick");
-  const out = [];
-  for (const [path, own] of [["/v1/avatars?page_size=100", true], ["/v1/avatars/public?page_size=100", false]]) {
-    const r = await liveAvatarFetch(c.env, path);
-    const d = r.data?.data;
-    const list = Array.isArray(d) ? d : d?.results ?? d?.items ?? d?.data ?? [];
-    for (const a of list) out.push({ ...pick(a), own });
-  }
-  return c.json({ avatars: out.filter((a) => a.id) });
+  const avatars = await fetchAvatarCatalog(c.env, c.env.DB, { fresh: true });
+  return c.json({ avatars: avatars.map(({ text, ...a }) => ({ ...a, gender: a.gender ?? avatarGender({ ...a, text }) })) });
 });
 avatarRouter.get("/map", async (c) => {
   const user = await getSessionUser(c);
   if (!user || !isOwnerEmail(user.email, c.env)) return c.json({ error: "forbidden" }, 403);
   const figures = HISTORICAL_FIGURES.filter((f) => !f.retired).map((f) => ({ key: f.id, label: f.name }));
   const visuals = AVATAR_VISUAL_KEYS.map((k) => ({ key: k, label: k.replace(/-/g, " ") }));
-  return c.json({ map: await getAvatarMap(c.env.DB), keys: [...visuals, ...figures] });
+  return c.json({ map: await resolveAvatarMap(c.env, c.env.DB), keys: [...visuals, ...figures] });
 });
 avatarRouter.post("/map", async (c) => {
   const user = await getSessionUser(c);
@@ -6113,6 +6225,19 @@ avatarRouter.post("/map", async (c) => {
   }
   await c.env.DB.prepare("INSERT OR REPLACE INTO app_config (key, value, updated_at) VALUES ('liveavatar_map', ?, ?)").bind(JSON.stringify(map), nowIso()).run();
   return c.json({ ok: true, map });
+});
+// Owner: re-run automatic casting for every persona look (keeps historical-figure picks).
+avatarRouter.post("/map/auto", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user || !isOwnerEmail(user.email, c.env)) return c.json({ error: "forbidden" }, 403);
+  if (!c.env.LIVEAVATAR_API_KEY) return c.json({ error: "photoreal_not_configured" }, 503);
+  const map = await getAvatarMap(c.env.DB);
+  const keep = Object.fromEntries(Object.entries(map).filter(([k]) => !AVATAR_VISUAL_KEYS.includes(k)));
+  const catalog = await fetchAvatarCatalog(c.env, c.env.DB, { fresh: true });
+  if (!catalog.length) return c.json({ error: "catalog_empty" }, 502);
+  const next = autoAssignAvatars(catalog, keep, AVATAR_VISUAL_KEYS);
+  await c.env.DB.prepare("INSERT OR REPLACE INTO app_config (key, value, updated_at) VALUES ('liveavatar_map', ?, ?)").bind(JSON.stringify(next), nowIso()).run();
+  return c.json({ ok: true, map: next });
 });
 
 // worker/src/index.ts

@@ -25151,10 +25151,47 @@ function ix(root, debateId, t, data) {
     photoDebug.classList.remove("hidden");
   };
   const mins = (sec) => `${Math.max(0, Math.floor((sec || 0) / 60))} min left`;
+  // While photoreal is expected, keep the 3D model hidden and show a still of the video actor
+  // (with a "connecting" note) instead — the 3D model only appears if the video can't run.
+  const stage = $("#avatar-canvas").parentElement;
+  const HINT = "aai_photoreal_hint";
+  const hint = (v) => {
+    try {
+      if (v === undefined) return localStorage.getItem(HINT) === "1";
+      v ? localStorage.setItem(HINT, "1") : localStorage.removeItem(HINT);
+    } catch {
+      return false;
+    }
+  };
+  if (!t.figureId && hint()) stage.classList.add("photoreal-probe");
+  const showPoster = (img) => {
+    stage.classList.remove("photoreal-probe");
+    stage.classList.add("photoreal-mode");
+    let p = stage.querySelector(".photoreal-poster");
+    if (!p) {
+      p = document.createElement("div");
+      p.className = "photoreal-poster";
+      stage.prepend(p);
+    }
+    p.innerHTML = `${img ? `<img src="${xt(img)}" alt="" />` : ""}<span class="photoreal-poster-msg"><span data-spin class="spinner !h-3.5 !w-3.5"></span><span data-msg>Connecting to your opponent…</span></span>`;
+  };
+  const posterMsg = (text, spin = false) => {
+    const box = stage.querySelector(".photoreal-poster-msg");
+    if (!box) return;
+    box.style.display = text ? "" : "none";
+    box.querySelector("[data-msg]").textContent = text || "";
+    box.querySelector("[data-spin]").style.display = spin ? "" : "none";
+  };
+  const dropPhoto = () => {
+    stage.classList.remove("photoreal-probe", "photoreal-mode");
+    stage.querySelector(".photoreal-poster")?.remove();
+  };
   (async () => {
     const me = await da().catch(() => null);
-    if (!alive || !me?.photoreal) return openPhotoGate();
+    if (!alive || !me?.photoreal) return dropPhoto(), openPhotoGate();
     if (!me.champion) {
+      dropPhoto();
+      hint(false);
       openPhotoGate();
       const up = $("#upsell-slot");
       up.className = "mt-2.5";
@@ -25162,28 +25199,45 @@ function ix(root, debateId, t, data) {
       return;
     }
     const st = await fetchPhotorealStatus(debateId);
-    if (!alive || !st?.enabled || !st.eligible) return openPhotoGate();
+    if (!alive || !st?.enabled || !st.eligible) {
+      dropPhoto();
+      if (st && !st.eligible) hint(false);
+      return openPhotoGate();
+    }
     if (!st.mapped) {
+      dropPhoto();
       openPhotoGate();
-      if (st.owner) setPhotoBadge("Photoreal: pick an avatar in Account", "text-slate-300");
+      if (st.owner) setPhotoBadge("Photoreal: no avatar for this opponent", "text-slate-300");
       return;
     }
     if (st.remainingSeconds < 60) {
+      dropPhoto();
       openPhotoGate();
       return setPhotoBadge("Video minutes used this month", "text-slate-300");
     }
+    hint(true);
+    showPoster(st.avatarImage);
     photo = new PhotorealAvatar({
-      stage: $("#avatar-canvas").parentElement,
+      stage,
       debateId,
       onStatus: (u) => {
         if (!alive) return;
         if (u.state !== "connecting") openPhotoGate();
         if (u.state !== "error") setPhotoDebug(null);
-        if (u.state === "connecting") setPhotoBadge('<span class="spinner !h-3 !w-3"></span>Photoreal connecting…', "text-slate-200");
-        else if (u.state === "live") setPhotoBadge(`<span class="h-1.5 w-1.5 rounded-full bg-amber-400"></span>Photoreal · ${mins(u.remainingSeconds)}`, "text-amber-200");
-        else if (u.state === "needs_tap") setPhotoBadge("Tap the video to turn on sound", "text-amber-200");
-        else if (u.state === "sleeping") setPhotoBadge("Photoreal paused — resumes when you reply", "text-slate-300");
-        else if (u.state === "error") {
+        if (u.state === "connecting") {
+          setPhotoBadge("");
+          posterMsg("Connecting to your opponent…", true);
+        } else if (u.state === "live") {
+          posterMsg("");
+          setPhotoBadge(`<span class="h-1.5 w-1.5 rounded-full bg-amber-400"></span>Photoreal · ${mins(u.remainingSeconds)}`, "text-amber-200");
+        } else if (u.state === "needs_tap") {
+          posterMsg("Tap to start the video");
+          setPhotoBadge("");
+        } else if (u.state === "sleeping" || u.state === "off") {
+          posterMsg("Video resumes when you reply");
+          setPhotoBadge("");
+        } else if (u.state === "error") {
+          dropPhoto(); // only now fall back to the 3D model
           if (u.error === "video_minutes_exhausted") setPhotoBadge("Video minutes used this month", "text-slate-300");
           else {
             setPhotoBadge("Photoreal unavailable — using 3D", "text-slate-300");
@@ -26308,7 +26362,7 @@ async function qu(i) {
     const pr = document.createElement("section");
     pr.className = "card mb-10 p-6";
     pr.innerHTML = `<h2 class="text-lg font-semibold text-white">Admin: photoreal avatars (Champion)</h2>
-      <p class="mt-1 text-sm text-slate-400">Pick which LiveAvatar avatar plays each opponent. Personas without an avatar stay 3D.</p>
+      <p class="mt-1 text-sm text-slate-400">Every persona look is cast automatically with a matching LiveAvatar actor — nothing to set up. Override any of them here if you like. Historical figures stay as portraits unless you pick one.</p>
       <div data-body class="mt-4"><button type="button" class="btn-ghost btn-sm" data-load>Load avatar catalog</button></div>`;
     e.appendChild(pr);
     const body = pr.querySelector("[data-body]");
@@ -26316,14 +26370,26 @@ async function qu(i) {
       body.innerHTML = '<p class="text-sm text-slate-400"><span class="spinner mr-2"></span>Loading…</p>';
       try {
         const [cat, mp] = await Promise.all([Ut("/api/avatar/catalog"), Ut("/api/avatar/map")]);
-        const opts = (sel) => `<option value="">— 3D (no video) —</option>` + cat.avatars.map((av) => `<option value="${Lt(av.id)}" ${av.id === sel ? "selected" : ""}>${Lt(av.name || av.id)}${av.own ? " (yours)" : ""}${av.gender ? ` · ${Lt(av.gender)}` : ""}</option>`).join("");
+        const opts = (sel) => `<option value="none" ${!sel || sel === "none" ? "selected" : ""}>— 3D (no video) —</option>` + cat.avatars.map((av) => `<option value="${Lt(av.id)}" ${av.id === sel ? "selected" : ""}>${Lt(av.name || av.id)}${av.own ? " (yours)" : ""}${av.gender ? ` · ${Lt(av.gender)}` : ""}</option>`).join("");
         body.innerHTML = `<div class="grid gap-3 sm:grid-cols-2">${mp.keys
           .map((k) => `<label class="block"><span class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">${Lt(k.label)}</span><select class="field text-sm" data-key="${Lt(k.key)}">${opts(mp.map[k.key])}</select></label>`)
           .join("")}</div>
-          <div class="mt-4 flex items-center gap-3"><button type="button" class="btn-primary btn-sm" data-save>Save avatars</button><span data-msg class="text-sm text-slate-400"></span></div>`;
+          <div class="mt-4 flex flex-wrap items-center gap-3"><button type="button" class="btn-primary btn-sm" data-save>Save avatars</button><button type="button" class="btn-ghost btn-sm" data-auto>Auto-cast all persona looks</button><span data-msg class="text-sm text-slate-400"></span></div>`;
+        body.querySelector("[data-auto]").addEventListener("click", async (ev) => {
+          ev.target.disabled = true;
+          try {
+            const r = await zt("/api/avatar/map/auto", {});
+            body.querySelectorAll("select[data-key]").forEach((x) => r.map[x.dataset.key] && (x.value = r.map[x.dataset.key]));
+            body.querySelector("[data-msg]").textContent = "Re-cast and saved.";
+          } catch {
+            body.querySelector("[data-msg]").textContent = "Couldn’t auto-cast — try again.";
+          } finally {
+            ev.target.disabled = false;
+          }
+        });
         body.querySelector("[data-save]").addEventListener("click", async (ev) => {
           const map = {};
-          body.querySelectorAll("select[data-key]").forEach((x) => x.value && (map[x.dataset.key] = x.value));
+          body.querySelectorAll("select[data-key]").forEach((x) => (map[x.dataset.key] = x.value || "none"));
           ev.target.disabled = true;
           try {
             await zt("/api/avatar/map", { map });

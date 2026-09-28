@@ -121,6 +121,8 @@ export class PhotorealAvatar {
       this.room.on(LK.RoomEvent.TrackSubscribed, (track, _pub, participant) => {
         if (participant.identity !== "heygen") return;
         track.attach(this.video);
+        if (track.kind === "video") this.vTrack = track;
+        if (track.kind === "audio") this.aTrack = track;
         if (track.kind === "video") resolve(true);
       });
     });
@@ -176,6 +178,7 @@ export class PhotorealAvatar {
     voice.setSink(this); // takes effect at the next utterance
     this.beat = setInterval(() => this._heartbeat(), HEARTBEAT_MS);
     this.keep = setInterval(() => this._send({ type: "session.keep_alive" }), 60000);
+    this._startAvSync();
     this.onStatus({ state: "live", remainingSeconds: this.remaining });
   }
 
@@ -216,6 +219,47 @@ export class PhotorealAvatar {
   interrupt() {
     this.talking = false;
     this._send({ type: "agent.interrupt" });
+  }
+
+  /**
+   * Lip-sync alignment. The avatar's audio and video arrive as separate WebRTC tracks with
+   * separate jitter buffers, and audio usually plays out ahead of the video (voice slightly
+   * before the lips). Every 2 s we measure how long each track is being held (jitter buffer +
+   * video decode) and ask the browser to hold the audio for as long as the video.
+   */
+  _startAvSync() {
+    clearInterval(this.avSync);
+    const prev = { v: null, a: null };
+    const sample = async (track, key) => {
+      const rx = track?.receiver;
+      if (!rx?.getStats) return null;
+      let cur = null;
+      (await rx.getStats()).forEach((st) => {
+        if (st.type === "inbound-rtp") cur = { jb: st.jitterBufferDelay || 0, n: st.jitterBufferEmittedCount || 0, dec: st.totalDecodeTime || 0, fr: st.framesDecoded || 0 };
+      });
+      if (!cur) return null;
+      const p = prev[key];
+      prev[key] = cur;
+      if (!p || cur.n <= p.n) return null;
+      const jb = (cur.jb - p.jb) / (cur.n - p.n);
+      const dec = cur.fr > p.fr ? (cur.dec - p.dec) / (cur.fr - p.fr) : 0;
+      return jb + dec; // seconds
+    };
+    let target = 0;
+    this.avSync = setInterval(async () => {
+      try {
+        const [v, a] = await Promise.all([sample(this.vTrack, "v"), sample(this.aTrack, "a")]);
+        const rx = this.aTrack?.receiver;
+        if (v == null || a == null || !rx) return;
+        // Video delay + one frame of render, clamped; smoothed so it doesn't wobble.
+        const want = Math.max(0, Math.min(400, Math.round((v + 0.02) * 1000)));
+        const next = target ? Math.round(target * 0.6 + want * 0.4) : want;
+        if (Math.abs(next - target) < 15) return;
+        target = next;
+        if ("jitterBufferTarget" in rx) rx.jitterBufferTarget = target;
+        else if ("playoutDelayHint" in rx) rx.playoutDelayHint = target / 1000;
+      } catch {}
+    }, 2000);
   }
 
   async _api(path) {
@@ -267,6 +311,8 @@ export class PhotorealAvatar {
     this.stage.classList.remove("photoreal-live");
     clearInterval(this.beat);
     clearInterval(this.keep);
+    clearInterval(this.avSync);
+    this.vTrack = this.aTrack = null;
     try {
       if (this.ws) {
         this.ws.onclose = null;
