@@ -172,18 +172,38 @@ function loadLivePricing() {
 
 /* ================= PRACTICE MODES ================= */
 const MODES_FALLBACK = [
-  { id: 'debate', name: 'Debate Sparring', icon: '⚔️', img: '/img/mode-debate.jpg', blurb: 'Classic argument combat. Pick a motion, argue your case, get scored like an athlete.' },
-  { id: 'historical', name: 'Historical Figures', icon: '🏛️', img: '/img/mode-historical.jpg', blurb: 'Argue with the great minds of history — challenge their ideas, defend your own.' },
-  { id: 'acting', name: 'Acting Partner', icon: '🎭', img: '/img/mode-acting.jpg', blurb: 'Run lines and scenes with a partner who never misses a cue.' },
-  { id: 'interview', name: 'Job Interview', icon: '💼', img: '/img/mode-interview.jpg', blurb: 'Practice tough interview questions with instant feedback on every answer.' },
-  { id: 'negotiation', name: 'Negotiation', icon: '🤝', img: '/img/mode-negotiation.jpg', blurb: 'Hone your deal-making against a counterpart who plays hardball.' },
-  { id: 'sales', name: 'Sales Objections', icon: '📈', img: '/img/mode-sales.jpg', blurb: 'Handle every objection — price, timing, competition — until they melt away.' },
-  { id: 'difficult', name: 'Difficult Conversations', icon: '💬', img: '/img/mode-difficult.jpg', blurb: 'Rehearse the hard talks: feedback, conflict, bad news — safely.' },
-  { id: 'rapbattle', name: 'Rap Battle', icon: '🎤', img: '/img/mode-rapbattle.jpg', blurb: 'Trade bars against a battle MC with flow, wordplay, and rebuttals.' },
-  { id: 'witness', name: 'Evangelism Training', icon: '✝️', img: '/img/mode-witness.jpg', blurb: 'Rehearse sharing the gospel with a realistic counterpart — curious, skeptical, or hurting.' },
-  { id: 'thesis', name: 'Thesis Defense', icon: '🎓', img: '/img/mode-thesis.jpg', blurb: 'Defend your thesis against a committee that probes every weakness.' },
-  { id: 'expert', name: 'Domain Expert', icon: '🧠', img: '/img/mode-expert.jpg', blurb: 'You are the professional. Explain and defend any topic — code, theology, medicine, finance — under probing questions.' }
+  { id: 'debate', name: 'Debate Sparring', icon: '⚔️', blurb: 'Classic argument combat. Pick a motion, argue your case, get scored like an athlete.' },
+  { id: 'historical', name: 'Historical Figures', icon: '🏛️', blurb: 'Argue with the great minds of history — challenge their ideas, defend your own.' },
+  { id: 'acting', name: 'Acting Partner', icon: '🎭', blurb: 'Run lines and scenes with a partner who never misses a cue.' },
+  { id: 'interview', name: 'Job Interview', icon: '💼', blurb: 'Practice tough interview questions with instant feedback on every answer.' },
+  { id: 'negotiation', name: 'Negotiation', icon: '🤝', blurb: 'Hone your deal-making against a counterpart who plays hardball.' },
+  { id: 'sales', name: 'Sales Objections', icon: '📈', blurb: 'Handle every objection — price, timing, competition — until they melt away.' },
+  { id: 'difficult', name: 'Difficult Conversations', icon: '💬', blurb: 'Rehearse the hard talks: feedback, conflict, bad news — safely.' },
+  { id: 'rapbattle', name: 'Rap Battle', icon: '🎤', blurb: 'Trade bars against a battle MC with flow, wordplay, and rebuttals.' },
+  { id: 'witness', name: 'Evangelism Training', icon: '✝️', blurb: 'Rehearse sharing the gospel with a realistic counterpart — curious, skeptical, or hurting.' },
+  { id: 'thesis', name: 'Thesis Defense', icon: '🎓', blurb: 'Defend your thesis against a committee that probes every weakness.' },
+  { id: 'expert', name: 'Domain Expert', icon: '🧠', blurb: 'You are the professional. Explain and defend any topic — code, theology, medicine, finance — under probing questions.' }
 ];
+
+/* Per-mode tile background — no photo asset needed, never breaks. */
+const TILE_GRADIENTS = [
+  'linear-gradient(135deg,#2a0d12,#4a0f18)',
+  'linear-gradient(135deg,#0d1f2a,#0f3a4a)',
+  'linear-gradient(135deg,#241030,#3a1650)',
+  'linear-gradient(135deg,#0d2a1a,#0f4a2e)',
+  'linear-gradient(135deg,#2a1c0d,#4a3410)',
+  'linear-gradient(135deg,#2a0d24,#4a1042)',
+  'linear-gradient(135deg,#0d1a2a,#123a5a)',
+  'linear-gradient(135deg,#2a140d,#4a2010)',
+  'linear-gradient(135deg,#141c2a,#1e3050)',
+  'linear-gradient(135deg,#2a0d1c,#4a1132)',
+  'linear-gradient(135deg,#0d2422,#0f423d)'
+];
+function tileGradient(seed) {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  return TILE_GRADIENTS[h % TILE_GRADIENTS.length];
+}
 
 function escHtml(s) {
   return String(s == null ? '' : s)
@@ -204,7 +224,6 @@ function normalizeModes(data) {
       id: id,
       name: m.name || m.title || id || 'Practice mode',
       icon: m.icon || m.emoji || fb.icon,
-      img: '/img/mode-' + id + '.jpg',
       blurb: m.description || m.blurb || m.tagline || ''
     };
   });
@@ -226,7 +245,9 @@ function renderModes(modes) {
     const idx = String(i + 1).padStart(2, '0');
     return '' +
       '<a class="mode reveal" href="/app/#/setup/' + escHtml(m.id) + '">' +
-      (m.img ? '<div class="mode-img"><img src="' + escHtml(m.img) + '" alt="" loading="lazy"><span class="mode-idx">' + idx + '</span></div>' : '') +
+      '<div class="mode-img mode-tile" style="background:' + tileGradient(m.id) + '">' +
+      '<span class="mode-tile-icon" aria-hidden="true">' + (m.icon || '') + '</span>' +
+      '<span class="mode-idx">' + idx + '</span></div>' +
       '<div class="mode-body">' +
       '<h3>' + escHtml(m.name) + '</h3>' +
       (m.blurb ? '<p>' + escHtml(m.blurb) + '</p>' : '') +

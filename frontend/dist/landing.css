@@ -187,8 +187,10 @@ p { margin: 0 0 16px; }
 .hero::after {
   content: "";
   position: absolute; inset: 0;
-  background: url("/img/hero-backdrop.jpg") center 30% / cover no-repeat;
-  opacity: 0.16;
+  background-image:
+    radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-size: 28px 28px;
+  opacity: 0.5;
   -webkit-mask-image: linear-gradient(to bottom, black 30%, transparent 95%);
   mask-image: linear-gradient(to bottom, black 30%, transparent 95%);
   pointer-events: none;
@@ -325,6 +327,21 @@ a.mode:hover {
   transition: transform 0.5s var(--ease);
 }
 a.mode:hover .mode-img img { transform: scale(1.08); }
+.mode-tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.5s var(--ease);
+}
+a.mode:hover .mode-tile { transform: scale(1.05); }
+.mode-tile-icon {
+  font-size: 44px;
+  line-height: 1;
+  filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.45));
+  opacity: 0.92;
+  position: relative;
+  z-index: 0;
+}
 .mode-idx {
   position: absolute;
   left: 18px;
