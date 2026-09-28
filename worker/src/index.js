@@ -6005,17 +6005,29 @@ avatarRouter.post("/session", async (c) => {
   const map = await getAvatarMap(c.env.DB);
   const avatarId = map[avatarKeyForDebate(debate)];
   if (!avatarId) return c.json({ error: "no_avatar_for_persona" }, 404);
-  const maxSeconds = Math.max(60, Math.min(st.remainingSeconds, 20 * 60));
-  const r = await liveAvatarFetch(c.env, "/v1/sessions/token", {
+  // LiveAvatar caps session length per plan and rejects anything longer with a 400.
+  // Start at 20 min (or the user's remaining minutes) and step down until it's accepted;
+  // when a session hits its limit the client simply reopens it on the next reply.
+  let maxSeconds = Math.max(60, Math.min(st.remainingSeconds, 20 * 60));
+  const requestToken = (dur) => liveAvatarFetch(c.env, "/v1/sessions/token", {
     method: "POST",
     body: JSON.stringify({
       mode: "LITE",
       avatar_id: avatarId,
       is_sandbox: c.env.LIVEAVATAR_SANDBOX === "1",
       video_settings: { quality: "high", encoding: "H264" },
-      max_session_duration: maxSeconds
+      ...(dur ? { max_session_duration: dur } : {})
     })
   });
+  let r = await requestToken(maxSeconds);
+  for (let attempt = 0; attempt < 4 && !r.ok && JSON.stringify(r.data ?? "").includes("max_session_duration"); attempt++) {
+    // Prefer a limit stated in the error message (largest number below what we asked for).
+    const msg = [r.data?.message, ...(Array.isArray(r.data?.data) ? r.data.data.map((e) => e?.msg || e?.message) : [])].filter(Boolean).join(" ");
+    const stated = (msg.match(/\d+/g) || []).map(Number).filter((n) => n >= 30 && n < (maxSeconds || Infinity));
+    const ladder = [600, 300, 180, 0].filter((n) => !maxSeconds || n < maxSeconds);
+    maxSeconds = stated.length ? Math.max(...stated) : (ladder[0] ?? 0);
+    r = await requestToken(maxSeconds);
+  }
   const token = r.data?.data?.session_token;
   const sessionId = r.data?.data?.session_id;
   if (!r.ok || !token) {
