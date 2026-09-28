@@ -25782,7 +25782,7 @@ function sx(i, e, t, n, s, r) {
             <span class="mt-1 text-[11px] font-semibold text-slate-500">/ 10</span>
           </div>
           <div class="min-w-0 flex-1">
-            <div class="text-lg font-bold text-white">Overall score</div>
+            <div class="text-lg font-bold text-white">Your score</div>
             <p class="text-sm text-slate-400">${yourTurns} turn${yourTurns === 1 ? "" : "s"} vs ${xt(t.personaLabel)}</p>
             ${t.judgeEnabled ? `<div id="verdict-pill" class="mt-2"><span class="badge border-ink-700 bg-ink-800 text-slate-400"><span class="spinner !h-3 !w-3"></span>Judge deliberating…</span></div>` : ""}
           </div>
@@ -26048,7 +26048,7 @@ async function dx(i) {
             <span class="block font-semibold leading-snug text-white line-clamp-2 hover:text-accent-300">${xt(o.topic || "Untitled session")}</span>
             <span class="mt-1 block text-xs leading-relaxed text-slate-400">${[modeName(o.mode), Yl(o.created_at), o.personaLabel ? `vs ${o.personaLabel}` : "", o.targetRounds ? `${o.targetRounds} ${unitFor(o.mode)}s` : "open-ended"].filter(Boolean).map(xt).join(" · ")}</span>
           </button>
-          <span class="badge ${done ? "border-emerald-700/60 bg-emerald-500/10 text-emerald-300" : "border-amber-500/40 bg-amber-500/10 text-amber-300"}">${done ? (o.overall != null ? `Scored ${Xu(o.overall)}/10` : "Scored") : "In progress"}</span>
+          <span class="badge ${done ? "border-emerald-700/60 bg-emerald-500/10 text-emerald-300" : "border-amber-500/40 bg-amber-500/10 text-amber-300"}">${done ? (o.overall != null ? `Your score ${Xu(o.overall)}/10` : "Finished") : "In progress"}</span>
         </div>
         <div class="mt-3 flex flex-wrap items-center gap-2 border-t border-ink-700/60 pt-3">
           ${done ? `<button type="button" data-a="open" class="btn-ghost btn-xs">Transcript &amp; scores</button>` : `<button type="button" data-a="resume" class="btn-primary btn-xs">Resume</button><button type="button" data-a="close" class="btn-ghost btn-xs">Close &amp; grade</button><button type="button" data-a="open" class="btn-ghost btn-xs">Transcript</button>`}
@@ -26084,7 +26084,7 @@ async function dx(i) {
       const sc = c.scorecard;
       box.dataset.loaded = "1";
       box.innerHTML = `
-        ${sc ? `<div class="mb-4 rounded-xl border border-ink-700 bg-ink-800/60 p-4"><div class="mb-3 flex items-center justify-between"><span class="text-sm font-semibold text-white">Scorecard</span><span class="text-lg font-extrabold text-accent-400">${Xu(sc.overall)}<span class="text-sm text-slate-500">/10</span></span></div>
+        ${sc ? `<div class="mb-4 rounded-xl border border-ink-700 bg-ink-800/60 p-4"><div class="mb-3 flex items-center justify-between"><span class="text-sm font-semibold text-white">Your score</span><span class="text-lg font-extrabold text-accent-400">${Xu(sc.overall)}<span class="text-sm text-slate-500">/10</span></span></div>
           ${(sc.dimensions || []).length ? `<div class="grid gap-x-6 gap-y-3 sm:grid-cols-2">${sc.dimensions.map((d) => $u(d.label, d.score)).join("")}</div>` : ""}
           ${sc.notes ? `<p class="mt-3 text-sm leading-relaxed text-slate-400">${xt(sc.notes)}</p>` : ""}</div>` : ""}
         ${c.verdict && c.verdict.winner ? `<p class="mb-4 text-sm text-slate-300"><span class="font-semibold text-white">Judge:</span> ${c.verdict.winner === "you" ? "you won" : c.verdict.winner === "draw" ? "a draw" : `${xt(who)} won`}${c.verdict.reasoning ? ` — ${xt(c.verdict.reasoning)}` : ""}</p>` : ""}

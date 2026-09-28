@@ -3613,7 +3613,7 @@ var MODES = {
     // opponent") — no dropdown field here; a second picker was redundant.
     setupFields: [],
     systemPrompt: debateSystemPrompt,
-    scoringPrompt: /* @__PURE__ */ __name(() => 'You are a debate judge. Score this debate transcript 1-10 on logic, evidence, composure, rebuttal quality; return strict JSON {"dimensions": {"Logic": <1-10>, "Evidence": <1-10>, "Composure": <1-10>, "Rebuttal": <1-10>}, "overall": <1-10>, "notes": "<2-3 sentences of feedback>"}', "scoringPrompt"),
+    scoringPrompt: /* @__PURE__ */ __name(() => 'You are a debate judge. Score the HUMAN debater\'s performance in this transcript 1-10 on logic, evidence, composure, rebuttal quality; return strict JSON {"dimensions": {"Logic": <1-10>, "Evidence": <1-10>, "Composure": <1-10>, "Rebuttal": <1-10>}, "overall": <1-10>, "notes": "<2-3 sentences of feedback>"}', "scoringPrompt"),
     scoringDimensions: ["Logic", "Evidence", "Composure", "Rebuttal"],
     introCopy: "Choose your opponent, name your topic, and start arguing. They will not go easy on you."
   },
@@ -4179,6 +4179,25 @@ function parseScores(raw2, dimensions) {
   return fb;
 }
 __name(parseScores, "parseScores");
+// Appended to every mode's scoring prompt: the scorecard is the HUMAN's grade, never the AI's.
+var SCORE_HUMAN_ONLY = `
+
+WHO YOU ARE SCORING: only the turns labeled "HUMAN". The "AI OPPONENT" turns are context for judging how well the human responded — never give the human credit for the opponent's arguments, and never score the opponent. Score what the human actually said: short, off-topic, insulting, or content-free turns earn low scores (1-3) no matter how strong the opponent was. Write "notes" to the human in second person ("you").`;
+// Deterministic backstop: a handful of words can't earn a good grade, whatever the model says.
+function capLowEffortScores(scores, turnRows) {
+  const words = turnRows
+    .filter((t) => t.role === "user")
+    .reduce((n, t) => n + String(t.text || "").trim().split(/\s+/).filter(Boolean).length, 0);
+  if (words >= 25 || scores.overall == null) return scores;
+  const cap = words < 10 ? 2 : 3;
+  return {
+    ...scores,
+    overall: Math.min(scores.overall, cap),
+    dimensions: scores.dimensions.map((d) => ({ ...d, score: d.score == null ? null : Math.min(d.score, cap) })),
+    notes: `${scores.notes ? scores.notes + " " : ""}(You spoke only ${words} word${words === 1 ? "" : "s"} in total, so the score is capped — make full arguments to earn a higher grade.)`.trim()
+  };
+}
+__name(capLowEffortScores, "capLowEffortScores");
 function emptyScores(dimensions, notes) {
   return {
     overall: null,
@@ -4609,11 +4628,14 @@ debateRouter.post("/end", async (c) => {
   if (turnRows.length === 0) {
     scores = emptyScores(mode.scoringDimensions, "Session concluded with no dialogue.");
   } else {
-    const transcript = formatTranscript(turnRows, opponentLabel(debate, mode));
+    const oppName = opponentLabel(debate, mode);
+    const transcript = turnRows
+      .map((t) => `${t.role === "user" ? "HUMAN" : `AI OPPONENT (${oppName})`}: ${t.text}`)
+      .join("\n\n");
     try {
       const raw2 = await modelText(
         c.env,
-        mode.scoringPrompt(),
+        mode.scoringPrompt() + SCORE_HUMAN_ONLY,
         `Session topic: ${debate.topic}
 
 ${transcript}`,
@@ -4624,6 +4646,7 @@ ${transcript}`,
     } catch {
       scores = emptyScores(mode.scoringDimensions, "Scoring unavailable.");
     }
+    scores = capLowEffortScores(scores, turnRows);
   }
   await ensureScorecardTable(c.env.DB);
   // Only the first concurrent /end wins; a second one returns the stored scorecard.
