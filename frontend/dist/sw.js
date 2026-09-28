@@ -11,6 +11,9 @@
 
 const VERSION = 'adversaryai-e61d0280c9';
 const HASHED_ASSETS = /\/app\/assets\//;
+// Big, rarely-changing files (3D models, vendored SDKs) live in a cache that survives deploys.
+const STABLE = 'adversaryai-stable-v1';
+const STABLE_PATHS = /^\/(models\/|app\/vendor\/)/;
 
 self.addEventListener('install', () => {
   self.skipWaiting();
@@ -20,7 +23,7 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== VERSION).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k !== VERSION && k !== STABLE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim()),
   );
 });
@@ -33,9 +36,9 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith('/api/')) return; // never cache API traffic
 
-  if (HASHED_ASSETS.test(url.pathname)) {
+  if (HASHED_ASSETS.test(url.pathname) || STABLE_PATHS.test(url.pathname)) {
     event.respondWith(
-      caches.open(VERSION).then((cache) =>
+      caches.open(STABLE_PATHS.test(url.pathname) ? STABLE : VERSION).then((cache) =>
         cache.match(request).then(
           (hit) =>
             hit ||

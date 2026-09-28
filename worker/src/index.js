@@ -2441,7 +2441,7 @@ async function getSubscription(db, userId) {
   return db.prepare("SELECT * FROM subscriptions WHERE user_id = ?").bind(userId).first();
 }
 __name(getSubscription, "getSubscription");
-var ACTIVE_STATUSES = /* @__PURE__ */ new Set(["active", "trialing"]);
+var ACTIVE_STATUSES = /* @__PURE__ */ new Set(["active", "trialing", "past_due"]);
 function isSubscriptionActive(sub) {
   return !!sub && sub.tier !== "none" && ACTIVE_STATUSES.has(sub.status);
 }
@@ -2505,14 +2505,23 @@ billingRouter.post("/api/billing/checkout", async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const { kind, item } = body;
   const priceIds = await getStripePriceIdsAsync(c.env);
+  const existing = await getSubscription(c.env.DB, user.id);
   const params = {
     client_reference_id: user.id,
-    success_url: `${c.env.APP_URL}/app/account?checkout=success`,
-    cancel_url: `${c.env.APP_URL}/app/account?checkout=cancelled`
+    success_url: `${c.env.APP_URL}/app/#/account?checkout=success`,
+    cancel_url: `${c.env.APP_URL}/app/#/account?checkout=cancelled`
   };
+  // Always bill the same Stripe customer so the portal, invoices and upgrades line up.
+  if (existing?.stripe_customer_id) params["customer"] = existing.stripe_customer_id;
+  else if (user.email) params["customer_email"] = user.email;
   if (kind === "subscription" && (item === "debater" || item === "coach" || item === "champion")) {
     const priceId = priceIds[item];
     if (!priceId) return c.json({ error: "price not configured" }, 500);
+    // A second Checkout would create a second subscription (double billing). Plan changes go
+    // through the Stripe portal, which prorates and swaps the price on the existing subscription.
+    if (isSubscriptionActive(existing) && existing.stripe_subscription_id) {
+      return c.json({ error: "already_subscribed", message: "You already have an active plan. Use “Manage billing” to change it." }, 409);
+    }
     params["mode"] = "subscription";
     params["line_items[0][price]"] = priceId;
     params["line_items[0][quantity]"] = "1";
@@ -2567,7 +2576,7 @@ billingRouter.post("/api/billing/portal", async (c) => {
     }
     const portal = await stripePost(c.env, "/billing_portal/sessions", {
       customer: customerId,
-      return_url: `${c.env.APP_URL}/app/account`
+      return_url: `${c.env.APP_URL}/app/#/account`
     });
     if (!portal.url) return c.json({ error: "portal session missing url" }, 502);
     return c.json({ url: portal.url });
@@ -2871,8 +2880,8 @@ orgsRouter.post("/:id/checkout", async (c) => {
       "metadata[kind]": "org_subscription",
       "metadata[orgId]": orgId,
       "metadata[seats]": String(seats),
-      success_url: `${c.env.APP_URL}/app/org/${orgId}?checkout=success`,
-      cancel_url: `${c.env.APP_URL}/app/org/${orgId}?checkout=cancelled`
+      success_url: `${c.env.APP_URL}/app/#/org/${orgId}?checkout=success`,
+      cancel_url: `${c.env.APP_URL}/app/#/org/${orgId}?checkout=cancelled`
     });
     if (!session.url) return c.json({ error: "checkout session missing url" }, 502);
     return c.json({ url: session.url });
@@ -2893,7 +2902,7 @@ orgsRouter.post("/:id/portal", async (c) => {
   try {
     const portal = await stripePost(c.env, "/billing_portal/sessions", {
       customer: org.stripe_customer_id,
-      return_url: `${c.env.APP_URL}/app/org/${orgId}`
+      return_url: `${c.env.APP_URL}/app/#/org/${orgId}`
     });
     if (!portal.url) return c.json({ error: "portal session missing url" }, 502);
     return c.json({ url: portal.url });
@@ -2908,10 +2917,26 @@ var SESSION_COOKIE = "adversaryai_session";
 var SESSION_MAX_AGE = 60 * 60 * 24 * 30;
 var SALT_BYTES = 16;
 var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-async function hashPassword(password, saltHex) {
+// Legacy (v0) hash: one SHA-256. Kept only to verify old accounts, which are re-hashed on login.
+async function hashPasswordLegacy(password, saltHex) {
   return sha256Hex(`${saltHex}:${password}`);
 }
+__name(hashPasswordLegacy, "hashPasswordLegacy");
+var PBKDF2_ITER = 21e4;
+async function hashPassword(password, saltHex) {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: enc.encode(saltHex), iterations: PBKDF2_ITER }, key, 256);
+  return "pbkdf2$" + Array.from(new Uint8Array(bits), (x) => x.toString(16).padStart(2, "0")).join("");
+}
 __name(hashPassword, "hashPassword");
+async function verifyPassword(password, user) {
+  const stored = String(user.password_hash || "");
+  if (stored.startsWith("pbkdf2$")) return { ok: timingSafeEqual(await hashPassword(password, user.salt), stored), upgrade: false };
+  const legacy = await hashPasswordLegacy(password, user.salt);
+  return { ok: timingSafeEqual(legacy, stored), upgrade: true };
+}
+__name(verifyPassword, "verifyPassword");
 function timingSafeEqual(a, b) {
   if (a.length !== b.length) return false;
   let diff = 0;
@@ -2966,6 +2991,8 @@ async function getSessionUser(c) {
 __name(getSessionUser, "getSessionUser");
 var authRouter = new Hono2();
 authRouter.post("/signup", async (c) => {
+  // Each trial account is worth real money (15 rounds of model + speech): throttle per IP.
+  if (!(await rateLimit(c.env.DB, `signup:${clientIp(c)}`, 5, 3600))) return c.json({ error: "rate_limited", message: "Too many sign-ups from this network — try again later." }, 429);
   const body = await c.req.json().catch(() => ({}));
   const email = String(body.email ?? "").trim().toLowerCase();
   const password = String(body.password ?? "");
@@ -3009,14 +3036,61 @@ authRouter.post("/login", async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const email = String(body.email ?? "").trim().toLowerCase();
   const password = String(body.password ?? "");
+  if (!(await rateLimit(c.env.DB, `login:${clientIp(c)}`, 30, 900)) || (email && !(await rateLimit(c.env.DB, `login:${email}`, 10, 900)))) {
+    return c.json({ error: "rate_limited", message: "Too many attempts — try again in 15 minutes." }, 429);
+  }
   const user = email ? await getUserByEmail(c.env.DB, email) : null;
-  const hash = user ? await hashPassword(password, user.salt) : null;
-  if (!user || !hash || !timingSafeEqual(hash, user.password_hash)) {
+  const v = user ? await verifyPassword(password, user) : { ok: false };
+  if (!user || !v.ok) {
     return c.json({ error: "invalid_credentials" }, 401);
+  }
+  if (v.upgrade) {
+    // Silently move legacy accounts to PBKDF2 on their next successful login.
+    try {
+      await c.env.DB.prepare("UPDATE users SET password_hash = ? WHERE id = ?").bind(await hashPassword(password, user.salt), user.id).run();
+    } catch {
+    }
   }
   await createSession(c, user.id);
   const sub = await getSubscription(c.env.DB, user.id);
   return c.json({ ok: true, user: { id: user.id, email: user.email, plan: resolvePlan(sub) } });
+});
+// Delete my account: everything we hold about the user. Password re-entry required.
+// Active Stripe subscriptions are cancelled at period end so nothing keeps billing.
+authRouter.post("/delete-account", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  const body = await c.req.json().catch(() => ({}));
+  const v = await verifyPassword(String(body.password ?? ""), user);
+  if (!v.ok) return c.json({ error: "invalid_credentials" }, 401);
+  const db = c.env.DB;
+  const sub = await getSubscription(db, user.id);
+  if (sub?.stripe_subscription_id && isSubscriptionActive(sub)) {
+    try {
+      await stripePost(c.env, `/subscriptions/${sub.stripe_subscription_id}`, { cancel_at_period_end: "true" });
+    } catch (e) {
+      console.error("cancel on delete", e?.message || e);
+    }
+  }
+  const debates = await db.prepare("SELECT id FROM debates WHERE user_id = ?").bind(user.id).all();
+  const ids = (debates.results ?? []).map((r) => r.id);
+  const stmts = [];
+  for (const id of ids) {
+    for (const t of ["turns", "verdicts", "debate_votes", "debate_reactions", "scorecards"]) stmts.push(db.prepare(`DELETE FROM ${t} WHERE debate_id = ?`).bind(id));
+  }
+  for (const t of ["debates", "credit_ledger", "usage_monthly", "promo_redemptions", "org_members", "subscriptions", "sessions", "tts_usage", "avatar_usage", "avatar_sessions", "speech_token_mints"]) {
+    stmts.push(db.prepare(`DELETE FROM ${t} WHERE user_id = ?`).bind(user.id));
+  }
+  stmts.push(db.prepare("DELETE FROM users WHERE id = ?").bind(user.id));
+  // Tables that may not exist yet are skipped one by one rather than failing the whole delete.
+  for (const st of stmts) {
+    try {
+      await st.run();
+    } catch {
+    }
+  }
+  deleteCookie(c, SESSION_COOKIE, { path: "/" });
+  return c.json({ ok: true });
 });
 authRouter.post("/logout", async (c) => {
   const token = getSessionToken(c);
@@ -3077,9 +3151,11 @@ async function callOnce(baseUrl, apiKey, model, systemPrompt, userInput, maxToke
 }
 __name(callOnce, "callOnce");
 async function* modelStream(env, systemPrompt, userInput, maxTokens, opts) {
-  const premium = !!opts?.premium;
+  // Champion uses the Pro model when it's configured; otherwise fall back to the base model
+  // rather than failing every Champion turn.
+  const premium = !!opts?.premium && !!env.DEEPSEEK_PRO_URL && !!env.DEEPSEEK_PRO_MODEL && !!(env.FOUNDRY_KEY_DEEPSEEK_PRO || env.FOUNDRY_KEY);
   const baseUrl = premium ? env.DEEPSEEK_PRO_URL : env.DEEPSEEK_BASE_URL;
-  const apiKey = premium ? env.FOUNDRY_KEY_DEEPSEEK_PRO : env.FOUNDRY_KEY;
+  const apiKey = premium ? env.FOUNDRY_KEY_DEEPSEEK_PRO || env.FOUNDRY_KEY : env.FOUNDRY_KEY;
   const model = premium ? env.DEEPSEEK_PRO_MODEL : env.DEEPSEEK_BASE_MODEL;
   if (!baseUrl) {
     throw new Error(
@@ -3155,9 +3231,11 @@ async function* modelStream(env, systemPrompt, userInput, maxTokens, opts) {
 }
 __name(modelStream, "modelStream");
 async function modelText(env, systemPrompt, userInput, maxTokens, opts) {
-  const premium = !!opts?.premium;
+  // Champion uses the Pro model when it's configured; otherwise fall back to the base model
+  // rather than failing every Champion turn.
+  const premium = !!opts?.premium && !!env.DEEPSEEK_PRO_URL && !!env.DEEPSEEK_PRO_MODEL && !!(env.FOUNDRY_KEY_DEEPSEEK_PRO || env.FOUNDRY_KEY);
   const baseUrl = premium ? env.DEEPSEEK_PRO_URL : env.DEEPSEEK_BASE_URL;
-  const apiKey = premium ? env.FOUNDRY_KEY_DEEPSEEK_PRO : env.FOUNDRY_KEY;
+  const apiKey = premium ? env.FOUNDRY_KEY_DEEPSEEK_PRO || env.FOUNDRY_KEY : env.FOUNDRY_KEY;
   const model = premium ? env.DEEPSEEK_PRO_MODEL : env.DEEPSEEK_BASE_MODEL;
   if (!baseUrl) {
     throw new Error(
@@ -4028,6 +4106,33 @@ async function getTierQuotas() {
   return quotas;
 }
 __name(getTierQuotas, "getTierQuotas");
+// "Unused rounds roll over": at the first check in a new month, a subscriber's unused rounds
+// from the previous month are credited to their wallet (capped at one month's quota).
+// The usage_monthly row doubles as the "was subscribed that month" marker.
+function prevMonth(m) {
+  const [y, mo] = m.split("-").map(Number);
+  const d = new Date(Date.UTC(y, mo - 2, 1));
+  return d.toISOString().slice(0, 7);
+}
+__name(prevMonth, "prevMonth");
+async function settleRollover(db, userId, sub, quotas, month) {
+  try {
+    await db.prepare("INSERT OR IGNORE INTO usage_monthly (user_id, month, debates_used) VALUES (?, ?, 0)").bind(userId, month).run();
+    const pm = prevMonth(month);
+    const row = await db.prepare("SELECT debates_used FROM usage_monthly WHERE user_id = ? AND month = ?").bind(userId, pm).first();
+    if (!row) return;
+    const quota = quotas[sub.tier] ?? 0;
+    const unused = Math.max(0, Math.min(quota, quota - Number(row.debates_used || 0)));
+    if (unused <= 0) return;
+    await ensureLedgerIndexes(db);
+    await db.prepare(
+      "INSERT OR IGNORE INTO credit_ledger (user_id, delta, reason, stripe_payment_id, created_at) VALUES (?, ?, 'rollover', ?, ?)"
+    ).bind(userId, unused, `rollover:${userId}:${pm}`, nowIso()).run();
+  } catch (e) {
+    console.error("rollover", e?.message || e);
+  }
+}
+__name(settleRollover, "settleRollover");
 async function checkRoundsAvailable(c, userId, email) {
   const db = c.env.DB;
   const month = currentMonth();
@@ -4042,6 +4147,7 @@ async function checkRoundsAvailable(c, userId, email) {
   const quotas = await getTierQuotas();
   const sub = await getSubscription(db, userId);
   if (isSubscriptionActive(sub)) {
+    await settleRollover(db, userId, sub, quotas, month);
     const quota = quotas[sub.tier] ?? 0;
     const used = await getMonthlyUsage(db, userId, month);
     if (used < quota) return { ok: true, remaining: quota - used, source: "subscription", tier: sub.tier };
@@ -4066,12 +4172,13 @@ async function consumeRound(c, userId, email) {
     const used = await getOrgMonthlyUsage(db, org.id, month);
     if (used < pool) {
       await incrementOrgMonthlyUsage(db, org.id, month);
-      return { allowed: true, remaining: pool - used - 1, source: "org" };
+      return { allowed: true, remaining: pool - used - 1, source: "org", orgId: org.id };
     }
   }
   const quotas = await getTierQuotas();
   const sub = await getSubscription(db, userId);
   if (isSubscriptionActive(sub)) {
+    await settleRollover(db, userId, sub, quotas, month);
     const quota = quotas[sub.tier] ?? 0;
     const used = await getMonthlyUsage(db, userId, month);
     if (used < quota) {
@@ -4094,6 +4201,30 @@ async function consumeRound(c, userId, email) {
   return { allowed: false, remaining: 0, source: "none" };
 }
 __name(consumeRound, "consumeRound");
+// Give a round back when the opponent failed to answer (model outage) — the user got nothing for it.
+async function refundRound(c, userId, consumption) {
+  const db = c.env.DB;
+  const month = currentMonth();
+  try {
+    switch (consumption?.source) {
+      case "org":
+        if (consumption.orgId) await db.prepare("UPDATE org_usage_monthly SET sessions_used = MAX(0, sessions_used - 1) WHERE org_id = ? AND month = ?").bind(consumption.orgId, month).run();
+        break;
+      case "subscription":
+        await db.prepare("UPDATE usage_monthly SET debates_used = MAX(0, debates_used - 1) WHERE user_id = ? AND month = ?").bind(userId, month).run();
+        break;
+      case "credit":
+        await db.prepare("INSERT INTO credit_ledger (user_id, delta, reason, created_at) VALUES (?, 1, 'refund_failed_turn', ?)").bind(userId, nowIso()).run();
+        break;
+      case "trial":
+        await db.prepare("UPDATE users SET trial_debates_used = MAX(0, trial_debates_used - 1) WHERE id = ?").bind(userId).run();
+        break;
+    }
+  } catch (e) {
+    console.error("refundRound", e?.message || e);
+  }
+}
+__name(refundRound, "refundRound");
 async function enforceUsage(c, userId, email) {
   const av = await checkRoundsAvailable(c, userId, email);
   return av.ok;
@@ -4620,69 +4751,7 @@ debateRouter.post("/start", async (c) => {
     judge: setup.judge === "1"
   }, 201);
 });
-debateRouter.post("/turn", async (c) => {
-  const user = await getSessionUser(c);
-  if (!user) return c.json({ error: "unauthorized" }, 401);
-  const body = await c.req.json().catch(() => ({}));
-  const debateId = String(body.debateId ?? "");
-  const text = String(body.text ?? "").trim();
-  const isOpening = body.action === "open";
-  if (!debateId || (!text && !isOpening)) return c.json({ error: "debateId_and_text_required" }, 400);
-  if (text.length > 4e3) return c.json({ error: "text_too_long" }, 400);
-  const debate = await getOwnedDebate(c, debateId, user.id);
-  if (!debate) return c.json({ error: "debate_not_found" }, 404);
-  if (debate.ended_at) return c.json({ error: "debate_ended" }, 400);
-  if (isOpening) {
-    const existingAssistant = await c.env.DB.prepare("SELECT id FROM turns WHERE debate_id = ? AND role = 'assistant' LIMIT 1").bind(debateId).first();
-    if (existingAssistant) return c.json({ error: "opening_already_delivered" }, 400);
-  }
-  const consumption = await consumeRound(c, user.id, user.email);
-  if (!consumption.allowed) return c.json({ error: "quota_exhausted", message: "You have used all rounds in your wallet." }, 402);
-  if (!isOpening) {
-    await c.env.DB.prepare("INSERT INTO turns (debate_id, role, text, created_at) VALUES (?, ?, ?, ?)").bind(debateId, "user", text, nowIso()).run();
-  }
-  const mode = getMode(debate.mode);
-  const setup = parseSetup(debate.setup_json);
-  const targetRounds = parseInt(setup.targetRounds ?? "0", 10) || 0;
-  const systemPrompt = mode.systemPrompt({ ...setup, topic: debate.topic }) + (debate.mode === "acting" ? "" : difficultyRules(debate.mode, setup.difficulty || "hard")) + roleLock(debate, mode, setup);
-  const history = await c.env.DB.prepare(
-    "SELECT role, text FROM turns WHERE debate_id = ? ORDER BY id DESC LIMIT 20"
-  ).bind(debateId).all();
-  const transcript = roleTranscript([...history.results ?? []].reverse(), debate, mode, setup);
-  const turnCount = history.results?.length ?? 0;
-  const curRound = Math.floor(turnCount / 2) + 1;
-  const userInput = buildTurnPrompt(debate, mode, setup, transcript, isOpening, curRound, targetRounds);
-  const rawReply = await modelText(
-    c.env,
-    systemPrompt,
-    userInput,
-    1500,
-    { premium: await isPremium(c, user.id, user.email) }
-  );
-  const reply = mode.clean ? maskProfanity(rawReply) : rawReply;
-  await c.env.DB.prepare("INSERT INTO turns (debate_id, role, text, created_at) VALUES (?, ?, ?, ?)").bind(debateId, "assistant", reply, nowIso()).run();
-  const figureId = debate.mode === "historical" ? figureById(setup.figureId)?.id : void 0;
-  const personaVisualId = typeof setup.personaVisual === "string" ? setup.personaVisual : void 0;
-  let tts;
-  try {
-    tts = await ttsDebateLine(c.env, reply, debate.personality, figureId, personaVisualId);
-  } catch (err) {
-    console.error("TTS failed, returning text-only turn:", err instanceof Error ? err.message : err);
-    tts = { audioBase64: null, timings: [], timingsEstimated: true };
-  }
-  const voiceInfo = await resolveTtsVoice(debate.personality, figureId, personaVisualId).catch(() => null);
-  return c.json({
-    reply,
-    audioBase64: tts.audioBase64,
-    timings: tts.timings,
-    timingsEstimated: tts.timingsEstimated,
-    audioFailed: !tts.audioBase64,
-    ttsVoice: voiceInfo?.voice ?? null,
-    ttsStyle: voiceInfo?.style ?? null,
-    ttsStyleDegree: voiceInfo?.styledegree ?? null,
-    remainingRounds: consumption.remaining
-  });
-});
+// (The non-streaming /turn endpoint was removed: the app only uses /turn-stream.)
 debateRouter.post("/turn-stream", async (c) => {
   const user = await getSessionUser(c);
   if (!user) return c.json({ error: "unauthorized" }, 401);
@@ -4765,10 +4834,23 @@ debateRouter.post("/turn-stream", async (c) => {
           full = scriptReply;
           send({ t: "tok", c: full });
         } else {
+          // Clean modes: stream whole words only, masked, so profanity never reaches the screen
+          // even for a moment.
+          let hold = "";
           for await (const tok of modelStream(c.env, systemPrompt, userInput, 2e3, { premium })) {
             full += tok;
-            send({ t: "tok", c: tok });
+            if (!mode.clean) {
+              send({ t: "tok", c: tok });
+              continue;
+            }
+            hold += tok;
+            const cut = hold.search(/[\s.,!?;:]\S*$/);
+            if (cut > 0) {
+              send({ t: "tok", c: maskProfanity(hold.slice(0, cut + 1)) });
+              hold = hold.slice(cut + 1);
+            }
           }
+          if (mode.clean && hold) send({ t: "tok", c: maskProfanity(hold) });
         }
         full = full.trim();
         if (!full) throw new Error("Debate model returned an empty response");
@@ -4800,7 +4882,8 @@ debateRouter.post("/turn-stream", async (c) => {
           } catch {
           }
         }
-        send({ t: "err", message: "The opponent hit a snag \u2014 try sending that again." });
+        await refundRound(c, user.id, consumption);
+        send({ t: "err", message: "The opponent hit a snag \u2014 try sending that again. That round wasn\u2019t charged." });
       } finally {
         try {
           controller.close();
@@ -4865,7 +4948,8 @@ ${transcript}`,
       );
       scores = parseScores(raw2, mode.scoringDimensions);
     } catch {
-      scores = emptyScores(mode.scoringDimensions, "Scoring unavailable.");
+      // Don't close the debate on a scoring outage: the user can press End & grade again.
+      return c.json({ error: "scoring_unavailable", message: "Scoring is briefly unavailable \u2014 try End & grade again in a moment." }, 502);
     }
     if (!scriptMode) scores = capLowEffortScores(scores, turnRows);
     else if (accuracyNote) scores = { ...scores, notes: `${scores.notes ? scores.notes + " " : ""}${accuracyNote}` };
@@ -4933,7 +5017,13 @@ function parseVerdict(raw2, competitive) {
     const cleaned = raw2.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
     data = JSON.parse(cleaned);
   } catch {
-    return fallback;
+    const m = raw2.match(/\{[\s\S]*\}/);
+    try {
+      data = m ? JSON.parse(m[0]) : null;
+    } catch {
+      data = null;
+    }
+    if (!data) return { ...fallback, failed: true };
   }
   const clampScore = /* @__PURE__ */ __name((v) => {
     const n = typeof v === "number" ? Math.round(v) : parseInt(String(v ?? ""), 10);
@@ -5009,6 +5099,8 @@ ${transcript}`,
   } catch {
     return c.json({ error: "judge_unavailable" }, 502);
   }
+  // A verdict the judge couldn't produce is not cached: the user can ask again.
+  if (verdict.failed) return c.json({ error: "judge_unavailable" }, 502);
   await c.env.DB.prepare(
     "INSERT INTO verdicts (debate_id, winner, assessment, scores_json, reasoning, turning_point, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
   ).bind(
@@ -5180,15 +5272,16 @@ debatesRouter.delete("/:id", async (c) => {
 });
 
 async function getVoterKey(c) {
-  const ip = c.req.header("cf-connecting-ip") || c.req.header("x-forwarded-for") || "anon";
-  const ua = c.req.header("user-agent") || "none";
-  const cookie = c.req.header("cookie") || "";
-  const match = cookie.match(/adv_voter=([a-zA-Z0-9_-]+)/);
-  if (match) return match[1];
-  const enc = new TextEncoder().encode(ip + "|" + ua);
+  // Logged-in users vote as themselves; anonymous voters are keyed by Cloudflare's verified
+  // client IP (never a client-supplied header or cookie, which could be forged per request).
+  const user = await getSessionUser(c).catch(() => null);
+  if (user) return "u:" + user.id;
+  const ip = c.req.header("cf-connecting-ip") || "anon";
+  const enc = new TextEncoder().encode("ip|" + ip);
   const buf = await crypto.subtle.digest("SHA-256", enc);
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("").slice(0, 32);
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 32);
 }
+__name(getVoterKey, "getVoterKey");
 
 var publicRouter = new Hono2();
 
@@ -5429,7 +5522,9 @@ publicRouter.post("/debate/:id/react", async (c) => {
 });
 
 async function handlePublicDebateOg(c) {
-  const debateId = c.req.param("id");
+  const debateId = String(c.req.param("id") || "");
+  // IDs come from newId() (hex). Anything else is not a debate — and must never reach the HTML below.
+  if (!/^[0-9a-f]{8,64}$/.test(debateId)) return c.text("Not found", 404);
   const debate = await c.env.DB.prepare(
     "SELECT id, topic, personality, mode, is_public FROM debates WHERE id = ?"
   ).bind(debateId).first();
@@ -5470,14 +5565,43 @@ async function handlePublicDebateOg(c) {
 
 // worker/src/account.ts
 init_config();
+var rlReady = false;
+async function rateLimit(db, key, max, windowSec) {
+  try {
+    if (!rlReady) {
+      await db.prepare("CREATE TABLE IF NOT EXISTS rate_limits (key TEXT PRIMARY KEY, n INTEGER NOT NULL, reset_at INTEGER NOT NULL)").run();
+      rlReady = true;
+    }
+    const now = Date.now();
+    const row = await db.prepare("SELECT n, reset_at FROM rate_limits WHERE key = ?").bind(key).first();
+    if (!row || Number(row.reset_at) < now) {
+      await db.prepare("INSERT OR REPLACE INTO rate_limits (key, n, reset_at) VALUES (?, 1, ?)").bind(key, now + windowSec * 1e3).run();
+      return true;
+    }
+    if (Number(row.n) >= max) return false;
+    await db.prepare("UPDATE rate_limits SET n = n + 1 WHERE key = ?").bind(key).run();
+    return true;
+  } catch (e) {
+    console.error("rate limit", e?.message || e);
+    return true; // never lock users out because the limiter itself failed
+  }
+}
+__name(rateLimit, "rateLimit");
+function clientIp(c) {
+  return c.req.header("cf-connecting-ip") || "0.0.0.0";
+}
+__name(clientIp, "clientIp");
 async function handlePromoRedeem(c) {
   const user = await getSessionUser(c);
   if (!user) return c.json({ error: "unauthorized" }, 401);
   const body = await c.req.json().catch(() => ({}));
   const code = String(body.code ?? "").trim().toUpperCase();
   if (!code) return c.json({ error: "Promo code is required." }, 400);
+  // Codes are short: throttle guessing (10 attempts per user per hour).
+  if (!(await rateLimit(c.env.DB, `promo:${user.id}`, 10, 3600))) return c.json({ error: "Too many attempts — try again in an hour." }, 429);
 
   const db = c.env.DB;
+  await ensureLedgerIndexes(db);
   const promo = await db.prepare("SELECT * FROM promo_codes WHERE code = ?").bind(code).first();
   if (!promo) return c.json({ error: "Invalid promo code. Please check the code and try again." }, 404);
 
@@ -5485,8 +5609,9 @@ async function handlePromoRedeem(c) {
     return c.json({ error: "This promo code has reached its maximum redemptions." }, 410);
   }
 
-  const already = await db.prepare("SELECT 1 FROM promo_redemptions WHERE user_id = ? AND code = ?").bind(user.id, code).first();
-  if (already) {
+  // Claim first (unique on user+code) so two concurrent requests can't both credit.
+  const claim = await db.prepare("INSERT OR IGNORE INTO promo_redemptions (user_id, code, redeemed_at) VALUES (?, ?, ?)").bind(user.id, code, nowIso()).run();
+  if (!claim?.meta?.changes) {
     return c.json({ error: "You have already redeemed this promo code on your account." }, 409);
   }
 
@@ -5506,9 +5631,6 @@ async function handlePromoRedeem(c) {
       "INSERT INTO credit_ledger (user_id, delta, reason, created_at) VALUES (?, ?, 'promo_lifetime_vip', ?)"
     ).bind(user.id, bonusRounds, nowIso()).run();
 
-    await db.prepare(
-      "INSERT INTO promo_redemptions (user_id, code, redeemed_at) VALUES (?, ?, ?)"
-    ).bind(user.id, code, nowIso()).run();
     await db.prepare("UPDATE promo_codes SET times_redeemed = times_redeemed + 1 WHERE code = ?").bind(code).run();
 
     return c.json({
@@ -5522,9 +5644,6 @@ async function handlePromoRedeem(c) {
       "INSERT INTO credit_ledger (user_id, delta, reason, created_at) VALUES (?, ?, 'promo_rounds', ?)"
     ).bind(user.id, roundsToAdd, nowIso()).run();
 
-    await db.prepare(
-      "INSERT INTO promo_redemptions (user_id, code, redeemed_at) VALUES (?, ?, ?)"
-    ).bind(user.id, code, nowIso()).run();
     await db.prepare("UPDATE promo_codes SET times_redeemed = times_redeemed + 1 WHERE code = ?").bind(code).run();
 
     return c.json({
@@ -5729,7 +5848,7 @@ accountRouter.post("/admin/setup-stripe", async (c) => {
   const ITEMS = [
     { key: "debater", name: "AdversaryAI Debater", description: "300 sparring rounds per month across all 11 practice modes", type: "recurring", amount: 1200, interval: "month" },
     { key: "coach", name: "AdversaryAI Coach", description: "1,000 sparring rounds per month plus coaching analytics and rubrics", type: "recurring", amount: 2900, interval: "month" },
-    { key: "champion", name: "AdversaryAI Champion", description: "2,500 sparring rounds per month with DeepSeek-V4-Pro & photorealistic 3D personas", type: "recurring", amount: 4900, interval: "month" },
+    { key: "champion", name: "AdversaryAI Champion", description: "1,000 sparring rounds per month with DeepSeek-V4-Pro & photorealistic 3D personas", type: "recurring", amount: 4900, interval: "month" },
     { key: "pack10", name: "100 Sparring Rounds Pack", description: "100 round one-time credit top-up. Credits never expire.", type: "one_time", amount: 900 },
     { key: "pack25", name: "250 Sparring Rounds Pack", description: "250 round one-time credit top-up. Credits never expire.", type: "one_time", amount: 1900 },
     { key: "pack60", name: "600 Sparring Rounds Pack", description: "600 round one-time credit top-up. Credits never expire.", type: "one_time", amount: 3900 },
@@ -5851,11 +5970,11 @@ async function handleCheckoutSessionCompleted(env, session) {
     const debates = parseInt(metadata.debates ?? "0", 10);
     const paymentIntent = typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id ?? null;
     if (!userId || !Number.isFinite(debates) || debates <= 0 || !paymentIntent) return;
-    const existing = await db.prepare("SELECT 1 FROM credit_ledger WHERE stripe_payment_id = ?").bind(paymentIntent).first();
-    if (existing) return;
+    await ensureLedgerIndexes(db);
+    // Stripe can deliver the same event twice, concurrently: the unique index makes this exactly-once.
     await db.prepare(
-      "INSERT INTO credit_ledger (user_id, delta, reason, stripe_payment_id) VALUES (?, ?, ?, ?)"
-    ).bind(userId, debates, "pack_purchase", paymentIntent).run();
+      "INSERT OR IGNORE INTO credit_ledger (user_id, delta, reason, stripe_payment_id, created_at) VALUES (?, ?, ?, ?, ?)"
+    ).bind(userId, debates, "pack_purchase", paymentIntent, nowIso()).run();
     return;
   }
   if (kind === "org_subscription") {
@@ -5951,9 +6070,39 @@ async function handleInvoicePaymentFailed(env, invoice) {
   ).bind(subscriptionId).run();
 }
 __name(handleInvoicePaymentFailed, "handleInvoicePaymentFailed");
+var ledgerIndexesReady = false;
+async function ensureLedgerIndexes(db) {
+  if (ledgerIndexesReady) return;
+  try {
+    await db.batch([
+      db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_ledger_payment ON credit_ledger(stripe_payment_id) WHERE stripe_payment_id IS NOT NULL"),
+      db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_promo_once ON promo_redemptions(user_id, code)")
+    ]);
+    ledgerIndexesReady = true;
+  } catch (e) {
+    console.error("ledger index", e?.message || e);
+  }
+}
+__name(ensureLedgerIndexes, "ensureLedgerIndexes");
+// A refunded or disputed pack takes its rounds back (once), keyed by the payment intent.
+async function handleChargeRefunded(env, charge) {
+  const pi = typeof charge.payment_intent === "string" ? charge.payment_intent : charge.payment_intent?.id ?? null;
+  if (!pi) return;
+  const row = await env.DB.prepare("SELECT user_id, delta FROM credit_ledger WHERE stripe_payment_id = ? AND delta > 0").bind(pi).first();
+  if (!row) return;
+  await ensureLedgerIndexes(env.DB);
+  await env.DB.prepare(
+    "INSERT OR IGNORE INTO credit_ledger (user_id, delta, reason, stripe_payment_id, created_at) VALUES (?, ?, 'refund', ?, ?)"
+  ).bind(row.user_id, -Number(row.delta), `${pi}:refund`, nowIso()).run();
+}
+__name(handleChargeRefunded, "handleChargeRefunded");
 async function handleEvent(env, event) {
   const data = event.data?.object ?? {};
   switch (event.type) {
+    case "charge.refunded":
+    case "charge.dispute.created":
+      await handleChargeRefunded(env, data.object === "dispute" ? { payment_intent: data.payment_intent } : data);
+      break;
     case "checkout.session.completed":
       await handleCheckoutSessionCompleted(env, data);
       break;
@@ -5993,7 +6142,9 @@ webhookRouter.post("/api/webhooks/stripe", async (c) => {
   try {
     await handleEvent(c.env, event);
   } catch (err) {
+    // Return 500 so Stripe retries: a transient D1 failure must not silently eat a purchase.
     console.error("webhook handler error", event.type, err);
+    return c.json({ error: "handler_failed" }, 500);
   }
   return c.json({ received: true });
 });
@@ -6291,8 +6442,12 @@ async function ensureAvatarTables(db) {
   if (avatarTablesReady) return;
   await db.batch([
     db.prepare("CREATE TABLE IF NOT EXISTS avatar_usage (user_id TEXT NOT NULL, month TEXT NOT NULL, seconds INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user_id, month))"),
-    db.prepare("CREATE TABLE IF NOT EXISTS avatar_sessions (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, debate_id TEXT, started_at TEXT NOT NULL, last_beat_at TEXT NOT NULL, ended_at TEXT)")
+    db.prepare("CREATE TABLE IF NOT EXISTS avatar_sessions (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, debate_id TEXT, started_at TEXT NOT NULL, last_beat_at TEXT NOT NULL, ended_at TEXT, max_seconds INTEGER)")
   ]);
+  try {
+    await db.prepare("ALTER TABLE avatar_sessions ADD COLUMN max_seconds INTEGER").run();
+  } catch {
+  }
   avatarTablesReady = true;
 }
 __name(ensureAvatarTables, "ensureAvatarTables");
@@ -6467,18 +6622,39 @@ avatarRouter.post("/session", async (c) => {
   }
   await ensureAvatarTables(c.env.DB);
   const now = nowIso();
-  await c.env.DB.prepare("INSERT OR REPLACE INTO avatar_sessions (id, user_id, debate_id, started_at, last_beat_at) VALUES (?, ?, ?, ?, ?)").bind(String(sessionId || newId()), user.id, debate.id, now, now).run();
-  return c.json({ sessionToken: token, sessionId, apiUrl: avatarApiUrl(c.env), maxSeconds, remainingSeconds: st.remainingSeconds, start });
+  // Billing is server-side and can't be skipped by a client that never sends heartbeats:
+  // the whole session allowance is charged now and the unused part is refunded on /end.
+  // One open session per user: settle any previous one first.
+  const open = await c.env.DB.prepare("SELECT id FROM avatar_sessions WHERE user_id = ? AND ended_at IS NULL").bind(user.id).all();
+  for (const row of open.results ?? []) await meterAvatarSession(c, user, row.id, true);
+  await c.env.DB.batch([
+    c.env.DB.prepare("INSERT OR REPLACE INTO avatar_sessions (id, user_id, debate_id, started_at, last_beat_at, max_seconds) VALUES (?, ?, ?, ?, ?, ?)").bind(String(sessionId || newId()), user.id, debate.id, now, now, maxSeconds),
+    c.env.DB.prepare("INSERT INTO avatar_usage (user_id, month, seconds) VALUES (?, ?, ?) ON CONFLICT(user_id, month) DO UPDATE SET seconds = seconds + excluded.seconds").bind(user.id, currentMonth(), maxSeconds)
+  ]);
+  return c.json({ sessionToken: token, sessionId, apiUrl: avatarApiUrl(c.env), maxSeconds, remainingSeconds: Math.max(0, st.remainingSeconds - maxSeconds), start });
 });
 async function meterAvatarSession(c, user, sessionId, end) {
   await ensureAvatarTables(c.env.DB);
-  const row = await c.env.DB.prepare("SELECT last_beat_at, ended_at FROM avatar_sessions WHERE id = ? AND user_id = ?").bind(sessionId, user.id).first();
+  const row = await c.env.DB.prepare("SELECT started_at, last_beat_at, ended_at, max_seconds FROM avatar_sessions WHERE id = ? AND user_id = ?").bind(sessionId, user.id).first();
   if (!row || row.ended_at) return 0;
   const now = Date.now();
-  // Count real elapsed time, but never more than 45s per beat (a sleeping laptop
-  // shouldn't bill hours; LiveAvatar also enforces max_session_duration).
-  const secs = Math.max(0, Math.min(45, Math.round((now - Date.parse(row.last_beat_at)) / 1e3)));
   const iso = new Date(now).toISOString();
+  if (row.max_seconds != null) {
+    // Pre-charged at start. On end, refund what wasn't used (elapsed wall-clock, capped).
+    if (!end) {
+      await c.env.DB.prepare("UPDATE avatar_sessions SET last_beat_at = ? WHERE id = ?").bind(iso, sessionId).run();
+      return 0;
+    }
+    const elapsed = Math.max(0, Math.min(Number(row.max_seconds), Math.round((now - Date.parse(row.started_at)) / 1e3)));
+    const refund = Math.max(0, Number(row.max_seconds) - elapsed);
+    await c.env.DB.batch([
+      c.env.DB.prepare("UPDATE avatar_sessions SET last_beat_at = ?, ended_at = ? WHERE id = ?").bind(iso, iso, sessionId),
+      c.env.DB.prepare("INSERT INTO avatar_usage (user_id, month, seconds) VALUES (?, ?, 0) ON CONFLICT(user_id, month) DO UPDATE SET seconds = MAX(0, seconds - ?)").bind(user.id, currentMonth(), refund)
+    ]);
+    return elapsed;
+  }
+  // Legacy rows (before pre-charging): count real elapsed time, never more than 45s per beat.
+  const secs = Math.max(0, Math.min(45, Math.round((now - Date.parse(row.last_beat_at)) / 1e3)));
   await c.env.DB.batch([
     c.env.DB.prepare(end ? "UPDATE avatar_sessions SET last_beat_at = ?, ended_at = ? WHERE id = ?" : "UPDATE avatar_sessions SET last_beat_at = ? WHERE id = ?").bind(...end ? [iso, iso, sessionId] : [iso, sessionId]),
     c.env.DB.prepare("INSERT INTO avatar_usage (user_id, month, seconds) VALUES (?, ?, ?) ON CONFLICT(user_id, month) DO UPDATE SET seconds = seconds + excluded.seconds").bind(user.id, currentMonth(), secs)
@@ -6544,6 +6720,13 @@ var app = new Hono2();
 app.onError((err, c) => {
   console.error("Unhandled error:", err);
   return c.json({ error: "internal_error" }, 500);
+});
+app.use("*", async (c, next) => {
+  await next();
+  c.header("X-Content-Type-Options", "nosniff");
+  c.header("Referrer-Policy", "strict-origin-when-cross-origin");
+  c.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  if (!c.req.path.startsWith("/api/")) c.header("X-Frame-Options", "SAMEORIGIN");
 });
 app.get("/health", (c) => c.json({ ok: true }));
 app.get("/app", (c) => c.redirect("/app/", 301));

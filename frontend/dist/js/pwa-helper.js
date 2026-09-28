@@ -125,10 +125,22 @@
   });
 
   // B. iOS Safari "Add to Home Screen" Instruction Modal
-  var dismissedIOS = sessionStorage.getItem('pwa-ios-dismissed');
-  if (isSafari && !dismissedIOS) {
+  // Only nudge people who have finished a session, only on the home/history pages, and only
+  // once per device — never over the login form or the debate composer.
+  var dismissedIOS = null;
+  var finishedOne = false;
+  try {
+    dismissedIOS = localStorage.getItem('pwa-ios-dismissed');
+    finishedOne = localStorage.getItem('aai_sessions_done') === '1';
+  } catch (e) {}
+  var onCalmPage = function () {
+    var h = location.hash || '#/';
+    return location.pathname.indexOf('/app') === 0 && (h === '#/' || h === '' || h.indexOf('#/history') === 0);
+  };
+  if (isSafari && !dismissedIOS && finishedOne) {
     // Delay prompt slightly so user gets oriented
     window.setTimeout(function () {
+      if (!onCalmPage()) return;
       if (document.getElementById('pwa-install-container')) return;
       var container = createInstallUI();
       if (!container) return;
@@ -158,7 +170,7 @@
       var closeBtn = document.getElementById('pwa-ios-close');
       if (closeBtn) {
         closeBtn.addEventListener('click', function () {
-          sessionStorage.setItem('pwa-ios-dismissed', '1');
+          try { localStorage.setItem('pwa-ios-dismissed', '1'); } catch (e) {}
           container.remove();
         });
       }

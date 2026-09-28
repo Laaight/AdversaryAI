@@ -698,5 +698,9 @@ export function createStreamingSpeaker({ voiceCfg, onFallback, transform = (x) =
     get failed() {
       return failed;
     },
+    /** True while sentences are still being synthesized/queued (audio not all scheduled yet). */
+    pending() {
+      return !cancelled && !failed && (pumping || queue.length > 0 || (!finished && buffer.trim().length > 0));
+    },
   };
 }

@@ -218,14 +218,14 @@ function sd() {
     i.setAttribute("role", "alert"),
     (i.innerHTML = `
     <div class="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-500/15 border border-accent-600/40 text-accent-400" aria-hidden="true">${td}</div>
-    <h2 class="text-display-md text-white mb-2">You're out of sessions</h2>
+    <h2 class="text-display-md text-white mb-2">You're out of rounds</h2>
     <p class="text-body-sm text-slate-400 mb-7">
-      Your free rounds are used up. Upgrade your plan or grab a one-time pack
-      to keep practicing — credits roll over and never expire.
+      You've used all the rounds in your wallet for now. Pick a plan or grab a one-time pack
+      to keep practicing — pack credits never expire, and unused plan rounds roll over.
     </p>
     <div class="flex flex-col sm:flex-row gap-3 justify-center">
-      <a href="#/account" class="btn-primary">View plans</a>
-      <a href="#/account" class="btn-ghost">Buy a pack</a>
+      <a href="#/account?plans=1" class="btn-primary">View plans</a>
+      <a href="#/account?plans=1&packs=1" class="btn-ghost">Buy a pack</a>
     </div>`),
     i
   );
@@ -247,11 +247,12 @@ function rd(i, e, t, n) {
         <input id="auth-email" type="email" required autocomplete="email" placeholder="you@example.com"
           class="field mb-4" />
         <label class="block text-body-sm font-medium text-slate-300 mb-1.5" for="auth-password">Password</label>
-        <input id="auth-password" type="password" required autocomplete="current-password" minlength="8" placeholder="Minimum 8 characters"
+        <input id="auth-password" type="password" required autocomplete="${t === "/signup" ? "new-password" : "current-password"}" minlength="8" placeholder="Minimum 8 characters"
           class="field mb-6" />
         <button type="submit" class="btn-primary w-full py-3">
           ${i}
         </button>
+        ${t === "/signup" ? `<p class="mt-4 text-center text-xs leading-relaxed text-slate-500">By creating an account you agree to our <a href="/terms.html" target="_blank" rel="noopener" class="link">Terms</a> and <a href="/privacy.html" target="_blank" rel="noopener" class="link">Privacy Policy</a>, and confirm you are 13 or older (or a school-enrolled student). Your practice sessions are recorded as text so you can review them; audio isn’t stored.</p>` : ""}
       </form>
     </div>
     <p class="text-center text-body-sm text-slate-500 mt-6">
@@ -277,6 +278,11 @@ function Rc(i, e, t) {
 function ad() {
   return vr("fixed top-4 right-4 z-30 border border-ink-700 bg-ink-900/80 backdrop-blur");
 }
+function track(event, data) {
+  try {
+    window.adversaryTrack?.(event, data || {});
+  } catch {}
+}
 async function od(i, e, t) {
   const n = i.querySelector("#auth-email").value.trim(),
     s = i.querySelector("#auth-password").value,
@@ -292,9 +298,13 @@ async function od(i, e, t) {
   }
   Rc(r, !0, a);
   try {
-    await zt(t, { email: n, password: s });
+    await zt(t, { email: n, password: s, attribution: window.adversaryAttribution?.() || null });
     const o = await Ut("/api/auth/me");
-    (ua(o), (location.hash = "#/"));
+    if (t === "/api/auth/signup") track("sign_up", { method: "email" });
+    ua(o);
+    // Honor ?next= (e.g. a mode tile on the landing page) so the visitor lands where they wanted.
+    const nxt = new URLSearchParams(location.hash.split("?")[1] || "").get("next");
+    location.hash = nxt && /^#?\/[\w\-\/?=&%.]*$/.test(nxt) ? (nxt.startsWith("#") ? nxt : "#" + nxt) : "#/";
   } catch (o) {
     const c = o.status;
     c === 409
@@ -1184,6 +1194,7 @@ async function Mh(i, e) {
       });
       const res = state.first === "cointoss" ? await showCoinTossModal(startP, label) : await startP;
       const id = res.debateId;
+      track("session_start", { mode: s.id });
       bh(id, {
         modeId: s.id,
         modeName: s.name,
@@ -25293,14 +25304,23 @@ function ix(root, debateId, t, data) {
     quotaSlot = $("#quota-slot"),
     bannerSlot = $("#banner-slot");
 
-  const avatar = createDebateAvatar($("#avatar-canvas"), {
-    figureId: t.figureId,
-    personaVisual: t.personaVisual,
-    onError: () => {
-      const l = $("#avatar-loading");
-      l && (l.innerHTML = "Avatar unavailable — voice and text still work.");
-    },
-  });
+  let avatar;
+  try {
+    avatar = createDebateAvatar($("#avatar-canvas"), {
+      figureId: t.figureId,
+      personaVisual: t.personaVisual,
+      onError: () => {
+        const l = $("#avatar-loading");
+        l && (l.innerHTML = "Avatar unavailable — voice and text still work.");
+      },
+    });
+  } catch (e) {
+    // No WebGL (Lockdown Mode, blocklisted GPU, some managed laptops): the session must still work.
+    console.warn("[avatar] unavailable:", e?.message || e);
+    avatar = { dispose() {} };
+    const l = $("#avatar-loading");
+    l && (l.innerHTML = "Avatar unavailable on this device — voice and text still work.");
+  }
   $("#avatar-canvas").addEventListener("avatar-ready", () => $("#avatar-loading")?.classList.add("hidden"), { once: true });
   loadSpeechSdk(); // warm the TTS SDK while the user reads/types
 
@@ -25369,6 +25389,8 @@ function ix(root, debateId, t, data) {
     if (!alive || !me?.photoreal) return dropPhoto(), openPhotoGate();
     // Historical figures always use their own portrait — no video, no loading screen, no upsell.
     if (t.figureId) return dropPhoto(), openPhotoGate();
+    // A finished session never opens video: just the model, no "connecting" poster.
+    if (ended) return dropPhoto(), openPhotoGate();
     // Owner: switch between the video opponent and the 3D model at any time (remembered on this device).
     if (me.isOwner) {
       const KEY = "aai_owner_view";
@@ -25459,6 +25481,7 @@ function ix(root, debateId, t, data) {
   let alive = true;
   let ended = !!t.ended;
   let closingRequested = false;
+  let quotaOut = false;
   let abortCtl = null;
   let speaker = null;
   let turnGen = 0;
@@ -25612,7 +25635,8 @@ function ix(root, debateId, t, data) {
     }
     stopBtn.disabled = !speaking;
     replayBtn.disabled = speaking || busy || !voice.hasReplay();
-    sendBtn.disabled = busy || ended;
+    sendBtn.disabled = busy || ended || quotaOut;
+    endBtn.disabled = busy && !ended;
   }
   function autosize() {
     input.style.height = "auto";
@@ -25663,7 +25687,7 @@ function ix(root, debateId, t, data) {
   // ---------------------------------------------------------------- one turn
   async function send({ open = false, closing = false } = {}) {
     const text = input.value.trim();
-    if (busy || ended || (!open && !text)) return;
+    if (busy || ended || quotaOut || (!open && !text)) return;
     voice.unlock();
     abortListening();
     photo?.touch();
@@ -25785,9 +25809,13 @@ function ix(root, debateId, t, data) {
         } catch {}
         typing.remove();
         if (res.status === 402) {
+          // Out of rounds: no more turns, but the session can still be graded.
+          quotaOut = true;
           quotaSlot.replaceChildren(sd());
-          ended = true;
           input.disabled = true;
+          micBtn.disabled = true;
+          clearTimeout(autoListenT);
+          note("You’re out of rounds — tap End & grade to get your scorecard for this session.");
         } else if (j.error === "debate_ended") {
           ended = true;
           note("This session has already been scored.");
@@ -25941,10 +25969,12 @@ function ix(root, debateId, t, data) {
   function abortListening() {
     if (!rec) return;
     rec.onresult = null; // a late final result must not refill the box we just sent
+    suppressSend = true; // and the resulting `end` must not auto-send (hands-free)
     try {
       rec.abort();
     } catch {}
   }
+  let suppressSend = false;
   // Hands-free: the mic switches on by itself when it's your turn (never while the opponent
   // talks, so it can't transcribe itself) and sends when you pause. Remembered per device;
   // it turns itself on the first time someone uses the mic.
@@ -26012,8 +26042,10 @@ function ix(root, debateId, t, data) {
       // Phones (Android Chrome, iOS Safari) end recognition by themselves when you stop
       // talking, which cancels the pause timer — so in hands-free, ending = send.
       const said = input.value.trim();
+      const skip = suppressSend;
+      suppressSend = false;
       done();
-      if (handsFree && said && !busy && alive && !ended) send();
+      if (!skip && handsFree && said && !busy && alive && !ended && !quotaOut) send();
     };
     rec.onerror = (e) => {
       const c = e?.error || "";
@@ -26047,11 +26079,14 @@ function ix(root, debateId, t, data) {
   var autoListenT = 0;
   function maybeAutoListen() {
     clearTimeout(autoListenT);
-    if (!SR || !handsFree || !alive || ended || busy || listening) return;
+    if (!SR || !handsFree || !alive || ended || quotaOut || busy || listening) return;
     // Give the last word time to finish playing (longer for the video stream, which lags).
     const wait = stage?.classList.contains("photoreal-live") ? 900 : 450;
     autoListenT = setTimeout(() => {
-      if (!handsFree || !alive || ended || busy || listening || voice.state === "speaking" || closingRequested) return;
+      if (!handsFree || !alive || ended || quotaOut || busy || listening || closingRequested) return;
+      // Short replies are synthesized after the stream ends: if audio is still pending or
+      // playing, wait for the voice engine's next "idle" instead of listening now.
+      if (voice.state === "speaking" || (speaker && speaker.pending?.())) return;
       if (scriptLines && userTurns >= scriptLines.length) return; // end of the script
       startListening(true);
     }, wait);
@@ -26097,7 +26132,29 @@ function ix(root, debateId, t, data) {
   refreshRound();
   refreshStatus();
   showTargetBanner();
-  if (!ended && (data.turns ?? []).length === 0 && t.resolvedFirstSpeaker === "opponent") photoGate.then(() => alive && send({ open: true }));
+  if (!ended && (data.turns ?? []).length === 0 && t.resolvedFirstSpeaker === "opponent") {
+    // The opponent opens. On iOS/Safari, audio can't start without a tap when the page was
+    // opened by URL/reload — so ask for one instead of hanging in "Speaking".
+    const ctxState = (() => {
+      try {
+        return voice.ensureContext().state;
+      } catch {
+        return "running";
+      }
+    })();
+    if (ctxState !== "running") {
+      const ov = document.createElement("button");
+      ov.type = "button";
+      ov.className = "absolute inset-0 z-[3] flex items-center justify-center bg-black/55 text-white";
+      ov.innerHTML = '<span class="rounded-full border border-white/20 bg-black/60 px-5 py-3 text-sm font-semibold backdrop-blur">▶ Tap to hear your opponent</span>';
+      stage.appendChild(ov);
+      ov.addEventListener("click", () => {
+        voice.unlock();
+        ov.remove();
+        photoGate.then(() => alive && send({ open: true }));
+      }, { once: true });
+    } else photoGate.then(() => alive && send({ open: true }));
+  }
   else if (!ended) maybeAutoListen(); // hands-free: your turn on arrival → start listening
   else if (!ended && window.matchMedia("(pointer: fine)").matches) input.focus();
 }
@@ -26115,6 +26172,10 @@ function $u(i, e, t = 10) {
     </div>`;
 }
 function sx(i, e, t, n, s, r) {
+  try {
+    localStorage.setItem("aai_sessions_done", "1"); // lets the install nudge wait until after a first scorecard
+  } catch {}
+  track("session_complete", { mode: t?.modeId });
   const a = r?.dimensions ?? [];
   const scored = a.filter((d) => d.score != null);
   e?.dispose?.();
@@ -26493,6 +26554,26 @@ async function qu(i) {
     r = t.usage.quota > 0 ? Math.min(100, (t.usage.debates_used / t.usage.quota) * 100) : 0,
     a = t.subscription;
   e.innerHTML = "";
+  // Back from Stripe: thank them, and report the conversion once.
+  const qs = new URLSearchParams(location.hash.split("?")[1] ?? "");
+  if (qs.get("checkout") === "success") {
+    const ok = document.createElement("div");
+    ok.className = "mb-6 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-200";
+    ok.textContent = "✓ Payment received — your account is updated. Thank you!";
+    e.appendChild(ok);
+    try {
+      const k = "aai_purchase_" + (a?.stripe_subscription_id || a?.tier || "pack") + "_" + new Date().toISOString().slice(0, 10);
+      if (!sessionStorage.getItem(k)) {
+        sessionStorage.setItem(k, "1");
+        track("purchase", { plan: a?.tier || "pack", attribution: window.adversaryAttribution?.() || null });
+      }
+    } catch {}
+  } else if (qs.get("checkout") === "cancelled") {
+    const nb = document.createElement("div");
+    nb.className = "mb-6 rounded-2xl border border-ink-700 bg-ink-800/60 p-4 text-sm text-slate-300";
+    nb.textContent = "Checkout cancelled — nothing was charged.";
+    e.appendChild(nb);
+  }
   const o = document.createElement("div");
   ((o.className = "mb-8"),
     (o.innerHTML = `
@@ -26552,9 +26633,9 @@ async function qu(i) {
         </div>
         ${t.isLifetime ? '<span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300">👑 Lifetime VIP Active</span>' : ""}
       </div>
-      <p class="text-slate-400 text-body-sm mb-4">Enter your Friends &amp; Family code for free lifetime Champion access or bonus sparring rounds.</p>
+      <p class="text-slate-400 text-body-sm mb-4">Got a code from a promotion, a school, or a friend? Redeem it here for bonus rounds.</p>
       <form id="promo-redeem-form" class="flex flex-wrap gap-2 max-w-md">
-        <input type="text" id="promo-code-input" placeholder="e.g. FAMILYVIP" class="field flex-1 uppercase tracking-wider font-mono text-sm px-4 py-2.5 rounded-xl bg-ink-900 border border-ink-700 text-white focus:outline-none focus:border-accent-400" />
+        <input type="text" id="promo-code-input" placeholder="Enter code" class="field flex-1 uppercase tracking-wider font-mono text-sm px-4 py-2.5 rounded-xl bg-ink-900 border border-ink-700 text-white focus:outline-none focus:border-accent-400" />
         <button type="submit" id="promo-redeem-btn" class="btn-primary px-5 py-2.5 rounded-xl font-semibold text-sm">Redeem</button>
       </form>
       <div id="promo-feedback" class="hidden mt-3 text-sm p-3 rounded-xl"></div>`;
@@ -26777,9 +26858,9 @@ async function qu(i) {
   const curTier = a && /active|trialing/.test(a.status || "") ? a.tier : null;
   const photoLine = photorealLive ? "Photoreal video opponents — 150 min/month" : "Photoreal video opponents (rolling out)";
   const TIER_FEATURES = {
-    debater: ["300 rounds / month", "All 11 practice modes", "Voiced 3D opponents with real lip-sync", "Scorecards + impartial judge verdicts", "Unused credits roll over"],
-    coach: ["1,000 rounds / month", "Everything in Debater", "Best for weekly practice & interview season", "Unused credits roll over"],
-    champion: ["1,000 rounds / month", photoLine, "Strongest reasoning model — sharper opponents, deeper judge feedback", "Priority speed", "Everything in Coach"],
+    debater: ["300 rounds / month", "All 11 practice modes", "Voiced 3D opponents with real lip-sync", "Scorecards + impartial judge verdicts", "Unused rounds roll over"],
+    coach: ["1,000 rounds / month — 3× Debater", "Everything in Debater", "Best for daily practice, interview season & debate teams", "Unused rounds roll over"],
+    champion: ["1,000 rounds / month", photoLine, "Strongest reasoning model — sharper opponents, deeper judge feedback", "Everything in Coach"],
   };
   const p = document.createElement("section");
   p.id = "plans";
@@ -26811,7 +26892,7 @@ async function qu(i) {
           <tr><td class="py-2.5 pr-4 text-slate-400">Opponent on screen</td><td>3D, lip-synced</td><td>3D, lip-synced</td><td class="font-semibold text-white">Photoreal video${photorealLive ? " (150 min)" : " (rolling out)"}</td></tr>
           <tr><td class="py-2.5 pr-4 text-slate-400">Reasoning model</td><td>Standard</td><td>Standard</td><td class="font-semibold text-white">Pro</td></tr>
           <tr><td class="py-2.5 pr-4 text-slate-400">Judge & coach feedback</td><td>✓</td><td>✓</td><td class="font-semibold text-white">✓ Pro-level detail</td></tr>
-          <tr><td class="py-2.5 pr-4 text-slate-400">All 11 modes · rollover</td><td>✓</td><td>✓</td><td>✓</td></tr>
+          <tr><td class="py-2.5 pr-4 text-slate-400">All 11 modes · unused rounds roll over</td><td>✓</td><td>✓</td><td>✓</td></tr>
         </tbody></table></div>
     </details>`;
   e.appendChild(p);
@@ -26828,10 +26909,21 @@ async function qu(i) {
     const A = T.textContent;
     T.innerHTML = '<span class="spinner" aria-hidden="true"></span><span>Redirecting…</span>';
     try {
+      track("begin_checkout", { kind: x, item: R });
       const { url: L } = await zt("/api/billing/checkout", { kind: x, item: R });
       window.location.href = L;
-    } catch {
-      ((T.disabled = !1), (T.textContent = A ?? ""), alert("Could not start checkout. Please try again."));
+    } catch (err) {
+      T.disabled = !1;
+      T.textContent = A ?? "";
+      if (err instanceof Bt && err.status === 409) {
+        // Already subscribed: plan changes go through the Stripe portal (prorated, one subscription).
+        try {
+          const { url: pu } = await zt("/api/billing/portal");
+          window.location.href = pu;
+          return;
+        } catch {}
+      }
+      alert("Could not start checkout. Please try again.");
     }
   }
   for (const x of n.tiers) {
@@ -26870,6 +26962,29 @@ async function qu(i) {
   n.packs.length === 0 &&
     (m.innerHTML = '<p class="text-body-sm text-slate-500 col-span-full">No round packs are available right now.</p>');
   e.appendChild(l); // schools section after plans & packs
+  // Privacy: delete everything (password confirmation; cancels any subscription at period end).
+  const dz = document.createElement("section");
+  dz.className = "mb-10";
+  dz.innerHTML = `<h2 class="font-display text-display-md text-white mb-1">Delete account</h2>
+    <p class="text-slate-400 text-body-sm mb-4">Permanently deletes your account, sessions and scores. Any subscription is cancelled at the end of its billing period. This can’t be undone.</p>
+    <button type="button" class="btn-danger btn-sm" data-delete-account>Delete my account…</button>`;
+  e.appendChild(dz);
+  dz.querySelector("[data-delete-account]").addEventListener("click", async () => {
+    const ok = await uiModal({ title: "Delete your account?", body: "All your sessions, scores and history will be erased. This cannot be undone.", actions: [{ label: "Delete everything", kind: "danger", value: true }, { label: "Keep my account", value: false }] });
+    if (!ok) return;
+    const pw = prompt("Enter your password to confirm:");
+    if (!pw) return;
+    try {
+      await zt("/api/auth/delete-account", { password: pw });
+      try {
+        localStorage.clear();
+      } catch {}
+      location.hash = "#/signup";
+      location.reload();
+    } catch (err) {
+      alert(err instanceof Bt && err.status === 401 ? "That password didn’t match." : "Couldn’t delete the account — please email support@getadversaryai.com.");
+    }
+  });
   const S = e.querySelector("#portal-btn");
   S &&
     S.addEventListener("click", async () => {
@@ -27320,7 +27435,7 @@ function fx(i) {
     e.querySelector("#theme-toggle-slot").appendChild(vr()),
     e.querySelector("#theme-toggle-slot-mobile").appendChild(vr()));
   (function () {
-    const isAdm = i && (i.email === "matthewmhuston@gmail.com" || i.isOwner || i.plan === "owner");
+    const isAdm = i && (i.isOwner || i.plan === "owner");
     if (!isAdm) return;
     function mk(mob) {
       const b = document.createElement("button");
@@ -27967,7 +28082,8 @@ async function Yu() {
   }
   if (e === "/login" || e === "/signup") {
     if (n) {
-      location.hash = "#/";
+      const nxt = new URLSearchParams(i.split("?")[1] || "").get("next");
+      location.hash = nxt && /^\/[\w\-\/?=&%.]*$/.test(nxt) ? "#" + nxt : "#/";
       return;
     }
     const d = document.createElement("div");
@@ -27975,7 +28091,9 @@ async function Yu() {
     return;
   }
   if (!n) {
-    location.hash = "#/login";
+    // Guests go to sign-up (not login) and come back to where they were heading (e.g. a mode).
+    const wanted = i !== "/" ? i : "";
+    location.hash = wanted ? `#/signup?next=${encodeURIComponent(wanted)}` : "#/signup";
     return;
   }
   if (e === "/debate") {
@@ -28010,7 +28128,11 @@ async function Yu() {
   }
 }
 window.addEventListener("hashchange", () => {
-  Yu().catch((i) => console.error("route failed", i));
+  Yu().catch((i) => {
+    console.error("route failed", i);
+    Yi.innerHTML = "";
+    Yi.appendChild(id("Couldn’t load that page. Check your connection and try again.", () => Yu().catch(() => {})));
+  });
 });
 Yu().catch((i) => {
   (console.error("initial route failed", i),

@@ -9,10 +9,10 @@ const PRICING = {
     name: 'Trial',
     price: 0,
     per: '',
-    headline: '3 full sessions, free',
+    headline: '15 sparring rounds, free',
     cta: 'Start free',
     features: [
-      '3 sessions on us',
+      '15 rounds on us',
       'All 11 practice modes',
       'Voice or text sessions',
       'No credit card to start'
@@ -24,12 +24,13 @@ const PRICING = {
       price: 12,
       per: '/mo',
       headline: '300 sparring rounds per month',
-      cta: 'Start free trial',
+      cta: 'Start free, upgrade in-app',
       features: [
         '300 sparring rounds per month',
         'All 11 practice modes',
         'Voiced 3D opponents with real lip-sync',
-        'Scorecards + impartial judge verdicts'
+        'Scorecards + impartial judge verdicts',
+        'Unused rounds roll over'
       ]
     },
     {
@@ -38,11 +39,11 @@ const PRICING = {
       per: '/mo',
       headline: '1,000 sparring rounds per month',
       badge: 'Most popular',
-      cta: 'Start free trial',
+      cta: 'Start free, upgrade in-app',
       features: [
-        '1,000 sparring rounds per month',
+        '1,000 sparring rounds per month — 3× Debater',
         'Everything in Debater',
-        'Built for weekly practice & interview season',
+        'Built for daily practice, interview season & debate teams',
         'Unused rounds roll over'
       ]
     },
@@ -51,12 +52,12 @@ const PRICING = {
       price: 49,
       per: '/mo',
       headline: 'Photoreal video opponents',
-      cta: 'Start free trial',
+      cta: 'Start free, upgrade in-app',
       features: [
         'Photoreal video opponents (rolling out)',
         'Strongest reasoning model: sharper opponents, deeper feedback',
         '1,000 sparring rounds per month',
-        'Priority speed'
+        'Everything in Coach'
       ]
     }
   ],
@@ -65,7 +66,7 @@ const PRICING = {
     { credits: 250, price: 19 },
     { credits: 600, price: 39 }
   ],
-  packsNote: 'One-time purchase. Credits roll over and never expire.'
+  packsNote: 'One-time purchase. Pack credits never expire.'
 };
 
 const SIGNUP_URL = '/app/#/signup';
@@ -118,12 +119,13 @@ function adaptLivePrices(data) {
       price: getPrice(debater, 12),
       per: '/mo',
       headline: getRounds(debater, 300).toLocaleString() + ' sparring rounds per month',
-      cta: 'Start free trial',
+      cta: 'Start free, upgrade in-app',
       features: [
         getRounds(debater, 300).toLocaleString() + ' sparring rounds per month',
         'All 11 practice modes',
         'Voiced 3D opponents with real lip-sync',
-        'Scorecards + impartial judge verdicts'
+        'Scorecards + impartial judge verdicts',
+        'Unused rounds roll over'
       ]
     },
     {
@@ -132,11 +134,11 @@ function adaptLivePrices(data) {
       per: '/mo',
       headline: getRounds(coach, 1000).toLocaleString() + ' sparring rounds per month',
       badge: 'Most popular',
-      cta: 'Start free trial',
+      cta: 'Start free, upgrade in-app',
       features: [
-        getRounds(coach, 1000).toLocaleString() + ' sparring rounds per month',
+        getRounds(coach, 1000).toLocaleString() + ' sparring rounds per month — 3× Debater',
         'Everything in Debater',
-        'Built for weekly practice & interview season',
+        'Built for daily practice, interview season & debate teams',
         'Unused rounds roll over'
       ]
     },
@@ -146,12 +148,12 @@ function adaptLivePrices(data) {
       per: '/mo',
       headline: 'Photoreal video opponents',
       badge: 'Best experience',
-      cta: 'Start free trial',
+      cta: 'Start free, upgrade in-app',
       features: [
         champion.photoreal ? 'Photoreal video opponents — ' + (champion.photorealMinutes || 150) + ' min/month' : 'Photoreal video opponents (rolling out)',
         'Strongest reasoning model: sharper opponents, deeper feedback',
         getRounds(champion, 1000).toLocaleString() + ' sparring rounds per month',
-        'Priority speed'
+        'Everything in Coach'
       ]
     }
   ];
@@ -172,12 +174,12 @@ function loadLivePricing() {
 
 /* ================= PRACTICE MODES ================= */
 const MODES_FALLBACK = [
-  { id: 'debate', name: 'Debate Sparring', icon: '⚔️', blurb: 'Classic argument combat. Pick a motion, argue your case, get scored like an athlete.' },
+  { id: 'debate', name: 'Debate', icon: '⚔️', blurb: 'Classic argument combat. Pick a motion, argue your case, get scored like an athlete.' },
   { id: 'historical', name: 'Historical Figures', icon: '🏛️', blurb: 'Argue with the great minds of history — challenge their ideas, defend your own.' },
-  { id: 'acting', name: 'Acting Partner', icon: '🎭', blurb: 'Run lines and scenes with a partner who never misses a cue.' },
-  { id: 'interview', name: 'Job Interview', icon: '💼', blurb: 'Practice tough interview questions with instant feedback on every answer.' },
+  { id: 'acting', name: 'Acting Coach', icon: '🎭', blurb: 'Run lines and scenes with a partner who never misses a cue.' },
+  { id: 'interview', name: 'Interview Prep', icon: '💼', blurb: 'Practice tough interview questions with instant feedback on every answer.' },
   { id: 'negotiation', name: 'Negotiation', icon: '🤝', blurb: 'Hone your deal-making against a counterpart who plays hardball.' },
-  { id: 'sales', name: 'Sales Objections', icon: '📈', blurb: 'Handle every objection — price, timing, competition — until they melt away.' },
+  { id: 'sales', name: 'Sales Roleplay', icon: '📈', blurb: 'Handle every objection — price, timing, competition — until they melt away.' },
   { id: 'difficult', name: 'Difficult Conversations', icon: '💬', blurb: 'Rehearse the hard talks: feedback, conflict, bad news — safely.' },
   { id: 'rapbattle', name: 'Rap Battle', icon: '🎤', blurb: 'Trade bars against a battle MC with flow, wordplay, and rebuttals.' },
   { id: 'witness', name: 'Evangelism Training', icon: '✝️', blurb: 'Rehearse sharing the gospel with a realistic counterpart — curious, skeptical, or hurting.' },
@@ -244,7 +246,7 @@ function renderModes(modes) {
   grid.innerHTML = modes.map(function (m, i) {
     const idx = String(i + 1).padStart(2, '0');
     return '' +
-      '<a class="mode reveal" href="/app/#/setup/' + escHtml(m.id) + '">' +
+      '<a class="mode reveal" href="/app/#/signup?next=' + encodeURIComponent('/setup/' + m.id) + '" data-mode="' + escHtml(m.id) + '">' +
       '<div class="mode-img mode-tile" style="background:' + tileGradient(m.id) + '">' +
       '<span class="mode-tile-icon" aria-hidden="true">' + (m.icon || '') + '</span>' +
       '<span class="mode-idx">' + idx + '</span></div>' +
@@ -530,7 +532,7 @@ function buildScene(THREE, createHumanAvatar, GLTFLoader, RoomEnvironment, canva
     }
     mouthToSilence();
     createHumanAvatar(THREE, GLTFLoader, modelUrl,
-        { faceYawDeg: parseFloat(new URLSearchParams(location.search).get('ry') || '0') })
+        { faceYawDeg: 0 })
       .then(function (h) {
         if (ticket.cancelled) {
           try { if (typeof h.dispose === 'function') h.dispose(); } catch (e) { /* noop */ }
@@ -546,8 +548,7 @@ function buildScene(THREE, createHumanAvatar, GLTFLoader, RoomEnvironment, canva
         if (!ticket.cancelled && caption) caption.textContent = 'Avatar failed to load — check your connection and reload.';
       });
   }
-  loadDemoAvatar(
-    new URLSearchParams(location.search).get('avatar') || DEMO_PERSONAS[demoPersonaId].model);
+  loadDemoAvatar(DEMO_PERSONAS[demoPersonaId].model);
 
   const clock = new THREE.Clock();
 
@@ -747,12 +748,30 @@ document.addEventListener('DOMContentLoaded', function () {
 
   wireNav();
   observeReveals(document);
-  initAvatar();
+
+  /* The 3D opponent is 7-10 MB of model + three.js. Desktop: load it once the frame is near the
+     viewport. Phones / slow or metered connections: show the play button and load on tap, so
+     ad traffic doesn't pay for a download it may never scroll to. */
+  var frame = document.getElementById('avatarFrame');
+  var conn = navigator.connection || {};
+  var light = window.matchMedia('(max-width: 640px)').matches || conn.saveData || /(^|[^\d])2g/.test(conn.effectiveType || '');
+  var started = false;
+  function startAvatar() { if (started) return; started = true; initAvatar(); }
+  if (!frame) return;
+  if (light) {
+    var caption = document.getElementById('avatarCaption');
+    if (caption) caption.textContent = 'Tap to load the 3D opponent';
+    var playBtn = document.getElementById('playBtn');
+    var kick = function (ev) { ev && ev.preventDefault(); if (caption) caption.textContent = 'Loading your opponent…'; startAvatar(); };
+    if (playBtn) playBtn.addEventListener('click', kick, { once: true });
+    frame.addEventListener('click', kick, { once: true });
+  } else if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (entries) {
+      if (entries.some(function (e) { return e.isIntersecting; })) { io.disconnect(); startAvatar(); }
+    }, { rootMargin: '300px' });
+    io.observe(frame);
+  } else startAvatar();
 });
 
 /* Register the service worker (PWA installability + offline resilience). */
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', function () {
-    navigator.serviceWorker.register('/sw.js').catch(function () {});
-  });
-}
+/* Service worker registration lives in /js/pwa-helper.js. */

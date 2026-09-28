@@ -53,7 +53,7 @@
   --slate-200: 38 46 62;
   --slate-300: 58 67 85;
   --slate-400: 91 100 116;
-  --slate-500: 118 128 145;
+  --slate-500: 96 106 124;
   --slate-600: 148 157 172;
   --skeleton: 232 235 240;
   --scroll-thumb: 201 208 219;
@@ -538,3 +538,11 @@
     animation: none;
   }
 }
+
+/* Overlays on the (always-dark) avatar stage must not follow the light theme's text colors */
+.avatar-stage-wrap .badge { color: #e2e8f0; }
+.avatar-stage-wrap .badge.text-amber-200 { color: #fde68a; }
+.avatar-stage-wrap .badge.text-amber-300 { color: #fcd34d; }
+.avatar-stage-wrap .badge.text-slate-300 { color: #cbd5e1; }
+/* Hands-free switch needs a real tap target */
+#hf-btn { min-height: 40px; padding: 6px 10px; margin-left: -10px; border-radius: 10px; }
