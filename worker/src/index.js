@@ -5996,8 +5996,13 @@ avatarRouter.post("/session", async (c) => {
   const token = r.data?.data?.session_token;
   const sessionId = r.data?.data?.session_id;
   if (!r.ok || !token) {
-    console.error("LiveAvatar token failed", r.status, JSON.stringify(r.data).slice(0, 300));
-    return c.json({ error: "photoreal_unavailable" }, 502);
+    const raw = JSON.stringify(r.data ?? null).slice(0, 300);
+    console.error("LiveAvatar token failed", r.status, raw);
+    const body = { error: "photoreal_unavailable" };
+    // Owners get the real reason inline (invalid key, no credits, unknown avatar id, …)
+    // since they can't easily read Worker logs; regular users just see the generic message.
+    if (isOwnerEmail(user.email, c.env)) body.detail = `LiveAvatar ${r.status || "no response"}: ${raw}`;
+    return c.json(body, 502);
   }
   await ensureAvatarTables(c.env.DB);
   const now = nowIso();

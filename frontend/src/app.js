@@ -25168,7 +25168,13 @@ function ix(root, debateId, t, data) {
         else if (u.state === "live") setPhotoBadge(`<span class="h-1.5 w-1.5 rounded-full bg-amber-400"></span>Photoreal · ${mins(u.remainingSeconds)}`, "text-amber-200");
         else if (u.state === "needs_tap") setPhotoBadge("Tap the video to turn on sound", "text-amber-200");
         else if (u.state === "sleeping") setPhotoBadge("Photoreal paused — resumes when you reply", "text-slate-300");
-        else if (u.state === "error") setPhotoBadge(u.error === "video_minutes_exhausted" ? "Video minutes used this month" : "Photoreal unavailable — using 3D", "text-slate-300");
+        else if (u.state === "error") {
+          if (u.error === "video_minutes_exhausted") setPhotoBadge("Video minutes used this month", "text-slate-300");
+          else if (u.detail) {
+            const safe = String(u.detail).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").slice(0, 220);
+            setPhotoBadge(`Photoreal error (owner only): ${safe} — using 3D`, "text-amber-300");
+          } else setPhotoBadge("Photoreal unavailable — using 3D", "text-slate-300");
+        }
         else setPhotoBadge("");
       },
     });

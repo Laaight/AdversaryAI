@@ -86,7 +86,7 @@ export class PhotorealAvatar {
       .catch((e) => {
         console.warn("[photoreal] unavailable:", e?.message || e);
         this._teardown(false);
-        this.onStatus({ state: "error", error: e?.code || "photoreal_unavailable" });
+        this.onStatus({ state: "error", error: e?.code || "photoreal_unavailable", detail: e?.detail });
         if (e?.code === "video_minutes_exhausted" || e?.code === "champion_required") this.exhausted = true;
       })
       .finally(() => {
@@ -104,7 +104,7 @@ export class PhotorealAvatar {
       body: JSON.stringify({ debateId: this.debateId }),
     });
     const s = await r.json().catch(() => ({}));
-    if (!r.ok) throw Object.assign(new Error(s.error || "session"), { code: s.error });
+    if (!r.ok) throw Object.assign(new Error(s.error || "session"), { code: s.error, detail: s.detail });
     if (this.disposed) return;
     this.token = s.sessionToken;
     this.sessionId = s.sessionId;
