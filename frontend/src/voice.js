@@ -461,8 +461,9 @@ export async function toPcm24kBase64Chunks(buffer) {
   const rendered = await off.startRendering();
   const f = rendered.getChannelData(0);
   const chunks = [];
-  const per = rate; // 1 s
-  for (let i = 0; i < f.length; i += per) {
+  // Same framing as LiveAvatar's SDK: a 400 ms first chunk (lips start sooner), then 1 s chunks.
+  for (let i = 0; i < f.length; ) {
+    const per = i === 0 ? Math.round(rate * 0.4) : rate;
     const n = Math.min(per, f.length - i);
     const bytes = new Uint8Array(n * 2);
     const dv = new DataView(bytes.buffer);
@@ -473,6 +474,7 @@ export async function toPcm24kBase64Chunks(buffer) {
     let bin = "";
     for (let k = 0; k < bytes.length; k += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(k, k + 0x8000));
     chunks.push(btoa(bin));
+    i += n;
   }
   return chunks;
 }
@@ -521,22 +523,24 @@ export function loadSpeechSdk() {
   return sdkPromise;
 }
 
-let tokenCache = null; // {token, region, at}
-export async function getSpeechToken() {
-  if (tokenCache && Date.now() - tokenCache.at < 8 * 60 * 1000) return tokenCache;
-  const res = await fetch("/api/speech/token", { method: "POST", credentials: "include" });
+const tokenCache = {}; // hd|std -> {token, region, at}
+export async function getSpeechToken(hd = false) {
+  const k = hd ? "hd" : "std";
+  const cached = tokenCache[k];
+  if (cached && Date.now() - cached.at < 8 * 60 * 1000) return cached;
+  const res = await fetch(`/api/speech/token${hd ? "?hd=1" : ""}`, { method: "POST", credentials: "include" });
   if (!res.ok) throw new Error(`token http ${res.status}`);
   const j = await res.json();
   if (!j.token || !j.region) throw new Error("token malformed");
-  tokenCache = { token: j.token, region: j.region, at: Date.now() };
-  return tokenCache;
+  tokenCache[k] = { token: j.token, region: j.region, at: Date.now() };
+  return tokenCache[k];
 }
 
 function escXml(s) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
 }
 export function buildSsml(text, v) {
-  const inner = v.style
+  const inner = v.style && !v.hd
     ? `<mstts:express-as style="${v.style}"${v.styleDegree ? ` styledegree="${v.styleDegree}"` : ""}>${escXml(text)}</mstts:express-as>`
     : escXml(text);
   return `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="en-US"><voice name="${v.voice}">${inner}</voice></speak>`;
@@ -544,10 +548,12 @@ export function buildSsml(text, v) {
 
 /** Synthesize one chunk of text → {audio: ArrayBuffer, visemes:[{id, ms}]}. */
 export async function synthesize(sdk, text, voiceCfg) {
-  const { token, region } = await getSpeechToken();
+  const { token, region } = await getSpeechToken(!!voiceCfg.hd);
   const cfg = sdk.SpeechConfig.fromAuthorizationToken(token, region);
   cfg.speechSynthesisVoiceName = voiceCfg.voice;
-  cfg.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Audio24Khz48KBitRateMonoMp3;
+  // Uncompressed 24 kHz PCM (WAV): no MP3 encoder padding at each sentence edge (which
+  // caused tiny gaps/clicks between sentences), and it's exactly the photoreal avatar's format.
+  cfg.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Riff24Khz16BitMonoPcm;
   const stream = sdk.AudioOutputStream.createPullStream();
   const synth = new sdk.SpeechSynthesizer(cfg, sdk.AudioConfig.fromStreamOutput(stream));
   const visemes = [];

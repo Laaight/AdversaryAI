@@ -245,17 +245,25 @@ export class PhotorealAvatar {
       const dec = cur.fr > p.fr ? (cur.dec - p.dec) / (cur.fr - p.fr) : 0;
       return jb + dec; // seconds
     };
+    // Settle on one value instead of chasing every sample: each change to the target makes the
+    // browser time-stretch the audio to reach it, which is audible as a warble. So: collect a few
+    // samples, set the median once, and only move it again if the gap drifts by 60 ms+.
     let target = 0;
+    let lastSet = 0;
+    const recent = [];
     this.avSync = setInterval(async () => {
       try {
         const [v, a] = await Promise.all([sample(this.vTrack, "v"), sample(this.aTrack, "a")]);
         const rx = this.aTrack?.receiver;
         if (v == null || a == null || !rx) return;
-        // Video delay + one frame of render, clamped; smoothed so it doesn't wobble.
-        const want = Math.max(0, Math.min(400, Math.round((v + 0.02) * 1000)));
-        const next = target ? Math.round(target * 0.6 + want * 0.4) : want;
-        if (Math.abs(next - target) < 15) return;
-        target = next;
+        recent.push(Math.max(0, Math.min(400, Math.round((v + 0.02) * 1000))));
+        if (recent.length > 5) recent.shift();
+        if (recent.length < 3) return;
+        const want = recent.slice().sort((x, y) => x - y)[Math.floor(recent.length / 2)];
+        const now = Date.now();
+        if (target && (Math.abs(want - target) < 60 || now - lastSet < 20000)) return;
+        target = want;
+        lastSet = now;
         if ("jitterBufferTarget" in rx) rx.jitterBufferTarget = target;
         else if ("playoutDelayHint" in rx) rx.playoutDelayHint = target / 1000;
       } catch {}

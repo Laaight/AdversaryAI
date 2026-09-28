@@ -3269,11 +3269,20 @@ var PERSONALITY_SPEECH_STYLES = {
   contrarian: { style: "chat" },
   coach: { style: "cheerful" }
 };
+var VOICE_GENDER = {
+  "en-US-DavisNeural": "m", "en-US-BrianNeural": "m", "en-US-RogerNeural": "m", "en-US-JasonNeural": "m", "en-US-GuyNeural": "m",
+  "en-US-ChristopherNeural": "m", "en-US-TonyNeural": "m", "en-US-AndrewNeural": "m", "en-US-RyanMultilingualNeural": "m",
+  "en-US-AndrewMultilingualNeural": "m", "en-US-AvaNeural": "f", "en-US-JennyNeural": "f", "en-US-SaraNeural": "f", "en-US-AriaNeural": "f"
+};
 async function resolveTtsVoice(personality, figureId, personaVisualId) {
   const figureVoices = await getFigureVoices();
   const personaVisualVoices = await getPersonaVisualVoices();
   const voices = await getVoices();
-  const voice = voices[personality] || figureId && figureVoices[figureId] || personaVisualId && personaVisualVoices[personaVisualId] || DEFAULT_VOICE;
+  let voice = voices[personality] || figureId && figureVoices[figureId] || personaVisualId && personaVisualVoices[personaVisualId] || DEFAULT_VOICE;
+  // The face and the voice must match: if a persona's signature voice is the other gender
+  // from the look the user picked, use the look's voice instead.
+  const lookGender = !figureId && personaVisualId ? AVATAR_VISUAL_PROFILE[personaVisualId]?.g : null;
+  if (lookGender && VOICE_GENDER[voice] && VOICE_GENDER[voice] !== lookGender && personaVisualVoices[personaVisualId]) voice = personaVisualVoices[personaVisualId];
   const express = PERSONALITY_SPEECH_STYLES[personality];
   return { voice, style: express?.style, styledegree: express?.styledegree };
 }
@@ -4546,11 +4555,20 @@ debateRouter.post("/turn-stream", async (c) => {
         } catch {
         }
       }, "send");
+      let hdVoice = null;
+      if (clientTts && premium && voiceInfo?.voice && HD_VOICE_MAP[voiceInfo.voice] && hdSpeechConfigured(c.env) && c.env.LIVEAVATAR_API_KEY) {
+        try {
+          const map = await resolveAvatarMap(c.env, c.env.DB);
+          if (avatarIdFor(map, avatarKeyForDebate(debate))) hdVoice = HD_VOICE_MAP[voiceInfo.voice];
+        } catch {
+        }
+      }
       send({
         t: "hello",
-        ttsVoice: voiceInfo?.voice ?? null,
-        ttsStyle: voiceInfo?.style ?? null,
-        ttsStyleDegree: voiceInfo?.styledegree ?? null
+        ttsVoice: hdVoice || (voiceInfo?.voice ?? null),
+        ttsHd: !!hdVoice,
+        ttsStyle: hdVoice ? null : voiceInfo?.style ?? null,
+        ttsStyleDegree: hdVoice ? null : voiceInfo?.styledegree ?? null
       });
       let full = "";
       try {
@@ -5881,8 +5899,9 @@ speechRouter.post("/token", async (c) => {
       console.error("speech token rate limit", err instanceof Error ? err.message : err);
     }
   }
-  const region = c.env.AZURE_SPEECH_REGION;
-  const key = c.env.AZURE_SPEECH_KEY;
+  const wantHd = c.req.query("hd") === "1" && hdSpeechConfigured(c.env) && await isPremium(c, user.id, user.email);
+  const region = wantHd ? c.env.AZURE_SPEECH_HD_REGION : c.env.AZURE_SPEECH_REGION;
+  const key = wantHd ? c.env.AZURE_SPEECH_HD_KEY : c.env.AZURE_SPEECH_KEY;
   if (!region || !key) {
     return c.json({ error: "speech_not_configured" }, 503);
   }
@@ -5914,9 +5933,32 @@ speechRouter.post("/token", async (c) => {
 var avatarRouter = new Hono2();
 var AVATAR_VISUAL_KEYS = ["man-pro", "woman-pro", "older-man", "older-woman", "man-casual", "woman-casual", "teen-boy", "teen-girl", "default-masc", "default-fem"];
 // Each persona "look" and what kind of LiveAvatar actor should play it.
+// Azure HD ("DragonHD") voices: far more natural, used for Champion photoreal opponents when an
+// HD-capable Speech resource is configured (AZURE_SPEECH_HD_REGION + AZURE_SPEECH_HD_KEY).
+// HD voices have no viseme events, which the photoreal avatar doesn't need (it lip-syncs from audio).
+var HD_VOICE_MAP = {
+  "en-US-DavisNeural": "en-US-Davis:DragonHDLatestNeural",
+  "en-US-BrianNeural": "en-US-Brian:DragonHDLatestNeural",
+  "en-US-RogerNeural": "en-US-Adam:DragonHDLatestNeural",
+  "en-US-JasonNeural": "en-US-Steffan:DragonHDLatestNeural",
+  "en-US-GuyNeural": "en-US-Andrew2:DragonHDLatestNeural",
+  "en-US-ChristopherNeural": "en-US-Andrew:DragonHDLatestNeural",
+  "en-US-TonyNeural": "en-US-Steffan:DragonHDLatestNeural",
+  "en-US-AndrewNeural": "en-US-Andrew:DragonHDLatestNeural",
+  "en-US-AndrewMultilingualNeural": "en-US-Andrew:DragonHDLatestNeural",
+  "en-US-RyanMultilingualNeural": "en-US-Adam:DragonHDLatestNeural",
+  "en-US-AvaNeural": "en-US-Ava:DragonHDLatestNeural",
+  "en-US-JennyNeural": "en-US-Jenny:DragonHDLatestNeural",
+  "en-US-SaraNeural": "en-US-Emma2:DragonHDLatestNeural",
+  "en-US-AriaNeural": "en-US-Aria:DragonHDLatestNeural"
+};
+function hdSpeechConfigured(env) {
+  return !!(env.AZURE_SPEECH_HD_REGION && env.AZURE_SPEECH_HD_KEY);
+}
+__name(hdSpeechConfigured, "hdSpeechConfigured");
 var AVATAR_VISUAL_PROFILE = {
-  "man-pro": { g: "m", want: /(business|suit|doctor|lawyer|professional|office|formal|executive|ceo|consult|manager|teacher|anchor|host)/ },
-  "woman-pro": { g: "f", want: /(business|suit|doctor|lawyer|professional|office|formal|executive|ceo|consult|manager|teacher|anchor|host)/ },
+  "man-pro": { g: "m", want: /(business|suit|lawyer|attorney|professional|office|formal|executive|ceo|consult|manager|corporate|blazer|interview)/ },
+  "woman-pro": { g: "f", want: /(business|suit|lawyer|attorney|professional|office|formal|executive|ceo|consult|manager|corporate|blazer|interview)/ },
   "older-man": { g: "m", want: /(senior|elder|older|old|grand|retired|mature)/ },
   "older-woman": { g: "f", want: /(senior|elder|older|old|grand|retired|mature)/ },
   "man-casual": { g: "m", want: /(casual|home|sofa|couch|outdoor|hoodie|sweater|relax|street)/ },
@@ -5976,6 +6018,9 @@ async function fetchAvatarCatalog(env, db, { fresh = false } = {}) {
   return avatars;
 }
 __name(fetchAvatarCatalog, "fetchAvatarCatalog");
+// Actors dressed for a specific job read wrong as a debate opponent (a "prosecutor" in a lab coat).
+var AVATAR_AUTO_V = "2";
+var AVATAR_COSTUME = /(doctor|dr\.|nurse|medical|clinic|hospital|physician|dentist|scrubs|lab coat|chef|cook|santa|christmas|pilot|police|officer|soldier|military|firefight|mechanic|construction|worker|fitness|yoga|trainer|gym|sport|wizard|costume|halloween|customer ?support|call ?center|headset|receptionist|barista|waiter)/;
 // Pick a gender-matched, look-appropriate stock actor for each persona look, keeping them distinct.
 function autoAssignAvatars(catalog, map, keys) {
   const pool = catalog.filter((a) => !a.own).length >= 2 ? catalog.filter((a) => !a.own) : catalog;
@@ -5988,7 +6033,7 @@ function autoAssignAvatars(catalog, map, keys) {
     const gendered = withG.filter((a) => a.g === prof.g);
     const cands = gendered.length ? gendered : withG.filter((a) => a.g == null);
     if (!cands.length) continue;
-    const score = (a) => (prof.want && prof.want.test(a.low) ? 10 : 0) + (used.has(a.id) ? -20 : 0) - a.i / 1e3;
+    const score = (a) => (prof.want && prof.want.test(a.low) ? 10 : 0) + (AVATAR_COSTUME.test(a.low) ? -30 : 0) + (used.has(a.id) ? -20 : 0) - a.i / 1e3;
     const best = cands.slice().sort((x, y) => score(y) - score(x))[0];
     out[key] = best.id;
     used.add(best.id);
@@ -6007,8 +6052,8 @@ async function resolveAvatarMap(env, db) {
     autoV = (await db.prepare("SELECT value FROM app_config WHERE key = 'liveavatar_auto_v'").first())?.value ?? null;
   } catch {
   }
-  // First run of auto-assign: replace earlier hand picks (they were made before gender matching existed).
-  const keys = autoV === "1" ? AVATAR_VISUAL_KEYS.filter((k) => !map[k]) : AVATAR_VISUAL_KEYS;
+  // When the casting rules change (AVATAR_AUTO_V bump), re-cast every persona look once.
+  const keys = autoV === AVATAR_AUTO_V ? AVATAR_VISUAL_KEYS.filter((k) => !map[k]) : AVATAR_VISUAL_KEYS;
   if (!keys.length) return map;
   let catalog = [];
   try {
@@ -6017,10 +6062,10 @@ async function resolveAvatarMap(env, db) {
     console.error("avatar catalog failed", e?.message || e);
   }
   if (!catalog.length) return map;
-  const next = autoAssignAvatars(catalog, autoV === "1" ? map : Object.fromEntries(Object.entries(map).filter(([k]) => !AVATAR_VISUAL_KEYS.includes(k))), keys);
+  const next = autoAssignAvatars(catalog, autoV === AVATAR_AUTO_V ? map : Object.fromEntries(Object.entries(map).filter(([k]) => !AVATAR_VISUAL_KEYS.includes(k))), keys);
   await db.batch([
     db.prepare("INSERT OR REPLACE INTO app_config (key, value, updated_at) VALUES ('liveavatar_map', ?, ?)").bind(JSON.stringify(next), nowIso()),
-    db.prepare("INSERT OR REPLACE INTO app_config (key, value, updated_at) VALUES ('liveavatar_auto_v', '1', ?)").bind(nowIso())
+    db.prepare("INSERT OR REPLACE INTO app_config (key, value, updated_at) VALUES ('liveavatar_auto_v', ?, ?)").bind(AVATAR_AUTO_V, nowIso())
   ]).catch((e) => console.error("avatar map save failed", e?.message || e));
   return next;
 }

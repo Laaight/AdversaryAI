@@ -25495,7 +25495,7 @@ function ix(root, debateId, t, data) {
       if (ev.t === "hello") {
         if (clientTts && ev.ttsVoice && silencedGen !== gen) {
           speaker = createStreamingSpeaker({
-            voiceCfg: { voice: ev.ttsVoice, style: ev.ttsStyle, styleDegree: ev.ttsStyleDegree },
+            voiceCfg: { voice: ev.ttsVoice, hd: !!ev.ttsHd, style: ev.ttsStyle, styleDegree: ev.ttsStyleDegree },
             transform: maskRap,
             onFallback: (offset, utter, anchor) => {
               fallback = { offset, utter, anchor };

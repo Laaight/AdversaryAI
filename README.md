@@ -62,6 +62,17 @@ Setup (one time):
 3. Deploy, then as the owner open **Account → Admin: photoreal avatars → Load avatar catalog**,
    pick an avatar for each persona look / historical figure, and **Save**. Unmapped personas stay 3D.
 
+Casting is automatic: every persona look gets a gender-matched stock actor (costume roles like
+doctors/nurses are skipped). The owner can override any look in Account → Admin, or force it to 3D.
+
+### HD voices for Champion video (optional, recommended)
+Azure's HD ("DragonHD") voices sound far more human, but they aren't offered in `westus3`.
+Create a second **Speech** resource in `westus2` or `eastus`, then:
+1. Add a plain variable `AZURE_SPEECH_HD_REGION` = `westus2` (Cloudflare → adversaryai → Settings → Variables).
+2. Add a secret `AZURE_SPEECH_HD_KEY` = that resource's key.
+Champion photoreal sessions then use HD voices automatically; everything else keeps the
+standard neural voices (which provide visemes for the 3D lip-sync).
+
 Cost controls: `CHAMPION_VIDEO_MINUTES` (default 150/month per Champion, in `wrangler.jsonc`),
 server-side metering via heartbeats, `max_session_duration` on every LiveAvatar session, and the
 stream closes after 2 minutes without speech. Set `LIVEAVATAR_SANDBOX` to `"1"` to test without
