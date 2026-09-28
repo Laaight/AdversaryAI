@@ -26373,15 +26373,32 @@ async function qu(i) {
       try {
         const [cat, mp] = await Promise.all([Ut("/api/avatar/catalog"), Ut("/api/avatar/map")]);
         const opts = (sel) => `<option value="none" ${!sel || sel === "none" ? "selected" : ""}>— 3D (no video) —</option>` + cat.avatars.map((av) => `<option value="${Lt(av.id)}" ${av.id === sel ? "selected" : ""}>${Lt(av.name || av.id)}${av.own ? " (yours)" : ""}${av.gender ? ` · ${Lt(av.gender)}` : ""}</option>`).join("");
+        const LOOK_LABEL = { "man-pro": "Man · professional", "woman-pro": "Woman · professional", "older-man": "Older man", "older-woman": "Older woman", "man-casual": "Man · casual", "woman-casual": "Woman · casual", "teen-boy": "Young man", "teen-girl": "Young woman", "default-masc": "Man · default", "default-fem": "Woman · default" };
+        const byId = new Map(cat.avatars.map((av) => [av.id, av]));
+        const thumb = (id) => {
+          const av = byId.get(id);
+          return av?.image ? `<img src="${Lt(av.image)}" alt="" class="h-full w-full object-cover object-top" loading="lazy" />` : `<span class="text-[10px] text-slate-500">3D</span>`;
+        };
         body.innerHTML = `<div class="grid gap-3 sm:grid-cols-2">${mp.keys
-          .map((k) => `<label class="block"><span class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">${Lt(k.label)}</span><select class="field text-sm" data-key="${Lt(k.key)}">${opts(mp.map[k.key])}</select></label>`)
+          .map((k) => `<div class="flex items-center gap-3 rounded-xl border border-ink-700 bg-ink-800/50 p-2.5"><div data-thumb="${Lt(k.key)}" class="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-ink-900">${thumb(mp.map[k.key])}</div><label class="block min-w-0 flex-1"><span class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">${Lt(LOOK_LABEL[k.key] || k.label)}</span><select class="field text-sm" data-key="${Lt(k.key)}">${opts(mp.map[k.key])}</select></label></div>`)
           .join("")}</div>
           <div class="mt-4 flex flex-wrap items-center gap-3"><button type="button" class="btn-primary btn-sm" data-save>Save avatars</button><button type="button" class="btn-ghost btn-sm" data-auto>Auto-cast all persona looks</button><span data-msg class="text-sm text-slate-400"></span></div>`;
+        body.querySelectorAll("select[data-key]").forEach((x) =>
+          x.addEventListener("change", () => {
+            const t = body.querySelector(`[data-thumb="${x.dataset.key}"]`);
+            if (t) t.innerHTML = thumb(x.value);
+          }),
+        );
         body.querySelector("[data-auto]").addEventListener("click", async (ev) => {
           ev.target.disabled = true;
           try {
             const r = await zt("/api/avatar/map/auto", {});
-            body.querySelectorAll("select[data-key]").forEach((x) => r.map[x.dataset.key] && (x.value = r.map[x.dataset.key]));
+            body.querySelectorAll("select[data-key]").forEach((x) => {
+              if (!r.map[x.dataset.key]) return;
+              x.value = r.map[x.dataset.key];
+              const t = body.querySelector(`[data-thumb="${x.dataset.key}"]`);
+              if (t) t.innerHTML = thumb(x.value);
+            });
             body.querySelector("[data-msg]").textContent = "Re-cast and saved.";
           } catch {
             body.querySelector("[data-msg]").textContent = "Couldn’t auto-cast — try again.";

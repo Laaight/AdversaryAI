@@ -6023,7 +6023,7 @@ async function fetchAvatarCatalog(env, db, { fresh = false } = {}) {
 }
 __name(fetchAvatarCatalog, "fetchAvatarCatalog");
 // Actors dressed for a specific job read wrong as a debate opponent (a "prosecutor" in a lab coat).
-var AVATAR_AUTO_V = "2";
+var AVATAR_AUTO_V = "3";
 var AVATAR_COSTUME = /(doctor|dr\.|nurse|medical|clinic|hospital|physician|dentist|scrubs|lab coat|chef|cook|santa|christmas|pilot|police|officer|soldier|military|firefight|mechanic|construction|worker|fitness|yoga|trainer|gym|sport|wizard|costume|halloween|customer ?support|call ?center|headset|receptionist|barista|waiter)/;
 // Pick a gender-matched, look-appropriate stock actor for each persona look, keeping them distinct.
 function autoAssignAvatars(catalog, map, keys) {
@@ -6066,7 +6066,8 @@ async function resolveAvatarMap(env, db) {
     console.error("avatar catalog failed", e?.message || e);
   }
   if (!catalog.length) return map;
-  const next = autoAssignAvatars(catalog, autoV === AVATAR_AUTO_V ? map : Object.fromEntries(Object.entries(map).filter(([k]) => !AVATAR_VISUAL_KEYS.includes(k))), keys);
+  // Only persona looks live in the map (historical figures never get an actor).
+  const next = autoAssignAvatars(catalog, autoV === AVATAR_AUTO_V ? Object.fromEntries(Object.entries(map).filter(([k]) => AVATAR_VISUAL_KEYS.includes(k))) : {}, keys);
   await db.batch([
     db.prepare("INSERT OR REPLACE INTO app_config (key, value, updated_at) VALUES ('liveavatar_map', ?, ?)").bind(JSON.stringify(next), nowIso()),
     db.prepare("INSERT OR REPLACE INTO app_config (key, value, updated_at) VALUES ('liveavatar_auto_v', ?, ?)").bind(AVATAR_AUTO_V, nowIso())
@@ -6271,21 +6272,19 @@ avatarRouter.post("/map", async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const map = {};
   for (const [k, v] of Object.entries(body.map ?? {})) {
-    if (typeof v === "string" && v.trim() && /^[\w-]{1,64}$/.test(k)) map[k] = v.trim().slice(0, 100);
+    if (typeof v === "string" && v.trim() && AVATAR_VISUAL_KEYS.includes(k)) map[k] = v.trim().slice(0, 100);
   }
   await c.env.DB.prepare("INSERT OR REPLACE INTO app_config (key, value, updated_at) VALUES ('liveavatar_map', ?, ?)").bind(JSON.stringify(map), nowIso()).run();
   return c.json({ ok: true, map });
 });
-// Owner: re-run automatic casting for every persona look (keeps historical-figure picks).
+// Owner: re-run automatic casting for every persona look.
 avatarRouter.post("/map/auto", async (c) => {
   const user = await getSessionUser(c);
   if (!user || !isOwnerEmail(user.email, c.env)) return c.json({ error: "forbidden" }, 403);
   if (!c.env.LIVEAVATAR_API_KEY) return c.json({ error: "photoreal_not_configured" }, 503);
-  const map = await getAvatarMap(c.env.DB);
-  const keep = Object.fromEntries(Object.entries(map).filter(([k]) => !AVATAR_VISUAL_KEYS.includes(k)));
   const catalog = await fetchAvatarCatalog(c.env, c.env.DB, { fresh: true });
   if (!catalog.length) return c.json({ error: "catalog_empty" }, 502);
-  const next = autoAssignAvatars(catalog, keep, AVATAR_VISUAL_KEYS);
+  const next = autoAssignAvatars(catalog, {}, AVATAR_VISUAL_KEYS);
   await c.env.DB.prepare("INSERT OR REPLACE INTO app_config (key, value, updated_at) VALUES ('liveavatar_map', ?, ?)").bind(JSON.stringify(next), nowIso()).run();
   return c.json({ ok: true, map: next });
 });
