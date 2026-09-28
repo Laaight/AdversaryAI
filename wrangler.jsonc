@@ -31,6 +31,6 @@
     "DEEPSEEK_PRO_URL": "https://adversaryai-resource.services.ai.azure.com/openai/v1/chat/completions",
     "CHAMPION_VIDEO_MINUTES": "150",
     "LIVEAVATAR_API_URL": "https://api.liveavatar.com",
-    "LIVEAVATAR_SANDBOX": "1"
+    "LIVEAVATAR_SANDBOX": "0"
   }
 }

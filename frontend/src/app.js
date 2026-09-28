@@ -25077,6 +25077,7 @@ function ix(root, debateId, t, data) {
           <button id="end-btn" type="button" class="btn-danger btn-sm ml-auto">End &amp; grade</button>
         </div>
         <div id="upsell-slot" class="hidden"></div>
+        <div id="photo-debug" class="mt-2.5 hidden rounded-lg border border-amber-400/20 bg-amber-400/5 px-3 py-2 text-xs leading-relaxed text-amber-200 break-words"></div>
       </aside>
 
       <section class="flex min-h-0 min-w-0 flex-1 flex-col pt-3 lg:pt-6">
@@ -25132,9 +25133,22 @@ function ix(root, debateId, t, data) {
   let openPhotoGate;
   const photoGate = Promise.race([new Promise((r) => (openPhotoGate = r)), new Promise((r) => setTimeout(r, 8000))]);
   const photoBadge = $("#photo-badge");
+  const photoDebug = $("#photo-debug");
   const setPhotoBadge = (html, cls = "") => {
-    photoBadge.className = `absolute right-3 top-3 ${html ? "" : "hidden"}`;
-    photoBadge.innerHTML = html ? `<span class="badge border-white/10 bg-black/60 backdrop-blur ${cls}">${html}</span>` : "";
+    photoBadge.className = `absolute right-3 top-3 max-w-[calc(100%-24px)] ${html ? "" : "hidden"}`;
+    photoBadge.innerHTML = html
+      ? `<span class="badge inline-block max-w-full truncate whitespace-nowrap border-white/10 bg-black/60 backdrop-blur ${cls}">${html}</span>`
+      : "";
+  };
+  const setPhotoDebug = (text) => {
+    if (!photoDebug) return;
+    if (!text) {
+      photoDebug.classList.add("hidden");
+      photoDebug.textContent = "";
+      return;
+    }
+    photoDebug.textContent = `Photoreal error (owner only): ${text}`;
+    photoDebug.classList.remove("hidden");
   };
   const mins = (sec) => `${Math.max(0, Math.floor((sec || 0) / 60))} min left`;
   (async () => {
@@ -25164,18 +25178,18 @@ function ix(root, debateId, t, data) {
       onStatus: (u) => {
         if (!alive) return;
         if (u.state !== "connecting") openPhotoGate();
+        if (u.state !== "error") setPhotoDebug(null);
         if (u.state === "connecting") setPhotoBadge('<span class="spinner !h-3 !w-3"></span>Photoreal connecting…', "text-slate-200");
         else if (u.state === "live") setPhotoBadge(`<span class="h-1.5 w-1.5 rounded-full bg-amber-400"></span>Photoreal · ${mins(u.remainingSeconds)}`, "text-amber-200");
         else if (u.state === "needs_tap") setPhotoBadge("Tap the video to turn on sound", "text-amber-200");
         else if (u.state === "sleeping") setPhotoBadge("Photoreal paused — resumes when you reply", "text-slate-300");
         else if (u.state === "error") {
           if (u.error === "video_minutes_exhausted") setPhotoBadge("Video minutes used this month", "text-slate-300");
-          else if (u.detail) {
-            const safe = String(u.detail).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").slice(0, 220);
-            setPhotoBadge(`Photoreal error (owner only): ${safe} — using 3D`, "text-amber-300");
-          } else setPhotoBadge("Photoreal unavailable — using 3D", "text-slate-300");
-        }
-        else setPhotoBadge("");
+          else {
+            setPhotoBadge("Photoreal unavailable — using 3D", "text-slate-300");
+            setPhotoDebug(u.detail || null);
+          }
+        } else setPhotoBadge("");
       },
     });
     if (!ended) photo.start();
