@@ -6203,7 +6203,9 @@ avatarRouter.post("/session", async (c) => {
   // LiveAvatar caps session length per plan and rejects anything longer with a 400.
   // Start at 20 min (or the user's remaining minutes) and step down until it's accepted;
   // when a session hits its limit the client simply reopens it on the next reply.
-  let maxSeconds = Math.max(60, Math.min(st.remainingSeconds, 20 * 60));
+  // 10 min cap per video session: if a browser dies without hanging up, LiveAvatar stops
+  // billing within 10 min (the app reconnects seamlessly when a session ends).
+  let maxSeconds = Math.max(60, Math.min(st.remainingSeconds, 10 * 60));
   const requestToken = (dur) => liveAvatarFetch(c.env, "/v1/sessions/token", {
     method: "POST",
     body: JSON.stringify({
