@@ -25265,6 +25265,7 @@ function ix(root, debateId, t, data) {
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg><span class="hidden sm:inline">Send</span></button>
           </div>
           <p id="mic-hint" class="mt-2 hidden text-xs text-slate-400"></p>
+          <button id="hf-btn" type="button" class="mt-1.5 hidden text-xs text-slate-400 hover:text-slate-200" title="Mic turns on when it's your turn and sends when you pause"></button>
         </div>
       </section>
     </div>`;
@@ -25466,6 +25467,8 @@ function ix(root, debateId, t, data) {
       rec?.abort();
     } catch {}
     unsubVoice();
+    unsubHandsFree?.();
+    clearTimeout(autoListenT);
     photo?.dispose();
     voice.reset();
     avatar.dispose();
@@ -25829,6 +25832,7 @@ function ix(root, debateId, t, data) {
         refreshRound();
         refreshStatus();
         showTargetBanner();
+        maybeAutoListen?.();
         if (closingRequested && doneEvt) {
           // let them hear the opponent's closing before we score
           await waitForSilence(90000);
@@ -25929,70 +25933,130 @@ function ix(root, debateId, t, data) {
       rec.abort();
     } catch {}
   }
-  if (SR) {
-    micBtn.classList.remove("hidden");
-    let base = "";
-    micBtn.addEventListener("click", () => {
-      if (listening) return stopListening();
-      voice.unlock();
+  // Hands-free: the mic switches on by itself when it's your turn (never while the opponent
+  // talks, so it can't transcribe itself) and sends when you pause. Remembered per device;
+  // it turns itself on the first time someone uses the mic.
+  const HF_KEY = "aai_handsfree";
+  let handsFree = false;
+  try {
+    handsFree = localStorage.getItem(HF_KEY) === "1";
+  } catch {}
+  const hfBtn = $("#hf-btn");
+  const renderHf = () => {
+    if (!hfBtn || !SR) return;
+    hfBtn.classList.remove("hidden");
+    hfBtn.innerHTML = `Hands-free mic: <b class="${handsFree ? "text-emerald-300" : "text-slate-300"}">${handsFree ? "On" : "Off"}</b>`;
+  };
+  const setHandsFree = (on) => {
+    handsFree = on;
+    try {
+      localStorage.setItem(HF_KEY, on ? "1" : "0");
+    } catch {}
+    renderHf();
+  };
+  let pauseT = 0;
+  function startListening(auto = false) {
+    if (listening || !SR) return;
+    voice.unlock();
+    if (!auto) {
       // Barge-in: never listen while the opponent is talking (it would transcribe itself)
       silencedGen = turnGen;
       speaker?.cancel();
       voice.stop();
-      rec = new SR();
-      rec.lang = navigator.language || "en-US";
-      rec.interimResults = true;
-      rec.continuous = true;
-      base = input.value ? input.value.replace(/\s+$/, "") + " " : "";
-      rec.onresult = (e) => {
-        let finalT = "",
-          interim = "";
-        for (let k = 0; k < e.results.length; k++) {
-          const r = e.results[k];
-          r.isFinal ? (finalT += r[0].transcript) : (interim += r[0].transcript);
-        }
-        input.value = (base + finalT + interim).replace(/\s+/g, " ").trimStart();
-        autosize();
-      };
-      const done = (msg) => {
-        listening = false;
-        micBtn.classList.remove("mic-live");
-        micBtn.innerHTML = it.mic;
-        micBtn.setAttribute("aria-label", "Speak your reply");
-        if (msg) {
-          micHint.textContent = msg;
-          micHint.className = "mt-2 text-xs text-red-300";
-          setTimeout(() => micHint.classList.add("hidden"), 5000);
-        } else micHint.classList.add("hidden");
-        refreshStatus();
-      };
-      rec.onend = () => done();
-      rec.onerror = (e) => {
-        const c = e?.error || "";
-        done(
-          c === "not-allowed" || c === "service-not-allowed"
-            ? "Microphone blocked — allow mic access for this site, then try again."
-            : c === "audio-capture"
-              ? "No microphone found on this device."
-              : c === "no-speech"
-                ? "Didn’t catch that — tap the mic and speak."
-                : c === "aborted"
-                  ? ""
-                  : "Voice input failed — try again or type instead.",
-        );
-      };
-      try {
-        rec.start();
-        listening = true;
-        micBtn.classList.add("mic-live");
-        micBtn.innerHTML = it.stop;
-        micBtn.setAttribute("aria-label", "Stop listening");
-        micHint.textContent = "Listening… tap the mic again when you’re done, then send.";
-        micHint.className = "mt-2 text-xs text-slate-400";
-        refreshStatus();
-      } catch {
-        done("Voice input failed — try again or type instead.");
+    }
+    rec = new SR();
+    rec.lang = navigator.language || "en-US";
+    rec.interimResults = true;
+    rec.continuous = true;
+    const base = input.value ? input.value.replace(/\s+$/, "") + " " : "";
+    rec.onresult = (e) => {
+      let finalT = "",
+        interim = "";
+      for (let k = 0; k < e.results.length; k++) {
+        const r = e.results[k];
+        r.isFinal ? (finalT += r[0].transcript) : (interim += r[0].transcript);
       }
+      input.value = (base + finalT + interim).replace(/\s+/g, " ").trimStart();
+      autosize();
+      if (handsFree) {
+        clearTimeout(pauseT);
+        if (input.value.trim()) pauseT = setTimeout(() => listening && input.value.trim() && !busy && send(), 1700);
+      }
+    };
+    const done = (msg) => {
+      clearTimeout(pauseT);
+      listening = false;
+      micBtn.classList.remove("mic-live");
+      micBtn.innerHTML = it.mic;
+      micBtn.setAttribute("aria-label", "Speak your reply");
+      if (msg) {
+        micHint.textContent = msg;
+        micHint.className = "mt-2 text-xs text-red-300";
+        setTimeout(() => micHint.classList.add("hidden"), 5000);
+      } else micHint.classList.add("hidden");
+      refreshStatus();
+    };
+    rec.onend = () => done();
+    rec.onerror = (e) => {
+      const c = e?.error || "";
+      done(
+        c === "not-allowed" || c === "service-not-allowed"
+          ? auto
+            ? "Tap the mic to talk — your browser needs a tap before it can listen."
+            : "Microphone blocked — allow mic access for this site, then try again."
+          : c === "audio-capture"
+            ? "No microphone found on this device."
+            : c === "no-speech"
+              ? "Didn’t hear anything — tap the mic when you’re ready."
+              : c === "aborted"
+                ? ""
+                : "Voice input failed — try again or type instead.",
+      );
+    };
+    try {
+      rec.start();
+      listening = true;
+      micBtn.classList.add("mic-live");
+      micBtn.innerHTML = it.stop;
+      micBtn.setAttribute("aria-label", "Stop listening");
+      micHint.textContent = handsFree ? "Listening… I’ll send when you pause." : "Listening… tap the mic again when you’re done, then send.";
+      micHint.className = "mt-2 text-xs text-slate-400";
+      refreshStatus();
+    } catch {
+      done(auto ? "" : "Voice input failed — try again or type instead.");
+    }
+  }
+  var autoListenT = 0;
+  function maybeAutoListen() {
+    clearTimeout(autoListenT);
+    if (!SR || !handsFree || !alive || ended || busy || listening) return;
+    // Give the last word time to finish playing (longer for the video stream, which lags).
+    const wait = stage?.classList.contains("photoreal-live") ? 900 : 450;
+    autoListenT = setTimeout(() => {
+      if (!handsFree || !alive || ended || busy || listening || voice.state === "speaking" || closingRequested) return;
+      if (scriptLines && userTurns >= scriptLines.length) return; // end of the script
+      startListening(true);
+    }, wait);
+  }
+  var unsubHandsFree = voice.on((st) => st === "idle" && maybeAutoListen());
+  if (SR) {
+    micBtn.classList.remove("hidden");
+    renderHf();
+    hfBtn?.addEventListener("click", () => {
+      setHandsFree(!handsFree);
+      if (handsFree) maybeAutoListen();
+      else clearTimeout(pauseT);
+    });
+    micBtn.addEventListener("click", () => {
+      if (listening) {
+        clearTimeout(pauseT);
+        return stopListening();
+      }
+      // First time anyone uses the mic, turn hands-free on (they can switch it off below).
+      try {
+        if (localStorage.getItem(HF_KEY) === null) setHandsFree(true);
+      } catch {}
+      startListening(false);
     });
   }
 
@@ -26016,6 +26080,7 @@ function ix(root, debateId, t, data) {
   refreshStatus();
   showTargetBanner();
   if (!ended && (data.turns ?? []).length === 0 && t.resolvedFirstSpeaker === "opponent") photoGate.then(() => alive && send({ open: true }));
+  else if (!ended) maybeAutoListen(); // hands-free: your turn on arrival → start listening
   else if (!ended && window.matchMedia("(pointer: fine)").matches) input.focus();
 }
 function $u(i, e, t = 10) {
