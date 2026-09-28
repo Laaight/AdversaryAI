@@ -83,7 +83,7 @@ export class PhotorealAvatar {
   start() {
     if (this.starting) return this.starting;
     // Errors that retrying can't fix — fall back straight away.
-    const FATAL = new Set(["champion_required", "video_minutes_exhausted", "photoreal_not_configured", "no_avatar_for_persona", "debate_ended", "debate_not_found", "unauthorized"]);
+    const FATAL = new Set(["photoreal_out_of_credits", "champion_required", "video_minutes_exhausted", "photoreal_not_configured", "no_avatar_for_persona", "debate_ended", "debate_not_found", "unauthorized"]);
     this.starting = (async () => {
       let lastErr = null;
       for (let attempt = 0; attempt < 3 && !this.disposed; attempt++) {
@@ -129,7 +129,8 @@ export class PhotorealAvatar {
     this.sessionId = s.sessionId;
     this.api = s.apiUrl;
     this.remaining = s.remainingSeconds;
-    const info = await this._api("/v1/sessions/start");
+    // The server starts the session (so it can see billing errors); older servers didn't.
+    const info = s.start?.livekit_url ? s.start : await this._api("/v1/sessions/start");
     this.remoteStarted = true;
     const LK = await loadLivekit();
     if (!LK) throw new Error("livekit_unavailable");

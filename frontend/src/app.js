@@ -25203,6 +25203,7 @@ function ix(root, debateId, t, data) {
     const st = await fetchPhotorealStatus(debateId);
     if (!alive || !st?.enabled || !st.eligible) {
       dropPhoto();
+      if (st?.owner && st.outOfCredits) setPhotoDebug("LiveAvatar is out of credits — video is paused for everyone (3D) until you add credits at liveavatar.com. Rechecks every 15 min.");
       if (st && !st.eligible) hint(false);
       return openPhotoGate();
     }

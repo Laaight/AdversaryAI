@@ -6115,13 +6115,32 @@ async function avatarSecondsUsed(db, userId) {
   return Number(row?.seconds ?? 0);
 }
 __name(avatarSecondsUsed, "avatarSecondsUsed");
+// When LiveAvatar reports the account is out of credits, pause photoreal for everyone for a
+// while (straight to 3D, no connect-then-fail) instead of failing every Champion session.
+var OUT_OF_CREDITS_MS = 15 * 60 * 1e3;
+async function avatarOutOfCredits(db) {
+  try {
+    const row = await db.prepare("SELECT value FROM app_config WHERE key = 'liveavatar_out_until'").first();
+    return Number(row?.value ?? 0) > Date.now();
+  } catch {
+    return false;
+  }
+}
+__name(avatarOutOfCredits, "avatarOutOfCredits");
+async function markAvatarOutOfCredits(db) {
+  await db.prepare("INSERT OR REPLACE INTO app_config (key, value, updated_at) VALUES ('liveavatar_out_until', ?, ?)").bind(String(Date.now() + OUT_OF_CREDITS_MS), nowIso()).run().catch(() => {
+  });
+}
+__name(markAvatarOutOfCredits, "markAvatarOutOfCredits");
+var isCreditError = (x) => /credit|insufficient|balance|quota|payment/i.test(typeof x === "string" ? x : JSON.stringify(x ?? ""));
 async function avatarStatus(c, user) {
-  const enabled = !!c.env.LIVEAVATAR_API_KEY;
+  const outOfCredits = !!c.env.LIVEAVATAR_API_KEY && await avatarOutOfCredits(c.env.DB);
+  const enabled = !!c.env.LIVEAVATAR_API_KEY && !outOfCredits;
   const eligible = await isPremium(c, user.id, user.email);
   const owner = isOwnerEmail(user.email, c.env);
   const capSeconds = owner ? 24 * 3600 : videoMinutesCap(c.env) * 60;
   const used = enabled && eligible ? await avatarSecondsUsed(c.env.DB, user.id) : 0;
-  return { enabled, eligible, owner, capSeconds, usedSeconds: used, remainingSeconds: Math.max(0, capSeconds - used) };
+  return { enabled, outOfCredits, eligible, owner, capSeconds, usedSeconds: used, remainingSeconds: Math.max(0, capSeconds - used) };
 }
 __name(avatarStatus, "avatarStatus");
 function avatarKeyForDebate(debate) {
@@ -6209,16 +6228,38 @@ avatarRouter.post("/session", async (c) => {
   if (!r.ok || !token) {
     const raw = JSON.stringify(r.data ?? null).slice(0, 300);
     console.error("LiveAvatar token failed", r.status, raw);
+    if (isCreditError(r.data)) {
+      await markAvatarOutOfCredits(c.env.DB);
+      return c.json({ error: "photoreal_out_of_credits", ...(isOwnerEmail(user.email, c.env) ? { detail: "LiveAvatar account is out of credits — add credits at liveavatar.com" } : {}) }, 402);
+    }
     const body = { error: "photoreal_unavailable" };
     // Owners get the real reason inline (invalid key, no credits, unknown avatar id, …)
     // since they can't easily read Worker logs; regular users just see the generic message.
     if (isOwnerEmail(user.email, c.env)) body.detail = `LiveAvatar ${r.status || "no response"}: ${raw}`;
     return c.json(body, 502);
   }
+  // Start it here (not in the browser) so the server sees billing errors like "Insufficient
+  // credits" and can pause photoreal for everyone instead of failing each session.
+  let start = null;
+  try {
+    const sr = await fetch(`${avatarApiUrl(c.env)}/v1/sessions/start`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", accept: "application/json" } });
+    const sj = await sr.json().catch(() => null);
+    if (!sr.ok || sj?.code !== void 0 && sj.code !== 1e3) {
+      console.error("LiveAvatar start failed", sr.status, JSON.stringify(sj).slice(0, 300));
+      if (isCreditError(sj)) {
+        await markAvatarOutOfCredits(c.env.DB);
+        return c.json({ error: "photoreal_out_of_credits", ...(isOwnerEmail(user.email, c.env) ? { detail: "LiveAvatar account is out of credits — add credits at liveavatar.com" } : {}) }, 402);
+      }
+      return c.json({ error: "photoreal_unavailable", ...(isOwnerEmail(user.email, c.env) ? { detail: `LiveAvatar start ${sr.status}: ${JSON.stringify(sj).slice(0, 240)}` } : {}) }, 502);
+    }
+    start = sj?.data ?? sj;
+  } catch (e) {
+    return c.json({ error: "photoreal_unavailable", ...(isOwnerEmail(user.email, c.env) ? { detail: `LiveAvatar start: ${e?.message || e}` } : {}) }, 502);
+  }
   await ensureAvatarTables(c.env.DB);
   const now = nowIso();
   await c.env.DB.prepare("INSERT OR REPLACE INTO avatar_sessions (id, user_id, debate_id, started_at, last_beat_at) VALUES (?, ?, ?, ?, ?)").bind(String(sessionId || newId()), user.id, debate.id, now, now).run();
-  return c.json({ sessionToken: token, sessionId, apiUrl: avatarApiUrl(c.env), maxSeconds, remainingSeconds: st.remainingSeconds });
+  return c.json({ sessionToken: token, sessionId, apiUrl: avatarApiUrl(c.env), maxSeconds, remainingSeconds: st.remainingSeconds, start });
 });
 async function meterAvatarSession(c, user, sessionId, end) {
   await ensureAvatarTables(c.env.DB);
