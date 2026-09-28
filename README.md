@@ -1,56 +1,55 @@
 # AdversaryAI (getadversaryai.com)
 
-AdversaryAI is an AI debate-sparring web app at [getadversaryai.com](https://getadversaryai.com). Users pick a practice mode, choose an AI opponent persona with a 3D avatar and neural voice, spar via text/voice with a lip-synced 3D avatar responding in real time, and receive coaching scores from an AI judge.
+AI sparring partner: users pick a practice mode (debate, historical figures, interview prep, sales,
+negotiation, thesis defense, …), argue by voice or text against a lip-synced opponent, and get a
+coaching scorecard plus an impartial judge's verdict at the end.
 
 ## Stack
 
-- **Edge / API**: Cloudflare Workers (Hono framework) + D1 SQLite (`adversaryai-db`)
-- **Frontend**: SPA served from `/app/` + static landing page at root (`frontend/dist`)
-- **Debate Brain**: Azure AI Foundry DeepSeek V4:
-  - Base tiers: `DeepSeek-V4-Flash`
-  - Champion tier: `DeepSeek-V4-Pro`
-- **Voice / Lip-sync**: Azure Speech Neural TTS (`westus3`) driving viseme & word-boundary events for 3D avatar lip synchronization
-- **Billing**: Stripe (live mode: Debater $12/mo, Coach $29/mo, Champion $49/mo, Edu seats $6/seat/mo, Session Packs)
+- **API**: Cloudflare Worker (Hono) — `worker/src/index.js`, D1 SQLite (`adversaryai-db`)
+- **Brain**: Azure AI Foundry DeepSeek V4 — Flash for base tiers, Pro for Champion
+- **Voice**: Azure Neural TTS. The browser synthesizes each sentence with the Azure Speech SDK
+  (token from `/api/speech/token`) and gets real **viseme** timings for lip-sync. If the SDK is
+  unavailable the server synthesizes instead (`/api/speech/turn-audio`) — never both.
+- **App**: vanilla JS SPA in `frontend/src` → built to `frontend/dist/app`
+- **Landing page**: static `frontend/dist/index.html`, `landing.css`, `landing.js`
+- **Billing**: Stripe (Debater $12, Coach $29, Champion $49, packs, $6/seat schools)
 
-## Project Structure
+## Project structure
 
 ```
-adversaryai/
-├── worker/
-│   └── src/
-│       └── index.js           # Cloudflare Worker API & routing
-├── frontend/
-│   └── dist/
-│       ├── index.html         # Landing page
-│       ├── landing.css        # Landing stylesheet
-│       ├── landing.js         # Landing interactivity & Three.js canvas
-│       ├── models/personas/   # 3D GLB avatars (man-pro, older-man, etc.)
-│       └── app/               # AdversaryAI SPA application
-├── scripts/
-│   ├── deploy.ps1             # Deploys worker & assets using $env:cloudflarkey
-│   ├── d1-query.ps1           # Runs direct SQL queries on remote D1 database
-│   └── tail.ps1               # Live worker log streaming
-├── wrangler.jsonc             # Cloudflare configuration & bindings
-└── package.json               # Local npm scripts
+frontend/
+  src/
+    app.js            # the whole SPA (routes, setup, session, scorecard, history, account, arena)
+    voice.js          # the ONLY audio player: queue, stop/replay, viseme track on the audio clock
+    app.css           # Tailwind entry + design tokens + components (.btn-primary, .opt-chip, …)
+  tailwind.config.cjs # theme (ink/accent/slate CSS-variable colors, type scale)
+  dist/               # deployed as static assets (built files land in dist/app/assets)
+worker/src/index.js   # API
+scripts/build.mjs     # Tailwind + esbuild + hashed filenames + sw.js version + Speech SDK vendoring
+scripts/legacy/       # old string-patch scripts — do not run, kept for reference only
 ```
 
-## Commands
+## Workflow
 
-All scripts use the local `cloudflarkey` environment variable automatically.
-
-### Deploy to Cloudflare
 ```powershell
-npm run deploy
-# or
-powershell -ExecutionPolicy Bypass -File ./scripts/deploy.ps1
+npm install          # first time (esbuild, tailwind, Azure Speech SDK, wrangler)
+npm run build        # compile frontend/src → frontend/dist/app
+npm run deploy       # build + wrangler deploy
 ```
 
-### Query Production D1 Database
-```powershell
-powershell -ExecutionPolicy Bypass -File ./scripts/d1-query.ps1 "SELECT * FROM users LIMIT 5;"
-```
+**Edit `frontend/src`, never the files in `frontend/dist/app/assets`.** Those are generated,
+content-hashed and replaced on every build (the service-worker cache version updates automatically).
 
-### Stream Live Worker Logs
+### Rules that keep things working
+- Any Tailwind class used in `frontend/src/*.js` is compiled automatically — no hand-written utilities.
+- All opponent audio goes through `voice.js` (`voice.begin()`, `voice.stop()`, `voice.replay()`).
+  Don't create `<audio>` elements or other AudioContexts for opponent speech.
+- Mode options live in two mirrored tables: `MODE_UI` (frontend) and `MODE_RULES` (worker).
+
+## Other commands
+
 ```powershell
-npm run tail
+npm run tail                                   # live worker logs
+npm run d1:query "SELECT * FROM users LIMIT 5;"
 ```

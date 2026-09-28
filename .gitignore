@@ -20,3 +20,6 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# local transfer artifacts
+*.bundle

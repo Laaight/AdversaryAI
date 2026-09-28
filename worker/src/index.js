@@ -71,9 +71,9 @@ var init_config = __esm({
     "use strict";
     TIERS = {
       trial: { name: "Trial", debates: 15, rounds: 15, lifetime: true, price: 0 },
-      debater: { name: "Debater", priceMonthly: 12, debatesPerMonth: 300, roundsPerMonth: 300, blurb: "Full access to all 11 sparring arenas, standard 3D avatars, and credit rollover." },
+      debater: { name: "Debater", priceMonthly: 12, debatesPerMonth: 300, roundsPerMonth: 300, blurb: "All 11 practice modes, voiced 3D opponents with lip-sync, coaching scorecards, and credit rollover." },
       coach: { name: "Coach", priceMonthly: 29, debatesPerMonth: 1000, roundsPerMonth: 1000, analytics: true, blurb: "Detailed coaching analytics, scorecard rubrics, and judge feedback. Unused credits roll over." },
-      champion: { name: "Champion", priceMonthly: 49, debatesPerMonth: 2500, roundsPerMonth: 2500, premiumModel: true, blurb: "DeepSeek-V4-Pro brain, photorealistic 3D personas, priority reasoning, and credit rollover." }
+      champion: { name: "Champion", priceMonthly: 49, debatesPerMonth: 2500, roundsPerMonth: 2500, premiumModel: true, blurb: "Our strongest reasoning model (DeepSeek-V4-Pro) for sharper opponents and deeper judge feedback, plus priority speed and credit rollover." }
     };
     PACKS = [
       { id: "pack10", name: "100 Rounds", debates: 100, rounds: 100, price: 9 },
@@ -3615,16 +3615,8 @@ var MODES = {
     tagline: "Argue with history's greatest minds",
     description: "Debate Lincoln, Socrates, Churchill, and more \u2014 each grounded in their real documented views and writings.",
     icon: "\u{1F3DB}\uFE0F",
-    setupFields: [
-      {
-        key: "figureId",
-        label: "Historical figure",
-        type: "select",
-        options: HISTORICAL_FIGURES.map((f) => ({ value: f.id, label: f.name })),
-        required: true,
-        help: "Each figure argues from their actual documented positions."
-      }
-    ],
+    // Figure selection is the portrait grid in the frontend; a second <select> was redundant.
+    setupFields: [],
     systemPrompt: historicalSystemPrompt,
     scoringPrompt: /* @__PURE__ */ __name(() => `You are a debate judge. Score the user's performance in this debate against a historical figure 1-10 on argument strength, use of evidence, composure, and adaptability; return strict JSON {"dimensions": {"Argument strength": <1-10>, "Use of evidence": <1-10>, "Composure": <1-10>, "Adaptability": <1-10>}, "overall": <1-10>, "notes": "<2-3 sentences of feedback>"}`, "scoringPrompt"),
     scoringDimensions: ["Argument strength", "Use of evidence", "Composure", "Adaptability"],
@@ -4188,8 +4180,27 @@ function emptyScores(dimensions, notes) {
 }
 __name(emptyScores, "emptyScores");
 
-function buildTurnPrompt(debate, mode, setup, transcript, isOpening, curRound, targetRounds) {
+function sideInstruction(debate, setup) {
+  if (setup.userSide === "for") return `\nSIDES: The user argues FOR the motion "${debate.topic}". You argue AGAINST it. Never switch sides or concede the motion.`;
+  if (setup.userSide === "against") return `\nSIDES: The user argues AGAINST the motion "${debate.topic}". You argue FOR it. Never switch sides or concede the motion.`;
+  return "";
+}
+__name(sideInstruction, "sideInstruction");
+function buildTurnPrompt(debate, mode, setup, transcript, isOpening, curRound, targetRounds, forceClosing = false) {
   const debateStyle = setup.debateStyle || "oxford";
+  const isDebateMode = debate.mode === "debate" || debate.mode === "historical";
+  if (isDebateMode) return buildDebateTurnPrompt(debate, mode, setup, transcript, isOpening, curRound, targetRounds, forceClosing, debateStyle) + sideInstruction(debate, setup);
+  const finalTurn = forceClosing || (targetRounds > 0 && curRound >= targetRounds);
+  if (isOpening) return buildDebateTurnPrompt(debate, mode, setup, transcript, true, curRound, targetRounds, false, debateStyle);
+  const ending = finalTurn
+    ? `\n\nThis is the FINAL exchange of the session (${curRound} of ${targetRounds || curRound}). Respond in character, then bring the conversation to a natural close (e.g. wrap up the interview, state your final position in the negotiation, deliver your closing bars). Do not ask a new question.`
+    : targetRounds > 0
+      ? `\n\n(Exchange ${curRound} of ${targetRounds}.)`
+      : "";
+  return `Session transcript:\n\n${transcript}\n\nRespond to the user's latest message in character.${ending}`;
+}
+__name(buildTurnPrompt, "buildTurnPrompt");
+function buildDebateTurnPrompt(debate, mode, setup, transcript, isOpening, curRound, targetRounds, forceClosing, debateStyle) {
   const isDebateMode = debate.mode === "debate" || debate.mode === "historical";
 
   if (isOpening) {
@@ -4225,8 +4236,8 @@ State your side's resolution with confidence, lay out 2-3 foundational pillars s
     if (curRound <= 1) {
       phaseGuidance = `[PHASE 1: OPENING STATEMENTS] The user has delivered their opening statement on: "${debate.topic}".
 Deliver your formal OPENING COUNTER-STATEMENT. Directly challenge their primary definitions and premises, and establish your own core contentions. Keep under 140 words.`;
-    } else if (targetRounds > 0 && curRound >= targetRounds) {
-      phaseGuidance = `[PHASE 3: FINAL CLOSING ARGUMENTS - ROUND ${curRound} OF ${targetRounds}]
+    } else if (forceClosing || (targetRounds > 0 && curRound >= targetRounds)) {
+      phaseGuidance = `[PHASE 3: FINAL CLOSING ARGUMENTS - ROUND ${curRound}${targetRounds ? ` OF ${targetRounds}` : ""}]
 This is the FINAL ROUND of the debate. Deliver your formal CLOSING STATEMENT to the judge. Crystallize the core voting issues: summarize why your side prevailed, point out what the user failed to answer, and deliver a compelling final appeal. Keep under 140 words.`;
     } else {
       const roundLabel = targetRounds > 0 ? `Round ${curRound} of ${targetRounds}` : `Round ${curRound} (Unlimited Sparring)`;
@@ -4243,8 +4254,44 @@ ${transcript}
 
 ${phaseGuidance}`;
 }
-__name(buildTurnPrompt, "buildTurnPrompt");
+__name(buildDebateTurnPrompt, "buildDebateTurnPrompt");
 
+// Which session options each mode accepts. Mirrors MODE_UI in frontend/src/app.js.
+var MODE_RULES = {
+  debate: { first: ["cointoss", "user", "opponent"], styles: true, sides: true },
+  historical: { first: ["cointoss", "user", "opponent"], styles: true, sides: true },
+  rapbattle: { first: ["cointoss", "user", "opponent"] },
+  negotiation: { first: ["user", "opponent"] },
+  sales: { first: ["user", "opponent"] },
+  difficult: { first: ["user", "opponent"] },
+  acting: { first: ["user", "opponent"] },
+  witness: { first: ["user", "opponent"] },
+  interview: { fixedFirst: "opponent" },
+  thesis: { fixedFirst: "opponent" },
+  expert: { fixedFirst: "opponent" }
+};
+var scorecardTableReady = false;
+async function ensureScorecardTable(db) {
+  if (scorecardTableReady) return;
+  await db.prepare("CREATE TABLE IF NOT EXISTS scorecards (debate_id TEXT PRIMARY KEY, overall INTEGER, scores_json TEXT NOT NULL, created_at TEXT NOT NULL)").run();
+  scorecardTableReady = true;
+}
+__name(ensureScorecardTable, "ensureScorecardTable");
+async function getScorecard(db, debateId) {
+  try {
+    await ensureScorecardTable(db);
+    const row = await db.prepare("SELECT scores_json FROM scorecards WHERE debate_id = ?").bind(debateId).first();
+    return row ? JSON.parse(row.scores_json) : null;
+  } catch {
+    return null;
+  }
+}
+__name(getScorecard, "getScorecard");
+async function countUserTurns(db, debateId) {
+  const r = await db.prepare("SELECT COUNT(*) AS n FROM turns WHERE debate_id = ? AND role = 'user'").bind(debateId).first();
+  return Number(r?.n ?? 0);
+}
+__name(countUserTurns, "countUserTurns");
 var debateRouter = new Hono2();
 debateRouter.post("/start", async (c) => {
   const user = await getSessionUser(c);
@@ -4297,7 +4344,11 @@ debateRouter.post("/start", async (c) => {
   for (const [k, v] of Object.entries(rawSetup)) {
     if (typeof v === "string" && v.length <= 2e3) setup[k] = v;
   }
-  if (body.judge === true) setup.judge = "1";
+  delete setup.judge;
+  if (JUDGE_COMPETITIVE_MODES.has(mode.id) && mode.id !== "thesis") setup.judge = "1";
+  const rules = MODE_RULES[mode.id] || { first: ["user", "opponent"] };
+  if (rules.sides && ["for", "against", "open"].includes(setup.userSide)) {
+  } else delete setup.userSide;
   let actorId = "";
   let figureId;
   if (mode.id === "debate") {
@@ -4315,19 +4366,20 @@ debateRouter.post("/start", async (c) => {
   const targetRounds = Math.max(0, Math.min(100, Math.floor(Number(body.targetRounds ?? rawSetup.targetRounds ?? 0)) || 0));
   setup.targetRounds = String(targetRounds);
 
-  const reqFirstSpeaker = String(body.firstSpeaker ?? rawSetup.firstSpeaker ?? "cointoss").toLowerCase();
+  let reqFirstSpeaker = String(body.firstSpeaker ?? rawSetup.firstSpeaker ?? "").toLowerCase();
+  if (rules.fixedFirst) reqFirstSpeaker = rules.fixedFirst;
+  else if (!rules.first.includes(reqFirstSpeaker)) reqFirstSpeaker = rules.first.includes("cointoss") ? "cointoss" : "user";
   let resolvedFirstSpeaker = reqFirstSpeaker;
   if (reqFirstSpeaker === "cointoss") {
     resolvedFirstSpeaker = Math.random() < 0.5 ? "user" : "opponent";
-  } else if (reqFirstSpeaker !== "user" && reqFirstSpeaker !== "opponent") {
-    resolvedFirstSpeaker = "user";
   }
   setup.firstSpeaker = reqFirstSpeaker;
   setup.resolvedFirstSpeaker = resolvedFirstSpeaker;
 
   const validStyles = new Set(["oxford", "lincoln_douglas", "rapid", "freeform"]);
   const reqStyle = String(body.debateStyle ?? rawSetup.debateStyle ?? "oxford").toLowerCase();
-  setup.debateStyle = validStyles.has(reqStyle) ? reqStyle : "oxford";
+  if (rules.styles) setup.debateStyle = validStyles.has(reqStyle) ? reqStyle : "oxford";
+  else delete setup.debateStyle;
 
   const debateId = newId();
   await c.env.DB.prepare(
@@ -4339,7 +4391,8 @@ debateRouter.post("/start", async (c) => {
     remainingRounds: availability.remaining,
     firstSpeaker: setup.firstSpeaker,
     resolvedFirstSpeaker: setup.resolvedFirstSpeaker,
-    debateStyle: setup.debateStyle
+    debateStyle: setup.debateStyle ?? null,
+    judge: setup.judge === "1"
   }, 201);
 });
 debateRouter.post("/turn", async (c) => {
@@ -4426,8 +4479,10 @@ debateRouter.post("/turn-stream", async (c) => {
   }
   const consumption = await consumeRound(c, user.id, user.email);
   if (!consumption.allowed) return c.json({ error: "quota_exhausted", message: "You have used all rounds in your wallet." }, 402);
+  let userTurnId = null;
   if (!isOpening) {
-    await c.env.DB.prepare("INSERT INTO turns (debate_id, role, text, created_at) VALUES (?, ?, ?, ?)").bind(debateId, "user", text, nowIso()).run();
+    const ins = await c.env.DB.prepare("INSERT INTO turns (debate_id, role, text, created_at) VALUES (?, ?, ?, ?)").bind(debateId, "user", text, nowIso()).run();
+    userTurnId = ins?.meta?.last_row_id ?? null;
   }
   const mode = getMode(debate.mode);
   const setup = parseSetup(debate.setup_json);
@@ -4440,10 +4495,18 @@ debateRouter.post("/turn-stream", async (c) => {
     [...history.results ?? []].reverse(),
     opponentLabel(debate, mode)
   );
-  const turnCount = history.results?.length ?? 0;
-  const curRound = Math.floor(turnCount / 2) + 1;
+  // A round = one user turn + one opponent reply, so the round being answered is
+  // the number of user turns so far (the opening, if the AI opens, is round 1).
+  let curRound = Math.max(1, await countUserTurns(c.env.DB, debateId));
+  // If the opponent opened, the user's first reply is their opening; the opponent's answer
+  // to it is already a rebuttal, not a second opening.
+  if (!isOpening && setup.resolvedFirstSpeaker === "opponent" && curRound === 1 && targetRounds !== 1) curRound = 2;
   const premium = await isPremium(c, user.id, user.email);
-  const userInput = buildTurnPrompt(debate, mode, setup, transcript, isOpening, curRound, targetRounds);
+  const forceClosing = body.phase === "closing";
+  const userInput = buildTurnPrompt(debate, mode, setup, transcript, isOpening, curRound, targetRounds, forceClosing);
+  // When the browser synthesizes speech itself (Azure SDK + visemes), don't pay for a
+  // second server-side synthesis of the same text.
+  const clientTts = body.clientTts === true;
   const figureId = debate.mode === "historical" ? figureById(setup.figureId)?.id : void 0;
   const personaVisualId = typeof setup.personaVisual === "string" ? setup.personaVisual : void 0;
   const voiceInfo = await resolveTtsVoice(debate.personality, figureId, personaVisualId).catch(() => null);
@@ -4472,23 +4535,32 @@ debateRouter.post("/turn-stream", async (c) => {
         if (!full) throw new Error("Debate model returned an empty response");
         if (mode.clean) full = maskProfanity(full);
         await c.env.DB.prepare("INSERT INTO turns (debate_id, role, text, created_at) VALUES (?, ?, ?, ?)").bind(debateId, "assistant", full, nowIso()).run();
-        let tts;
-        try {
-          tts = await ttsDebateLine(c.env, full, debate.personality, figureId, personaVisualId);
-        } catch (err) {
-          console.error("TTS failed, returning text-only turn:", err instanceof Error ? err.message : err);
-          tts = { audioBase64: null, timings: [], timingsEstimated: true };
+        let tts = { audioBase64: null, timings: [], timingsEstimated: true };
+        let audioFailed = false;
+        if (!clientTts) {
+          try {
+            tts = await ttsDebateLine(c.env, full, debate.personality, figureId, personaVisualId);
+          } catch (err) {
+            console.error("TTS failed, returning text-only turn:", err instanceof Error ? err.message : err);
+          }
+          audioFailed = !tts.audioBase64;
         }
         send({
           t: "done",
+          text: full,
           audioBase64: tts.audioBase64,
-          timings: tts.timings,
-          timingsEstimated: tts.timingsEstimated,
-          audioFailed: !tts.audioBase64,
+          audioFailed,
           remainingRounds: consumption.remaining
         });
       } catch (err) {
         console.error("turn-stream failed:", err instanceof Error ? err.message : err);
+        // Remove the user's turn so a resend doesn't duplicate it in the transcript.
+        if (userTurnId) {
+          try {
+            await c.env.DB.prepare("DELETE FROM turns WHERE id = ? AND debate_id = ?").bind(userTurnId, debateId).run();
+          } catch {
+          }
+        }
         send({ t: "err", message: "The opponent hit a snag \u2014 try sending that again." });
       } finally {
         try {
@@ -4515,7 +4587,11 @@ debateRouter.post("/end", async (c) => {
   if (!debateId) return c.json({ error: "debateId_required" }, 400);
   const debate = await getOwnedDebate(c, debateId, user.id);
   if (!debate) return c.json({ error: "debate_not_found" }, 404);
-  if (debate.ended_at) return c.json({ error: "debate_already_ended" }, 400);
+  if (debate.ended_at) {
+    const stored = await getScorecard(c.env.DB, debateId);
+    if (stored) return c.json({ scores: stored, cached: true });
+    return c.json({ error: "debate_already_ended" }, 400);
+  }
   const mode = getMode(debate.mode);
   const turns = await c.env.DB.prepare(
     "SELECT role, text FROM turns WHERE debate_id = ? ORDER BY id ASC"
@@ -4541,10 +4617,19 @@ ${transcript}`,
       scores = emptyScores(mode.scoringDimensions, "Scoring unavailable.");
     }
   }
-  await c.env.DB.prepare("UPDATE debates SET ended_at = ? WHERE id = ?").bind(nowIso(), debateId).run();
+  await ensureScorecardTable(c.env.DB);
+  // Only the first concurrent /end wins; a second one returns the stored scorecard.
+  const [upd] = await c.env.DB.batch([
+    c.env.DB.prepare("UPDATE debates SET ended_at = ? WHERE id = ? AND ended_at IS NULL").bind(nowIso(), debateId),
+    c.env.DB.prepare("INSERT OR IGNORE INTO scorecards (debate_id, overall, scores_json, created_at) VALUES (?, ?, ?, ?)").bind(debateId, scores.overall ?? null, JSON.stringify(scores), nowIso())
+  ]);
+  if (!upd?.meta?.changes) {
+    const stored = await getScorecard(c.env.DB, debateId);
+    if (stored) return c.json({ scores: stored, cached: true });
+  }
   return c.json({ scores });
 });
-var JUDGE_COMPETITIVE_MODES = /* @__PURE__ */ new Set(["debate", "historical", "negotiation", "sales", "thesis"]);
+var JUDGE_COMPETITIVE_MODES = /* @__PURE__ */ new Set(["debate", "historical", "negotiation", "sales", "thesis", "rapbattle"]);
 var JUDGE_CRITERIA = ["argumentation", "evidence", "rebuttal", "composure"];
 function judgePrompt(competitive, opponentLabel2) {
   const outcomeRule = competitive ? 'Declare a winner: "you", "opponent", or "draw" (draw only for genuinely even performances). Set "assessment" to null.' : `Set "winner" to null. Instead give an overall assessment of the human's performance: "strong", "developing", or "needs_work".`;
@@ -4647,11 +4732,13 @@ debateRouter.post("/judge", async (c) => {
     "SELECT role, text FROM turns WHERE debate_id = ? ORDER BY id ASC"
   ).bind(debateId).all();
   const rows = turns.results ?? [];
-  const hasYou = rows.some((t) => t.role === "you" && t.text.trim());
-  const hasOpponent = rows.some((t) => t.role !== "you" && t.text.trim());
+  const hasYou = rows.some((t) => t.role === "user" && t.text.trim());
+  const hasOpponent = rows.some((t) => t.role !== "user" && t.text.trim());
   if (!hasYou || !hasOpponent) return c.json({ error: "insufficient_transcript" }, 400);
   const competitive = JUDGE_COMPETITIVE_MODES.has(mode.id);
-  const transcript = formatTranscript(rows, opponentLabel(debate, mode));
+  const judgeName = opponentLabel(debate, mode);
+  // Label the human "You" to match the judge prompt's vocabulary.
+  const transcript = rows.map((t) => `${t.role === "user" ? "You" : judgeName}: ${t.text}`).join("\n\n");
   let verdict;
   try {
     const raw2 = await modelText(
@@ -4703,6 +4790,13 @@ debatesRouter.get("/", async (c) => {
   const rows = await c.env.DB.prepare(
     "SELECT id, personality, topic, mode, ended_at, created_at, setup_json, is_public, views FROM debates WHERE user_id = ? ORDER BY created_at DESC"
   ).bind(user.id).all();
+  const overallById = /* @__PURE__ */ new Map();
+  try {
+    await ensureScorecardTable(c.env.DB);
+    const sc = await c.env.DB.prepare("SELECT s.debate_id, s.overall FROM scorecards s JOIN debates d ON d.id = s.debate_id WHERE d.user_id = ?").bind(user.id).all();
+    for (const row of sc.results ?? []) overallById.set(row.debate_id, row.overall);
+  } catch {
+  }
   const debates = (rows.results ?? []).map((r) => {
     let judgeEnabled = false;
     let personaVisual;
@@ -4716,11 +4810,12 @@ debatesRouter.get("/", async (c) => {
     } catch {
     }
     const figureId = setup.figureId || (r.mode === "historical" ? r.personality : void 0);
-    let personaLabel;
+    let personaLabel = typeof setup.personaLabel === "string" && setup.personaLabel ? setup.personaLabel : void 0;
     if (r.mode === "historical") {
       const fig = figureById(typeof figureId === "string" ? figureId : "");
       if (fig) personaLabel = fig.name;
     }
+    if (!personaLabel && r.mode === "debate") personaLabel = PERSONALITY_NAMES[r.personality];
     const targetRounds = parseInt(setup.targetRounds ?? "0", 10) || 0;
     return {
       ...r,
@@ -4734,7 +4829,8 @@ debatesRouter.get("/", async (c) => {
       resolvedFirstSpeaker: setup.resolvedFirstSpeaker,
       debateStyle: setup.debateStyle,
       isPublic: Boolean(r.is_public),
-      views: r.views ?? 0
+      views: r.views ?? 0,
+      overall: overallById.get(r.id) ?? null
     };
   });
   return c.json({ debates });
@@ -4775,13 +4871,16 @@ debatesRouter.get("/:id", async (c) => {
   const setup = parseSetup(debate.setup_json);
   const targetRounds = parseInt(setup.targetRounds ?? "0", 10) || 0;
   const figureId = setup.figureId || (debate.mode === "historical" ? debate.personality : void 0);
-  let personaLabel;
+  let personaLabel = typeof setup.personaLabel === "string" && setup.personaLabel ? setup.personaLabel : void 0;
   if (debate.mode === "historical") {
     const fig = figureById(typeof figureId === "string" ? figureId : "");
     if (fig) personaLabel = fig.name;
   }
+  if (!personaLabel) personaLabel = opponentLabel(debate, getMode(debate.mode));
+  const scorecard = debate.ended_at ? await getScorecard(c.env.DB, debate.id) : null;
   const availability = await checkRoundsAvailable(c, user.id, user.email);
   return c.json({
+    scorecard,
     debate: {
       ...debate,
       targetRounds,
@@ -4812,6 +4911,11 @@ debatesRouter.delete("/:id", async (c) => {
     await c.env.DB.prepare("DELETE FROM verdicts WHERE debate_id = ?").bind(debateId).run();
     await c.env.DB.prepare("DELETE FROM debate_votes WHERE debate_id = ?").bind(debateId).run();
     await c.env.DB.prepare("DELETE FROM debate_reactions WHERE debate_id = ?").bind(debateId).run();
+    try {
+      await ensureScorecardTable(c.env.DB);
+      await c.env.DB.prepare("DELETE FROM scorecards WHERE debate_id = ?").bind(debateId).run();
+    } catch {
+    }
     await c.env.DB.prepare("DELETE FROM debates WHERE id = ? AND user_id = ?").bind(debateId, user.id).run();
     return c.json({ ok: true, deleted: debateId });
   } catch (err) {
@@ -5681,9 +5785,71 @@ speechRouter.get("/diag", async (c) => {
   }
   return c.json({ ok: true, region, keyConfigured: true, tokenStatus, tokenError, ttsStatus, ttsError });
 });
+// Server-side speech for the latest opponent turn. Used only when the browser can't
+// synthesize itself (SDK blocked/unavailable) or failed mid-reply; `offset`/`anchor`
+// let the client request just the part it hasn't played yet, so nothing is heard twice.
+// Capped at 3 syntheses per turn so it can't be used as a free TTS API.
+speechRouter.post("/turn-audio", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  const body = await c.req.json().catch(() => ({}));
+  const debateId = String(body.debateId ?? "");
+  const debate = await getOwnedDebate(c, debateId, user.id);
+  if (!debate) return c.json({ error: "debate_not_found" }, 404);
+  const turn = await c.env.DB.prepare("SELECT id, text FROM turns WHERE debate_id = ? AND role = 'assistant' ORDER BY id DESC LIMIT 1").bind(debateId).first();
+  if (!turn?.text) return c.json({ error: "no_turn" }, 404);
+  try {
+    await c.env.DB.prepare("CREATE TABLE IF NOT EXISTS tts_usage (turn_id INTEGER PRIMARY KEY, n INTEGER NOT NULL DEFAULT 0)").run();
+    const slot = await c.env.DB.prepare(
+      "INSERT INTO tts_usage (turn_id, n) VALUES (?, 1) ON CONFLICT(turn_id) DO UPDATE SET n = n + 1 WHERE n < 3 RETURNING n"
+    ).bind(turn.id).first();
+    if (!slot) return c.json({ error: "tts_limit" }, 429);
+  } catch (err) {
+    console.error("tts_usage", err instanceof Error ? err.message : err);
+    return c.json({ error: "tts_unavailable" }, 503);
+  }
+  let text = String(turn.text);
+  const anchor = String(body.anchor ?? "").trim();
+  let offset = Math.max(0, Math.min(text.length, Math.floor(Number(body.offset) || 0)));
+  if (anchor) {
+    // Search near the client's offset so a repeated phrase (e.g. a rap hook) can't send
+    // us back to audio the user already heard.
+    const at = text.indexOf(anchor.slice(0, 40), Math.max(0, offset - 80));
+    if (at >= 0) offset = at;
+  }
+  text = text.slice(offset).trim();
+  if (!text) return c.body(null, 204);
+  const setup = parseSetup(debate.setup_json);
+  const figureId = debate.mode === "historical" ? figureById(setup.figureId)?.id : void 0;
+  try {
+    const tts = await ttsDebateLine(c.env, text, debate.personality, figureId, setup.personaVisual);
+    if (!tts.audioBase64) return c.json({ error: "tts_unavailable" }, 503);
+    const bin = Uint8Array.from(atob(tts.audioBase64), (ch) => ch.charCodeAt(0));
+    return new Response(bin, { headers: { "Content-Type": "audio/mpeg", "Cache-Control": "private, max-age=600" } });
+  } catch (err) {
+    console.error("turn-audio failed", err instanceof Error ? err.message : err);
+    return c.json({ error: "tts_failed" }, 502);
+  }
+});
 speechRouter.post("/token", async (c) => {
   const user = await getSessionUser(c);
   if (!user) return c.json({ error: "unauthorized" }, 401);
+  // Speech tokens can synthesize anything for 10 minutes, so only hand them to users who
+  // can actually spar right now, and cap how often they can be minted.
+  const avail = await checkRoundsAvailable(c, user.id, user.email);
+  if (!avail.ok) return c.json({ error: "quota_exhausted" }, 402);
+  if (!isOwnerEmail(user.email, c.env)) {
+    try {
+      await c.env.DB.prepare("CREATE TABLE IF NOT EXISTS speech_token_mints (user_id TEXT NOT NULL, minted_at TEXT NOT NULL)").run();
+      const since = new Date(Date.now() - 60 * 60 * 1e3).toISOString();
+      const row = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM speech_token_mints WHERE user_id = ? AND minted_at > ?").bind(user.id, since).first();
+      if (Number(row?.n ?? 0) >= 15) return c.json({ error: "rate_limited" }, 429);
+      await c.env.DB.prepare("INSERT INTO speech_token_mints (user_id, minted_at) VALUES (?, ?)").bind(user.id, nowIso()).run();
+      if (Math.random() < 0.02) await c.env.DB.prepare("DELETE FROM speech_token_mints WHERE minted_at < ?").bind(new Date(Date.now() - 24 * 60 * 60 * 1e3).toISOString()).run();
+    } catch (err) {
+      console.error("speech token rate limit", err instanceof Error ? err.message : err);
+    }
+  }
   const region = c.env.AZURE_SPEECH_REGION;
   const key = c.env.AZURE_SPEECH_KEY;
   if (!region || !key) {

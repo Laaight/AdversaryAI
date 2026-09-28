@@ -9,7 +9,7 @@
  * propagate immediately; the cache only ever serves as an offline fallback.
  */
 
-const VERSION = 'adversaryai-v12';
+const VERSION = 'adversaryai-1d6d55967f';
 const HASHED_ASSETS = /\/app\/assets\//;
 
 self.addEventListener('install', () => {
