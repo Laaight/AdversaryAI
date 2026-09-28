@@ -82,18 +82,37 @@ export class PhotorealAvatar {
 
   start() {
     if (this.starting) return this.starting;
-    this.starting = this._start()
-      .catch((e) => {
-        console.warn("[photoreal] unavailable:", e?.message || e);
-        this._teardown(false);
-        this.onStatus({ state: "error", error: e?.code || "photoreal_unavailable", detail: e?.detail });
-        if (e?.code === "video_minutes_exhausted" || e?.code === "champion_required") this.exhausted = true;
-      })
-      .finally(() => {
-        this.starting = null;
-      });
+    // Errors that retrying can't fix — fall back straight away.
+    const FATAL = new Set(["champion_required", "video_minutes_exhausted", "photoreal_not_configured", "no_avatar_for_persona", "debate_ended", "debate_not_found", "unauthorized"]);
+    this.starting = (async () => {
+      let lastErr = null;
+      for (let attempt = 0; attempt < 3 && !this.disposed; attempt++) {
+        if (attempt) {
+          this.onStatus({ state: "connecting" });
+          await new Promise((r) => setTimeout(r, attempt === 1 ? 2500 : 6000));
+          if (this.disposed) return;
+        }
+        try {
+          await this._start();
+          return;
+        } catch (e) {
+          lastErr = e;
+          console.warn(`[photoreal] attempt ${attempt + 1} failed:`, e?.message || e);
+          // Close anything half-opened so it can't block the next attempt (one-session plans).
+          this._teardown(true);
+          if (FATAL.has(e?.code)) break;
+        }
+      }
+      if (this.disposed || !lastErr) return;
+      const e = lastErr;
+      this.onStatus({ state: "error", error: e?.code || "photoreal_unavailable", detail: e?.detail || e?.message || String(e) });
+      if (e?.code === "video_minutes_exhausted" || e?.code === "champion_required") this.exhausted = true;
+    })().finally(() => {
+      this.starting = null;
+    });
     return this.starting;
   }
+
 
   async _start() {
     this.onStatus({ state: "connecting" });
@@ -111,6 +130,7 @@ export class PhotorealAvatar {
     this.api = s.apiUrl;
     this.remaining = s.remainingSeconds;
     const info = await this._api("/v1/sessions/start");
+    this.remoteStarted = true;
     const LK = await loadLivekit();
     if (!LK) throw new Error("livekit_unavailable");
     if (this.disposed) return this._teardown(true);
@@ -312,7 +332,8 @@ export class PhotorealAvatar {
   }
 
   _teardown(notifyServer) {
-    const wasLive = this.ready || this.room || this.ws;
+    const wasLive = this.ready || this.room || this.ws || this.remoteStarted;
+    this.remoteStarted = false;
     this.ready = false;
     this.talking = false;
     if (voice.sink === this || voice.pendingSink === this) voice.setSink(null);

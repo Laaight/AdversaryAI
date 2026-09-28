@@ -25241,7 +25241,7 @@ function ix(root, debateId, t, data) {
           if (u.error === "video_minutes_exhausted") setPhotoBadge("Video minutes used this month", "text-slate-300");
           else {
             setPhotoBadge("Photoreal unavailable — using 3D", "text-slate-300");
-            setPhotoDebug(u.detail || null);
+            setPhotoDebug(st.owner ? u.detail || u.error || null : null);
           }
         } else setPhotoBadge("");
       },
