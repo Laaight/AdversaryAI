@@ -4325,6 +4325,23 @@ function isActingScript(debate, setup) {
   return debate.mode === "acting" && setup.actingMode === "script" && !!setup.script && !!setup.scriptRole;
 }
 __name(isActingScript, "isActingScript");
+// ---------------------------------------------------------------- Difficulty
+// Easy / Normal / Hard change how strong the opponent plays; the judge stays impartial, so a
+// win at any level is a real win. The honesty rule (no invented evidence) applies at every level.
+var DIFFICULTY_LEVELS = ["easy", "normal", "hard"];
+var HONEST_EVIDENCE_RULE = " Never invent statistics, studies, quotes, or sources; argue from reasoning and widely known facts, and say “I don’t know” rather than making something up.";
+function difficultyRules(modeId, level) {
+  const agree = modeId === "sales" ? "agree to buy (or to a clear next step)" : modeId === "negotiation" ? "accept a reasonable deal" : null;
+  const LEN_OVERRIDE = " (This length limit overrides any other length mentioned.)";
+  if (level === "easy") {
+    return "\n\nDIFFICULTY: EASY — you are a beatable sparring partner for someone still learning. Make ONE clear point per turn in plain language, under 70 words" + LEN_OVERRIDE + ". Ask simple, direct questions. When the user makes a reasonable, supported point, openly concede it (“Okay, that’s a good point—”) and don’t keep re-litigating it. Leave room for the user to win; never pile on or stack multiple attacks. Stay in character and on your side." + (agree ? ` If the user handles your main concerns decently, ${agree}.` : "") + HONEST_EVIDENCE_RULE;
+  }
+  if (level === "hard") {
+    return "\n\nDIFFICULTY: HARD — play at full strength. Exploit every gap, press weak evidence, and concede only points you genuinely cannot answer." + (agree ? ` Only ${agree} if the user truly earns it.` : "") + HONEST_EVIDENCE_RULE;
+  }
+  return "\n\nDIFFICULTY: NORMAL — be a strong but fair opponent. Keep replies under 100 words" + LEN_OVERRIDE + " with one main line of attack per turn. When the user makes a genuinely good, well-supported point, acknowledge it briefly (“Fair point on X — but…”) before contesting their conclusion; never pretend a strong point is weak." + (agree ? ` If the user handles your key objections well, ${agree} — don’t stall forever.` : "") + HONEST_EVIDENCE_RULE;
+}
+__name(difficultyRules, "difficultyRules");
 function sideInstruction(debate, setup) {
   if (setup.userSide === "for") return `\nSIDES: The user argues FOR the motion "${debate.topic}". You argue AGAINST it. Never switch sides or concede the motion.`;
   if (setup.userSide === "against") return `\nSIDES: The user argues AGAINST the motion "${debate.topic}". You argue FOR it. Never switch sides or concede the motion.`;
@@ -4383,7 +4400,7 @@ State your side's resolution with confidence, lay out 2-3 foundational pillars s
 Deliver your formal OPENING COUNTER-STATEMENT. Directly challenge their primary definitions and premises, and establish your own core contentions. Keep under 140 words.`;
     } else if (forceClosing || (targetRounds > 0 && curRound >= targetRounds)) {
       phaseGuidance = `[PHASE 3: FINAL CLOSING ARGUMENTS - ROUND ${curRound}${targetRounds ? ` OF ${targetRounds}` : ""}]
-This is the FINAL ROUND of the debate. Deliver your formal CLOSING STATEMENT to the judge. Crystallize the core voting issues: summarize why your side prevailed, point out what the user failed to answer, and deliver a compelling final appeal. Keep under 140 words.`;
+This is the FINAL ROUND of the debate. Deliver your formal CLOSING STATEMENT to the judge. Crystallize the core voting issues: make your strongest final case, point out anything the user left unanswered, and honestly acknowledge any point they clearly won. Deliver a compelling final appeal. Keep under 140 words.`;
     } else {
       const roundLabel = targetRounds > 0 ? `Round ${curRound} of ${targetRounds}` : `Round ${curRound} (Unlimited Sparring)`;
       phaseGuidance = `[PHASE 2: REBUTTAL & CROSS-EXAMINATION - ${roundLabel}]
@@ -4489,6 +4506,8 @@ debateRouter.post("/start", async (c) => {
   for (const [k, v] of Object.entries(rawSetup)) {
     if (typeof v === "string" && (v.length <= 2e3 || k === "script" && v.length <= SCRIPT_MAX_CHARS)) setup[k] = v;
   }
+  if (mode.id === "acting") delete setup.difficulty;
+  else setup.difficulty = DIFFICULTY_LEVELS.includes(setup.difficulty) ? setup.difficulty : "normal";
   delete setup.judge;
   if (JUDGE_COMPETITIVE_MODES.has(mode.id) && mode.id !== "thesis") setup.judge = "1";
   const rules = MODE_RULES[mode.id] || { first: ["user", "opponent"] };
@@ -4584,7 +4603,7 @@ debateRouter.post("/turn", async (c) => {
   const mode = getMode(debate.mode);
   const setup = parseSetup(debate.setup_json);
   const targetRounds = parseInt(setup.targetRounds ?? "0", 10) || 0;
-  const systemPrompt = mode.systemPrompt({ ...setup, topic: debate.topic });
+  const systemPrompt = mode.systemPrompt({ ...setup, topic: debate.topic }) + (debate.mode === "acting" ? "" : difficultyRules(debate.mode, setup.difficulty || "hard"));
   const history = await c.env.DB.prepare(
     "SELECT role, text FROM turns WHERE debate_id = ? ORDER BY id DESC LIMIT 20"
   ).bind(debateId).all();
@@ -4652,7 +4671,7 @@ debateRouter.post("/turn-stream", async (c) => {
   const mode = getMode(debate.mode);
   const setup = parseSetup(debate.setup_json);
   const targetRounds = parseInt(setup.targetRounds ?? "0", 10) || 0;
-  const systemPrompt = mode.systemPrompt({ ...setup, topic: debate.topic });
+  const systemPrompt = mode.systemPrompt({ ...setup, topic: debate.topic }) + (debate.mode === "acting" ? "" : difficultyRules(debate.mode, setup.difficulty || "hard"));
   const history = await c.env.DB.prepare(
     "SELECT role, text FROM turns WHERE debate_id = ? ORDER BY id DESC LIMIT 20"
   ).bind(debateId).all();
@@ -4848,7 +4867,9 @@ function judgePrompt(competitive, opponentLabel2) {
     "Rules of impartiality:",
     '- Judge the arguments as presented, not the speakers. Neither the "You" label nor the "AI" label earns favor or penalty.',
     "- Do not favor the side you personally agree with. Apply the rubric mechanically, the same way to both sides.",
-    "- Do not reward length over substance. Penalize dodged questions and unsupported claims equally on both sides.",
+    "- Do not reward length over substance: a short, sound reply beats a long, polished one. Penalize dodged questions and unsupported claims equally on both sides.",
+    "- Specific statistics, studies, or quotes that aren't widely known count as UNSUPPORTED claims, not evidence, unless the speaker gave a verifiable source.",
+    "- A point one side raised that the other never answered weighs heavily for the side that raised it.",
     `- ${outcomeRule}`,
     "",
     "Return ONLY valid JSON, no other text:",

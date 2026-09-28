@@ -663,6 +663,12 @@ const DEFAULT_UI = { unit: "exchange", def: 8, first: [{ v: "user", t: "You star
 function modeUi(id) {
   return MODE_UI[id] || DEFAULT_UI;
 }
+const DIFFICULTY_OPTS = [
+  { v: "easy", t: "Easy", s: "Gives ground — good for learning" },
+  { v: "normal", t: "Normal", s: "Fair fight — admits good points" },
+  { v: "hard", t: "Hard", s: "Relentless — no easy wins" },
+];
+const DIFFICULTY_LABEL = { easy: "Easy", normal: "Normal", hard: "Hard" };
 const STYLE_OPTS = [
   { v: "oxford", t: "Oxford", s: "Classic structure" },
   { v: "lincoln_douglas", t: "L–D", s: "Lincoln–Douglas values" },
@@ -894,6 +900,7 @@ async function Mh(i, e) {
     first: ui.fixedFirst || ui.defFirst,
     style: "oxford",
     side: "for",
+    difficulty: "normal",
   };
   const fields = (s.setupFields || []).filter((f) => f.key !== "figureId");
   if ((isDebate || s.id === "historical") && !fields.some((f) => f.key === "topic"))
@@ -941,6 +948,8 @@ async function Mh(i, e) {
     ${ui.side ? `<section class="setup-section"><h2 class="section-title">Your side</h2><div class="opt-grid grid-cols-1 sm:grid-cols-3">${optChips("side", SIDE_OPTS, state.side)}</div></section>` : ""}
 
     ${ui.styles ? `<section class="setup-section"><h2 class="section-title">Format</h2><div class="opt-grid grid-cols-2 sm:grid-cols-4">${optChips("style", STYLE_OPTS, state.style)}</div></section>` : ""}
+
+    ${s.id !== "acting" ? `<section class="setup-section"><h2 class="section-title">Difficulty</h2><div class="opt-grid grid-cols-3">${optChips("difficulty", DIFFICULTY_OPTS, "normal")}</div></section>` : ""}
 
     <section class="setup-section" id="len-sec"><h2 class="section-title">Length</h2><p class="section-sub">Each ${ui.unit === "bars" ? "round" : ui.unit} uses one credit.</p><div class="opt-grid grid-cols-2 sm:grid-cols-4">${optChips("rounds", lenOpts, state.rounds)}</div></section>
 
@@ -1159,6 +1168,7 @@ async function Mh(i, e) {
     else label = s.name;
     const topic = deriveTopic(s, T, fig);
     if (ui.side) T.userSide = state.side;
+    if (s.id !== "acting") T.difficulty = state.difficulty;
     T.personaLabel = label;
     S.disabled = !0;
     S.innerHTML = '<span class="spinner" aria-hidden="true"></span><span>Setting up…</span>';
@@ -25204,6 +25214,7 @@ async function nx(id) {
     userSide: setup.userSide || null,
     figureId: figureId || void 0,
     ended: !!d.ended_at,
+    difficulty: setup.difficulty || null,
     actingScript: d.mode === "acting" && setup.actingMode === "script" && !!setup.script ? { script: setup.script, role: setup.scriptRole } : null,
   };
   return { meta, data };
@@ -25250,6 +25261,7 @@ function ix(root, debateId, t, data) {
           <div class="mt-1.5 flex flex-wrap items-center gap-1.5" id="meta-badges">
             ${t.debateStyle && isDeb ? `<span class="badge border-ink-700 bg-ink-900 text-slate-400">${xt((STYLE_OPTS.find((o) => o.v === t.debateStyle) || {}).t || t.debateStyle)}</span>` : ""}
             ${t.userSide && t.userSide !== "open" ? `<span class="badge border-ink-700 bg-ink-900 text-slate-400">You argue ${t.userSide === "for" ? "FOR" : "AGAINST"}</span>` : ""}
+            ${t.difficulty ? `<span class="badge border-ink-700 bg-ink-900 text-slate-400">${DIFFICULTY_LABEL[t.difficulty] || ""}</span>` : ""}
             <span id="wallet-badge" class="badge hidden border-amber-500/30 bg-amber-500/10 text-amber-300"></span>
           </div>
         </div>
