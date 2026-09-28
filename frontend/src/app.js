@@ -26008,7 +26008,13 @@ function ix(root, debateId, t, data) {
       } else micHint.classList.add("hidden");
       refreshStatus();
     };
-    rec.onend = () => done();
+    rec.onend = () => {
+      // Phones (Android Chrome, iOS Safari) end recognition by themselves when you stop
+      // talking, which cancels the pause timer — so in hands-free, ending = send.
+      const said = input.value.trim();
+      done();
+      if (handsFree && said && !busy && alive && !ended) send();
+    };
     rec.onerror = (e) => {
       const c = e?.error || "";
       done(

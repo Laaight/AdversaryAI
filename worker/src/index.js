@@ -4137,9 +4137,47 @@ function opponentLabel(debate, mode) {
   return PERSONALITY_NAMES[debate.personality] ?? mode.name;
 }
 __name(opponentLabel, "opponentLabel");
-function formatTranscript(turns, opponentName) {
-  return turns.map((t) => `${t.role === "user" ? "User" : opponentName}: ${t.text}`).join("\n\n");
+function formatTranscript(turns, opponentName, humanName = "User") {
+  return turns.map((t) => `${t.role === "user" ? humanName : opponentName}: ${t.text}`).join("\n\n");
 }
+// Who the AI plays and who the human plays, per mode — used to label the transcript so the
+// model never loses track of its side (e.g. the buyer drifting into the seller's lines).
+function turnRoles(debate, mode, setup) {
+  const clip = (x, d) => String(x || d).replace(/\s+/g, " ").trim().slice(0, 60);
+  switch (debate.mode) {
+    case "sales":
+      return { ai: "the BUYER", human: "the SALESPERSON" };
+    case "negotiation":
+      return { ai: clip(setup.counterpartRole, "the counterpart"), human: "the other side of the negotiation" };
+    case "interview":
+      return { ai: "the HIRING MANAGER", human: "the CANDIDATE" };
+    case "thesis":
+      return { ai: "the EXAMINING COMMITTEE", human: "the CANDIDATE defending the thesis" };
+    case "expert":
+      return { ai: clip(setup.audience, "the skeptical questioner"), human: "the EXPERT" };
+    case "difficult":
+      return { ai: clip(setup.otherParty, "the other person"), human: "the person starting this conversation" };
+    case "witness":
+      return { ai: clip(setup.who, "the person being spoken to"), human: "the person sharing their faith" };
+    case "rapbattle":
+      return { ai: clip(setup.mcName, "Verse Vice"), human: "the rival MC" };
+    case "acting":
+      return { ai: clip(setup.partnerRole, "the scene partner"), human: clip(setup.yourRole, "the lead") };
+    default:
+      return { ai: opponentLabel(debate, mode), human: "your debate opponent" };
+  }
+}
+__name(turnRoles, "turnRoles");
+function roleTranscript(turns, debate, mode, setup) {
+  const r = turnRoles(debate, mode, setup);
+  return formatTranscript(turns, `YOU (${r.ai})`, `USER (${r.human})`);
+}
+__name(roleTranscript, "roleTranscript");
+function roleLock(debate, mode, setup) {
+  const r = turnRoles(debate, mode, setup);
+  return `\n\nROLE LOCK: You are ${r.ai}. The user is ${r.human}. Write ONLY your own next line as ${r.ai} \u2014 never write the user's lines, never switch sides or roles, and never add speaker labels.`;
+}
+__name(roleLock, "roleLock");
 __name(formatTranscript, "formatTranscript");
 var PROFANITY_PATTERN = /\b(f+u+c+k+|s+h+i+t+|b+i+t+c+h+|a+s+s+(h+o+l+e+)?|d+a+m+n+|d+i+c+k+|p+u+s+s+y+|c+u+n+t+|w+h+o+r+e+|s+l+u+t+|n+i+g+g+[aeiou]+|f+a+g+(g+o+t+)?|t+i+t+s+|b+o+o+b+s?|p+e+n+i+s+|v+a+g+i+n+a+|c+l+i+t+|o+r+g+a+s+m+|m+a+s+t+u+r+b+a+t+e+|p+o+r+n+|h+e+n+t+a+i+|r+a+p+i+s+t+|m+o+l+e+s+t+)\b/gi;
 function maskProfanity(text) {
@@ -4359,7 +4397,8 @@ function buildTurnPrompt(debate, mode, setup, transcript, isOpening, curRound, t
     : targetRounds > 0
       ? `\n\n(Exchange ${curRound} of ${targetRounds}.)`
       : "";
-  return `Session transcript:\n\n${transcript}\n\nRespond to the user's latest message in character.${ending}`;
+  const r = turnRoles(debate, mode, setup);
+  return `Session transcript:\n\n${transcript}\n\nRespond to the user's latest message in character as ${r.ai} (the user is ${r.human}). Write only ${r.ai}'s next line.${ending}`;
 }
 __name(buildTurnPrompt, "buildTurnPrompt");
 function buildDebateTurnPrompt(debate, mode, setup, transcript, isOpening, curRound, targetRounds, forceClosing, debateStyle) {
@@ -4389,7 +4428,8 @@ State your side's resolution with confidence, lay out 2-3 foundational pillars s
     } else if (debate.mode === "rapbattle") {
       return `You won the coin toss and take the mic first in this rap battle on: "${debate.topic}"! Drop your opening 8-12 bars. Sharp flow, clever wordplay, completely clean and free of vulgarity.`;
     } else {
-      return `Begin the session on "${debate.topic}" in character. Deliver your opening lines or opening challenge under 100 words.`;
+      const r = turnRoles(debate, mode, setup);
+      return `Begin the session on "${debate.topic}". You are ${r.ai}; the user is ${r.human}. Deliver your opening lines in character as ${r.ai} only, under 100 words.`;
     }
   }
 
@@ -4407,7 +4447,8 @@ This is the FINAL ROUND of the debate. Deliver your formal CLOSING STATEMENT to 
 Direct clash: attack weak premises, expose contradictions, challenge unverified claims, and press your advantage. Keep under 120 words.`;
     }
   } else {
-    phaseGuidance = "Respond to the user's latest message in character.";
+    const r = turnRoles(debate, mode, setup);
+    phaseGuidance = `Respond to the user's latest message in character as ${r.ai}. Reply only as ${r.ai}.`;
   }
 
   return `Session transcript:
@@ -4603,14 +4644,11 @@ debateRouter.post("/turn", async (c) => {
   const mode = getMode(debate.mode);
   const setup = parseSetup(debate.setup_json);
   const targetRounds = parseInt(setup.targetRounds ?? "0", 10) || 0;
-  const systemPrompt = mode.systemPrompt({ ...setup, topic: debate.topic }) + (debate.mode === "acting" ? "" : difficultyRules(debate.mode, setup.difficulty || "hard"));
+  const systemPrompt = mode.systemPrompt({ ...setup, topic: debate.topic }) + (debate.mode === "acting" ? "" : difficultyRules(debate.mode, setup.difficulty || "hard")) + roleLock(debate, mode, setup);
   const history = await c.env.DB.prepare(
     "SELECT role, text FROM turns WHERE debate_id = ? ORDER BY id DESC LIMIT 20"
   ).bind(debateId).all();
-  const transcript = formatTranscript(
-    [...history.results ?? []].reverse(),
-    opponentLabel(debate, mode)
-  );
+  const transcript = roleTranscript([...history.results ?? []].reverse(), debate, mode, setup);
   const turnCount = history.results?.length ?? 0;
   const curRound = Math.floor(turnCount / 2) + 1;
   const userInput = buildTurnPrompt(debate, mode, setup, transcript, isOpening, curRound, targetRounds);
@@ -4671,14 +4709,11 @@ debateRouter.post("/turn-stream", async (c) => {
   const mode = getMode(debate.mode);
   const setup = parseSetup(debate.setup_json);
   const targetRounds = parseInt(setup.targetRounds ?? "0", 10) || 0;
-  const systemPrompt = mode.systemPrompt({ ...setup, topic: debate.topic }) + (debate.mode === "acting" ? "" : difficultyRules(debate.mode, setup.difficulty || "hard"));
+  const systemPrompt = mode.systemPrompt({ ...setup, topic: debate.topic }) + (debate.mode === "acting" ? "" : difficultyRules(debate.mode, setup.difficulty || "hard")) + roleLock(debate, mode, setup);
   const history = await c.env.DB.prepare(
     "SELECT role, text FROM turns WHERE debate_id = ? ORDER BY id DESC LIMIT 20"
   ).bind(debateId).all();
-  const transcript = formatTranscript(
-    [...history.results ?? []].reverse(),
-    opponentLabel(debate, mode)
-  );
+  const transcript = roleTranscript([...history.results ?? []].reverse(), debate, mode, setup);
   // A round = one user turn + one opponent reply, so the round being answered is
   // the number of user turns so far (the opening, if the AI opens, is round 1).
   let curRound = Math.max(1, await countUserTurns(c.env.DB, debateId));
