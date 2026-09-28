@@ -5901,7 +5901,7 @@ speechRouter.post("/token", async (c) => {
   }
   const wantHd = c.req.query("hd") === "1" && hdSpeechConfigured(c.env) && await isPremium(c, user.id, user.email);
   const region = wantHd ? c.env.AZURE_SPEECH_HD_REGION : c.env.AZURE_SPEECH_REGION;
-  const key = wantHd ? c.env.AZURE_SPEECH_HD_KEY : c.env.AZURE_SPEECH_KEY;
+  const key = wantHd ? hdSpeechKey(c.env) : c.env.AZURE_SPEECH_KEY;
   if (!region || !key) {
     return c.json({ error: "speech_not_configured" }, 503);
   }
@@ -5952,8 +5952,12 @@ var HD_VOICE_MAP = {
   "en-US-SaraNeural": "en-US-Emma2:DragonHDLatestNeural",
   "en-US-AriaNeural": "en-US-Aria:DragonHDLatestNeural"
 };
+function hdSpeechKey(env) {
+  return env.AZURE_SPEECH_HD_KEY || env.AzureSpeechReal || null;
+}
+__name(hdSpeechKey, "hdSpeechKey");
 function hdSpeechConfigured(env) {
-  return !!(env.AZURE_SPEECH_HD_REGION && env.AZURE_SPEECH_HD_KEY);
+  return !!(env.AZURE_SPEECH_HD_REGION && hdSpeechKey(env));
 }
 __name(hdSpeechConfigured, "hdSpeechConfigured");
 var AVATAR_VISUAL_PROFILE = {
