@@ -22,6 +22,7 @@ frontend/
   src/
     app.js            # the whole SPA (routes, setup, session, scorecard, history, account, arena)
     voice.js          # the ONLY audio player: queue, stop/replay, viseme track on the audio clock
+    photoreal.js      # Champion photoreal video opponent (LiveAvatar LITE sink for voice.js)
     app.css           # Tailwind entry + design tokens + components (.btn-primary, .opt-chip, …)
   tailwind.config.cjs # theme (ink/accent/slate CSS-variable colors, type scale)
   dist/               # deployed as static assets (built files land in dist/app/assets)
@@ -46,6 +47,25 @@ content-hashed and replaced on every build (the service-worker cache version upd
 - All opponent audio goes through `voice.js` (`voice.begin()`, `voice.stop()`, `voice.replay()`).
   Don't create `<audio>` elements or other AudioContexts for opponent speech.
 - Mode options live in two mirrored tables: `MODE_UI` (frontend) and `MODE_RULES` (worker).
+
+## Champion photoreal video (HeyGen LiveAvatar, LITE mode)
+
+Champion users see a photoreal, lip-synced video opponent. We keep our own LLM and Azure TTS;
+the browser sends each sentence's audio (24 kHz PCM) to LiveAvatar, which streams the video back
+over WebRTC (`frontend/src/photoreal.js`, `/api/avatar/*` in the worker). If anything fails, the
+session silently falls back to the 3D/portrait avatar with local audio.
+
+Setup (one time):
+1. Create an account at liveavatar.com and copy your API key.
+2. `npx wrangler secret put LIVEAVATAR_API_KEY` (paste the key). Until this exists, photoreal
+   stays off and the app says "rolling out".
+3. Deploy, then as the owner open **Account → Admin: photoreal avatars → Load avatar catalog**,
+   pick an avatar for each persona look / historical figure, and **Save**. Unmapped personas stay 3D.
+
+Cost controls: `CHAMPION_VIDEO_MINUTES` (default 150/month per Champion, in `wrangler.jsonc`),
+server-side metering via heartbeats, `max_session_duration` on every LiveAvatar session, and the
+stream closes after 2 minutes without speech. Set `LIVEAVATAR_SANDBOX` to `"1"` to test without
+spending credits. Usage lives in the `avatar_usage` / `avatar_sessions` D1 tables (auto-created).
 
 ## Other commands
 

@@ -73,7 +73,7 @@ var init_config = __esm({
       trial: { name: "Trial", debates: 15, rounds: 15, lifetime: true, price: 0 },
       debater: { name: "Debater", priceMonthly: 12, debatesPerMonth: 300, roundsPerMonth: 300, blurb: "All 11 practice modes, voiced 3D opponents with lip-sync, coaching scorecards, and credit rollover." },
       coach: { name: "Coach", priceMonthly: 29, debatesPerMonth: 1000, roundsPerMonth: 1000, analytics: true, blurb: "Detailed coaching analytics, scorecard rubrics, and judge feedback. Unused credits roll over." },
-      champion: { name: "Champion", priceMonthly: 49, debatesPerMonth: 2500, roundsPerMonth: 2500, premiumModel: true, blurb: "Our strongest reasoning model (DeepSeek-V4-Pro) for sharper opponents and deeper judge feedback, plus priority speed and credit rollover." }
+      champion: { name: "Champion", priceMonthly: 49, debatesPerMonth: 1e3, roundsPerMonth: 1e3, premiumModel: true, photorealMinutes: 150, blurb: "Photoreal video opponents that look you in the eye, our strongest reasoning model for sharper arguments and deeper judge feedback, and priority speed." }
     };
     PACKS = [
       { id: "pack10", name: "100 Rounds", debates: 100, rounds: 100, price: 9 },
@@ -98,6 +98,7 @@ var init_config = __esm({
       islamic_theologian: "en-US-JasonNeural",
       biblical_creationist: "en-US-GuyNeural",
       moral_humanist: "en-US-SaraNeural",
+      archetypal_psychologist: "en-US-DavisNeural",
       jordan_peterson: "en-US-DavisNeural"
     };
     FIGURE_VOICES = {
@@ -2587,7 +2588,8 @@ billingRouter.get("/api/billing/prices", (c) => {
       debates,
       rounds: debates,
       credits: debates,
-      description: String(t.blurb ?? "")
+      description: String(t.blurb ?? ""),
+      ...id === "champion" ? { photoreal: !!c.env.LIVEAVATAR_API_KEY, photorealMinutes: videoMinutesCap(c.env) } : {}
     };
   });
   const packs = PACKS.map((p) => ({
@@ -3033,7 +3035,8 @@ authRouter.get("/me", async (c) => {
   const sub = await getSubscription(c.env.DB, user.id);
   const orgs = await getUserOrgs(c.env.DB, user.id);
   const org = orgs[0] ? { id: orgs[0].org.id, name: orgs[0].org.name, role: orgs[0].role } : null;
-  return c.json({ id: user.id, email: user.email, plan: resolvePlan(sub), org, isOwner, adminMode });
+  const champion = await isPremium(c, user.id, user.email);
+  return c.json({ id: user.id, email: user.email, plan: resolvePlan(sub), org, isOwner, adminMode, champion, photoreal: !!c.env.LIVEAVATAR_API_KEY });
 });
 
 // worker/src/model.ts
@@ -3333,8 +3336,9 @@ var PERSONALITY_PROMPTS = {
   islamic_theologian: "You are The Islamic Theologian, a master of Kalam cosmological philosophy, contingency metaphysics (Burhan al-Siddiqin), and classical Islamic apologetics. You argue that the universe began to exist and is contingent, strictly necessitating an eternal, uncaused, conscious Creator. You defend uncompromising Monotheism (Tawhid), challenging the logical coherence of the Trinity as a contradiction and exposing naturalism's failure to account for consciousness, objective values, and the origin of existence. Keep replies under 120 words, remain dignified and intellectually formidable, and end with a pointed question." + DEBATE_GROUND_RULES,
   biblical_creationist: "You are The Biblical Creationist, a fervent defender of special creation and presuppositional apologetics. You argue that naturalism cannot account for the laws of logic, uniform natural laws, or absolute moral standards without the biblical Creator. You challenge evolutionary mechanisms on the origin of life (abiogenesis impossibility) and the lack of observed genetic mutations that generate novel functional information. You cite the sudden appearance of body plans in the Cambrian explosion. Keep replies under 120 words, stand firm on scripture and epistemology, and end with a pointed question." + DEBATE_GROUND_RULES,
   moral_humanist: "You are The Moral Humanist, a passionate secular ethicist dedicated to human and animal flourishing. You argue that objective morality stems from conscious experience and the reality of suffering, completely independent of ancient religious texts. You actively critique religious dogma for moral shortcomings (slavery commands, misogyny, tribal cruelty) and demonstrate that scientific and social progress—not theological obedience—has delivered genuine moral advancement. Keep replies under 120 words, argue with empathy and fierce logic, and end with a pointed question." + DEBATE_GROUND_RULES,
-  jordan_peterson: "You are The Archetypal Psychologist, inspired by Jordan Peterson's intellectual framework synthesizing clinical depth psychology, Jungian archetypes, evolutionary biology, and existentialism. You argue that ancient mythological and biblical narratives encode evolved, survival-critical psychological truths that orient human consciousness in the face of suffering and malevolence. You insist on radical personal responsibility, truthful speech as the foundation of being (the Logos), and the biological reality of competence hierarchies (not mere power dynamics). You challenge ideological post-modernism, victimhood narratives, and utopian engineering with relentless emphasis on individual moral agency, meaning through voluntary responsibility, and confronting chaos. Keep replies under 120 words, speak with earnest, intense philosophical precision, and end with a pointed question." + DEBATE_GROUND_RULES
+  archetypal_psychologist: "You are The Archetypal Psychologist, a fictional sparring persona drawing on clinical depth psychology, Jungian archetypes, evolutionary biology, and existentialism. You never claim to be, quote as, or imitate any real living person. You argue that ancient mythological and biblical narratives encode evolved, survival-critical psychological truths that orient human consciousness in the face of suffering and malevolence. You insist on radical personal responsibility, truthful speech as the foundation of being (the Logos), and the biological reality of competence hierarchies (not mere power dynamics). You challenge ideological post-modernism, victimhood narratives, and utopian engineering with relentless emphasis on individual moral agency, meaning through voluntary responsibility, and confronting chaos. Keep replies under 120 words, speak with earnest, intense philosophical precision, and end with a pointed question." + DEBATE_GROUND_RULES
 };
+PERSONALITY_PROMPTS.jordan_peterson = PERSONALITY_PROMPTS.archetypal_psychologist;
 var PERSONALITY_NAMES = {
   prosecutor: "The Prosecutor",
   professor: "The Professor",
@@ -3346,6 +3350,7 @@ var PERSONALITY_NAMES = {
   islamic_theologian: "The Islamic Theologian",
   biblical_creationist: "The Biblical Creationist",
   moral_humanist: "The Moral Humanist",
+  archetypal_psychologist: "The Archetypal Psychologist",
   jordan_peterson: "The Archetypal Psychologist"
 };
 var HISTORICAL_FIGURES = [
@@ -3407,6 +3412,9 @@ var HISTORICAL_FIGURES = [
   },
   {
     id: "mlk",
+    // Retired from new sessions: the King estate enforces his likeness. Kept so past
+    // sessions still render their transcript and label.
+    retired: true,
     name: "Martin Luther King Jr.",
     era: "1929\u20131968 \xB7 Civil rights leader",
     bio: "Leader of the American civil rights movement; preached nonviolent resistance and judged people by character, not color.",
@@ -3977,7 +3985,7 @@ modesRouter.get("/", async (c) => {
     };
     if (m.disclaimer) pub.disclaimer = m.disclaimer;
     if (m.id === "historical") {
-      pub.figures = HISTORICAL_FIGURES.map((f) => ({
+      pub.figures = HISTORICAL_FIGURES.filter((f) => !f.retired).map((f) => ({
         id: f.id,
         name: f.name,
         era: f.era,
@@ -3993,7 +4001,7 @@ modesRouter.get("/", async (c) => {
 });
 
 // worker/src/debate.ts
-var FALLBACK_QUOTAS = { debater: 30, coach: 150, champion: 25 };
+var FALLBACK_QUOTAS = { debater: 300, coach: 1e3, champion: 1e3 };
 async function getTierQuotas() {
   const quotas = { ...FALLBACK_QUOTAS };
   try {
@@ -4356,7 +4364,7 @@ debateRouter.post("/start", async (c) => {
     setup.persona = actorId;
   } else if (mode.id === "historical") {
     const fig = figureById(typeof rawSetup.figureId === "string" ? rawSetup.figureId : "");
-    if (!fig) return c.json({ error: "invalid_figure" }, 400);
+    if (!fig || fig.retired) return c.json({ error: "invalid_figure" }, 400);
     figureId = fig.id;
     actorId = fig.id;
     setup.figureId = fig.id;
@@ -5876,6 +5884,197 @@ speechRouter.post("/token", async (c) => {
   return c.json({ token, region, expiresIn: 600 });
 });
 
+// worker/src/avatar.ts — Champion photoreal avatars (HeyGen LiveAvatar, LITE mode).
+// We keep our own LLM + Azure TTS; LiveAvatar only renders lip-synced video from the
+// PCM audio the browser sends it. Minutes are metered here so a Champion plan can't
+// run up an unbounded video bill.
+var avatarRouter = new Hono2();
+var AVATAR_VISUAL_KEYS = ["man-pro", "woman-pro", "older-man", "older-woman", "man-casual", "woman-casual", "teen-boy", "teen-girl", "default-masc", "default-fem"];
+var avatarTablesReady = false;
+async function ensureAvatarTables(db) {
+  if (avatarTablesReady) return;
+  await db.batch([
+    db.prepare("CREATE TABLE IF NOT EXISTS avatar_usage (user_id TEXT NOT NULL, month TEXT NOT NULL, seconds INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user_id, month))"),
+    db.prepare("CREATE TABLE IF NOT EXISTS avatar_sessions (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, debate_id TEXT, started_at TEXT NOT NULL, last_beat_at TEXT NOT NULL, ended_at TEXT)")
+  ]);
+  avatarTablesReady = true;
+}
+__name(ensureAvatarTables, "ensureAvatarTables");
+function avatarApiUrl(env) {
+  return (env.LIVEAVATAR_API_URL || "https://api.liveavatar.com").replace(/\/+$/, "");
+}
+__name(avatarApiUrl, "avatarApiUrl");
+function videoMinutesCap(env) {
+  const n = Number(env.CHAMPION_VIDEO_MINUTES ?? 150);
+  return Number.isFinite(n) && n > 0 ? n : 150;
+}
+__name(videoMinutesCap, "videoMinutesCap");
+async function getAvatarMap(db) {
+  try {
+    const row = await db.prepare("SELECT value FROM app_config WHERE key = 'liveavatar_map'").first();
+    const m = row?.value ? JSON.parse(row.value) : {};
+    return m && typeof m === "object" ? m : {};
+  } catch {
+    return {};
+  }
+}
+__name(getAvatarMap, "getAvatarMap");
+async function avatarSecondsUsed(db, userId) {
+  await ensureAvatarTables(db);
+  const row = await db.prepare("SELECT seconds FROM avatar_usage WHERE user_id = ? AND month = ?").bind(userId, currentMonth()).first();
+  return Number(row?.seconds ?? 0);
+}
+__name(avatarSecondsUsed, "avatarSecondsUsed");
+async function avatarStatus(c, user) {
+  const enabled = !!c.env.LIVEAVATAR_API_KEY;
+  const eligible = await isPremium(c, user.id, user.email);
+  const owner = isOwnerEmail(user.email, c.env);
+  const capSeconds = owner ? 24 * 3600 : videoMinutesCap(c.env) * 60;
+  const used = enabled && eligible ? await avatarSecondsUsed(c.env.DB, user.id) : 0;
+  return { enabled, eligible, owner, capSeconds, usedSeconds: used, remainingSeconds: Math.max(0, capSeconds - used) };
+}
+__name(avatarStatus, "avatarStatus");
+function avatarKeyForDebate(debate) {
+  const setup = parseSetup(debate.setup_json);
+  if (debate.mode === "historical") return setup.figureId || debate.personality || "";
+  return setup.personaVisual || "";
+}
+__name(avatarKeyForDebate, "avatarKeyForDebate");
+async function liveAvatarFetch(env, path, init = {}) {
+  const res = await fetch(`${avatarApiUrl(env)}${path}`, {
+    ...init,
+    headers: { "X-API-KEY": env.LIVEAVATAR_API_KEY, "Content-Type": "application/json", accept: "application/json", ...init.headers ?? {} }
+  });
+  let data = null;
+  try {
+    data = await res.json();
+  } catch {
+  }
+  return { ok: res.ok, status: res.status, data };
+}
+__name(liveAvatarFetch, "liveAvatarFetch");
+avatarRouter.get("/status", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  const st = await avatarStatus(c, user);
+  let mapped = null;
+  const debateId = c.req.query("debateId");
+  if (debateId && st.enabled && st.eligible) {
+    const debate = await getOwnedDebate(c, debateId, user.id);
+    if (debate) {
+      const map = await getAvatarMap(c.env.DB);
+      mapped = !!map[avatarKeyForDebate(debate)];
+    }
+  }
+  return c.json({ ...st, capMinutes: Math.round(st.capSeconds / 60), remainingMinutes: Math.floor(st.remainingSeconds / 60), mapped });
+});
+avatarRouter.post("/session", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  const st = await avatarStatus(c, user);
+  if (!st.enabled) return c.json({ error: "photoreal_not_configured" }, 503);
+  if (!st.eligible) return c.json({ error: "champion_required" }, 402);
+  if (st.remainingSeconds < 30) return c.json({ error: "video_minutes_exhausted" }, 402);
+  const body = await c.req.json().catch(() => ({}));
+  const debate = await getOwnedDebate(c, String(body.debateId ?? ""), user.id);
+  if (!debate) return c.json({ error: "debate_not_found" }, 404);
+  if (debate.ended_at) return c.json({ error: "debate_ended" }, 400);
+  const map = await getAvatarMap(c.env.DB);
+  const avatarId = map[avatarKeyForDebate(debate)];
+  if (!avatarId) return c.json({ error: "no_avatar_for_persona" }, 404);
+  const maxSeconds = Math.max(60, Math.min(st.remainingSeconds, 20 * 60));
+  const r = await liveAvatarFetch(c.env, "/v1/sessions/token", {
+    method: "POST",
+    body: JSON.stringify({
+      mode: "LITE",
+      avatar_id: avatarId,
+      is_sandbox: c.env.LIVEAVATAR_SANDBOX === "1",
+      video_settings: { quality: "high", encoding: "H264" },
+      max_session_duration: maxSeconds
+    })
+  });
+  const token = r.data?.data?.session_token;
+  const sessionId = r.data?.data?.session_id;
+  if (!r.ok || !token) {
+    console.error("LiveAvatar token failed", r.status, JSON.stringify(r.data).slice(0, 300));
+    return c.json({ error: "photoreal_unavailable" }, 502);
+  }
+  await ensureAvatarTables(c.env.DB);
+  const now = nowIso();
+  await c.env.DB.prepare("INSERT OR REPLACE INTO avatar_sessions (id, user_id, debate_id, started_at, last_beat_at) VALUES (?, ?, ?, ?, ?)").bind(String(sessionId || newId()), user.id, debate.id, now, now).run();
+  return c.json({ sessionToken: token, sessionId, apiUrl: avatarApiUrl(c.env), maxSeconds, remainingSeconds: st.remainingSeconds });
+});
+async function meterAvatarSession(c, user, sessionId, end) {
+  await ensureAvatarTables(c.env.DB);
+  const row = await c.env.DB.prepare("SELECT last_beat_at, ended_at FROM avatar_sessions WHERE id = ? AND user_id = ?").bind(sessionId, user.id).first();
+  if (!row || row.ended_at) return 0;
+  const now = Date.now();
+  // Count real elapsed time, but never more than 45s per beat (a sleeping laptop
+  // shouldn't bill hours; LiveAvatar also enforces max_session_duration).
+  const secs = Math.max(0, Math.min(45, Math.round((now - Date.parse(row.last_beat_at)) / 1e3)));
+  const iso = new Date(now).toISOString();
+  await c.env.DB.batch([
+    c.env.DB.prepare(end ? "UPDATE avatar_sessions SET last_beat_at = ?, ended_at = ? WHERE id = ?" : "UPDATE avatar_sessions SET last_beat_at = ? WHERE id = ?").bind(...end ? [iso, iso, sessionId] : [iso, sessionId]),
+    c.env.DB.prepare("INSERT INTO avatar_usage (user_id, month, seconds) VALUES (?, ?, ?) ON CONFLICT(user_id, month) DO UPDATE SET seconds = seconds + excluded.seconds").bind(user.id, currentMonth(), secs)
+  ]);
+  return secs;
+}
+__name(meterAvatarSession, "meterAvatarSession");
+avatarRouter.post("/heartbeat", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  const body = await c.req.json().catch(() => ({}));
+  await meterAvatarSession(c, user, String(body.sessionId ?? ""), false);
+  const st = await avatarStatus(c, user);
+  return c.json({ remainingSeconds: st.remainingSeconds, stop: st.remainingSeconds <= 0 });
+});
+avatarRouter.post("/end", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  const body = await c.req.json().catch(() => ({}));
+  await meterAvatarSession(c, user, String(body.sessionId ?? ""), true);
+  const st = await avatarStatus(c, user);
+  return c.json({ remainingSeconds: st.remainingSeconds });
+});
+// Owner tools: pick which LiveAvatar avatar plays each persona / historical figure.
+avatarRouter.get("/catalog", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user || !isOwnerEmail(user.email, c.env)) return c.json({ error: "forbidden" }, 403);
+  if (!c.env.LIVEAVATAR_API_KEY) return c.json({ error: "photoreal_not_configured" }, 503);
+  const pick = /* @__PURE__ */ __name((a) => ({
+    id: a.id ?? a.avatar_id,
+    name: a.name ?? a.avatar_name ?? a.id,
+    image: a.preview_url ?? a.image_url ?? a.thumbnail_url ?? a.preview_image_url ?? null,
+    gender: a.gender ?? null
+  }), "pick");
+  const out = [];
+  for (const [path, own] of [["/v1/avatars?page_size=100", true], ["/v1/avatars/public?page_size=100", false]]) {
+    const r = await liveAvatarFetch(c.env, path);
+    const d = r.data?.data;
+    const list = Array.isArray(d) ? d : d?.results ?? d?.items ?? d?.data ?? [];
+    for (const a of list) out.push({ ...pick(a), own });
+  }
+  return c.json({ avatars: out.filter((a) => a.id) });
+});
+avatarRouter.get("/map", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user || !isOwnerEmail(user.email, c.env)) return c.json({ error: "forbidden" }, 403);
+  const figures = HISTORICAL_FIGURES.filter((f) => !f.retired).map((f) => ({ key: f.id, label: f.name }));
+  const visuals = AVATAR_VISUAL_KEYS.map((k) => ({ key: k, label: k.replace(/-/g, " ") }));
+  return c.json({ map: await getAvatarMap(c.env.DB), keys: [...visuals, ...figures] });
+});
+avatarRouter.post("/map", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user || !isOwnerEmail(user.email, c.env)) return c.json({ error: "forbidden" }, 403);
+  const body = await c.req.json().catch(() => ({}));
+  const map = {};
+  for (const [k, v] of Object.entries(body.map ?? {})) {
+    if (typeof v === "string" && v.trim() && /^[\w-]{1,64}$/.test(k)) map[k] = v.trim().slice(0, 100);
+  }
+  await c.env.DB.prepare("INSERT OR REPLACE INTO app_config (key, value, updated_at) VALUES ('liveavatar_map', ?, ?)").bind(JSON.stringify(map), nowIso()).run();
+  return c.json({ ok: true, map });
+});
+
 // worker/src/index.ts
 var app = new Hono2();
 app.onError((err, c) => {
@@ -5894,6 +6093,7 @@ app.route("/api/modes", modesRouter);
 app.route("/api/account", accountRouter);
 app.post("/api/promo/redeem", handlePromoRedeem);
 app.route("/api/speech", speechRouter);
+app.route("/api/avatar", avatarRouter);
 app.route("/api/orgs", orgsRouter);
 app.route("/", billingRouter);
 app.route("/", webhookRouter);

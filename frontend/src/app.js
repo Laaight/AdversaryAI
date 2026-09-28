@@ -1,4 +1,5 @@
-import { voice, VISEME_GAIN, VISEME_JAW, createStreamingSpeaker, loadSpeechSdk } from "./voice.js";
+import { voice, VISEME_GAIN, VISEME_JAW, createStreamingSpeaker, loadSpeechSdk, sdkUnavailable } from "./voice.js";
+import { PhotorealAvatar, fetchPhotorealStatus } from "./photoreal.js";
 var Qu = Object.defineProperty;
 var eh = (i, e, t) => (e in i ? Qu(i, e, { enumerable: !0, configurable: !0, writable: !0, value: t }) : (i[e] = t));
 var ut = (i, e, t) => eh(i, typeof e != "symbol" ? e + "" : e, t);
@@ -511,6 +512,7 @@ const mh = {
     islamic_theologian: "man-pro",
     biblical_creationist: "older-man",
     moral_humanist: "woman-pro",
+    archetypal_psychologist: "man-pro",
     jordan_peterson: "man-pro",
   };
 function _h(i) {
@@ -601,7 +603,7 @@ const Lc = [
     icon: it.chat,
   },
   {
-    id: "jordan_peterson",
+    id: "archetypal_psychologist",
     name: "The Archetypal Psychologist",
     tagline: "Meaning, responsibility & archetypes",
     description:
@@ -966,6 +968,7 @@ async function Mh(i, e) {
   };
   S.addEventListener("click", async () => {
     voice.unlock();
+    loadSpeechSdk(); // start fetching the voice SDK while the session is created
     x.classList.add("hidden");
     const T = {};
     let err = null;
@@ -25063,6 +25066,7 @@ function ix(root, debateId, t, data) {
           <canvas id="avatar-canvas" class="avatar-canvas" aria-label="${xt(t.personaLabel)}"></canvas>
           <div id="avatar-loading" class="absolute inset-0 flex items-center justify-center text-sm text-slate-500 ${t.figureId ? "hidden" : ""}"><span class="spinner mr-2"></span>Loading ${xt(t.personaLabel)}…</div>
           ${isDeb ? `<span id="phase-badge" class="badge absolute left-3 top-3 border-white/10 bg-black/60 text-slate-200 backdrop-blur"></span>` : ""}
+          <span id="photo-badge" class="absolute right-3 top-3 hidden"></span>
           <span id="status-pill" class="badge absolute bottom-3 left-3 border-white/10 bg-black/60 text-slate-200 backdrop-blur"><span id="status-dot" class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span><span id="status-text">Ready</span></span>
         </div>
         <div class="mt-2.5 flex items-center gap-2">
@@ -25072,6 +25076,7 @@ function ix(root, debateId, t, data) {
             <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor"/></svg><span>Stop</span></button>
           <button id="end-btn" type="button" class="btn-danger btn-sm ml-auto">End &amp; grade</button>
         </div>
+        <div id="upsell-slot" class="hidden"></div>
       </aside>
 
       <section class="flex min-h-0 min-w-0 flex-1 flex-col pt-3 lg:pt-6">
@@ -25120,6 +25125,56 @@ function ix(root, debateId, t, data) {
   $("#avatar-canvas").addEventListener("avatar-ready", () => $("#avatar-loading")?.classList.add("hidden"), { once: true });
   loadSpeechSdk(); // warm the TTS SDK while the user reads/types
 
+  // ---------------------------------------------------------------- Champion photoreal
+  let photo = null;
+  // Champion + opponent-opens: hold the opening line (briefly) until the video is live,
+  // so the very first words come from the photoreal opponent.
+  let openPhotoGate;
+  const photoGate = Promise.race([new Promise((r) => (openPhotoGate = r)), new Promise((r) => setTimeout(r, 8000))]);
+  const photoBadge = $("#photo-badge");
+  const setPhotoBadge = (html, cls = "") => {
+    photoBadge.className = `absolute right-3 top-3 ${html ? "" : "hidden"}`;
+    photoBadge.innerHTML = html ? `<span class="badge border-white/10 bg-black/60 backdrop-blur ${cls}">${html}</span>` : "";
+  };
+  const mins = (sec) => `${Math.max(0, Math.floor((sec || 0) / 60))} min left`;
+  (async () => {
+    const me = await da().catch(() => null);
+    if (!alive || !me?.photoreal) return openPhotoGate();
+    if (!me.champion) {
+      openPhotoGate();
+      const up = $("#upsell-slot");
+      up.className = "mt-2.5";
+      up.innerHTML = `<a href="#/account?plans=1" class="flex items-center justify-between gap-3 rounded-xl border border-amber-400/25 bg-amber-400/5 px-3.5 py-2.5 text-xs text-amber-100 transition-colors hover:border-amber-400/50"><span><span class="font-semibold text-amber-300">✦ Champion</span> — face a photoreal opponent on video</span><span aria-hidden="true">→</span></a>`;
+      return;
+    }
+    const st = await fetchPhotorealStatus(debateId);
+    if (!alive || !st?.enabled || !st.eligible) return openPhotoGate();
+    if (!st.mapped) {
+      openPhotoGate();
+      if (st.owner) setPhotoBadge("Photoreal: pick an avatar in Account", "text-slate-300");
+      return;
+    }
+    if (st.remainingSeconds < 60) {
+      openPhotoGate();
+      return setPhotoBadge("Video minutes used this month", "text-slate-300");
+    }
+    photo = new PhotorealAvatar({
+      stage: $("#avatar-canvas").parentElement,
+      debateId,
+      onStatus: (u) => {
+        if (!alive) return;
+        if (u.state !== "connecting") openPhotoGate();
+        if (u.state === "connecting") setPhotoBadge('<span class="spinner !h-3 !w-3"></span>Photoreal connecting…', "text-slate-200");
+        else if (u.state === "live") setPhotoBadge(`<span class="h-1.5 w-1.5 rounded-full bg-amber-400"></span>Photoreal · ${mins(u.remainingSeconds)}`, "text-amber-200");
+        else if (u.state === "needs_tap") setPhotoBadge("Tap the video to turn on sound", "text-amber-200");
+        else if (u.state === "sleeping") setPhotoBadge("Photoreal paused — resumes when you reply", "text-slate-300");
+        else if (u.state === "error") setPhotoBadge(u.error === "video_minutes_exhausted" ? "Video minutes used this month" : "Photoreal unavailable — using 3D", "text-slate-300");
+        else setPhotoBadge("");
+      },
+    });
+    if (!ended) photo.start();
+  })();
+
   // ---------------------------------------------------------------- state
   const turns = [];
   let userTurns = 0;
@@ -25147,6 +25202,7 @@ function ix(root, debateId, t, data) {
       rec?.abort();
     } catch {}
     unsubVoice();
+    photo?.dispose();
     voice.reset();
     avatar.dispose();
     window.removeEventListener("hashchange", cleanup);
@@ -25224,7 +25280,7 @@ function ix(root, debateId, t, data) {
     if (ended) ph = "This session is finished.";
     else if (isDeb) {
       const p = phaseFor(currentRound()).label;
-      ph = p === "Opening" ? (turns.some((x) => x.role === "opp") ? "Your opening — answer their case and state yours…" : "Your opening statement — define terms, state your case…") : p === "Closing" ? "Your closing argument — why you won…" : "Rebut their points, press your advantage…";
+      ph = p === "Opening" ? "Your opening statement…" : p === "Closing" ? "Your closing argument…" : "Your rebuttal…";
     } else if (t.modeId === "interview" || t.modeId === "thesis" || t.modeId === "expert") ph = "Your answer…";
     else if (t.modeId === "rapbattle") ph = "Drop your bars…";
     else ph = turns.length ? "Your reply…" : "Say something to begin…";
@@ -25259,7 +25315,10 @@ function ix(root, debateId, t, data) {
     input.style.height = "auto";
     input.style.height = Math.min(160, input.scrollHeight) + "px";
   }
-  input.addEventListener("input", autosize);
+  input.addEventListener("input", () => {
+    autosize();
+    photo?.touch();
+  });
 
   function showTargetBanner() {
     if (!target || userTurns < target || ended || bannerSlot.firstChild) return;
@@ -25304,6 +25363,7 @@ function ix(root, debateId, t, data) {
     if (busy || ended || (!open && !text)) return;
     voice.unlock();
     abortListening();
+    photo?.touch();
     speaker?.cancel();
     speaker = null;
     voice.stop();
@@ -25338,8 +25398,10 @@ function ix(root, debateId, t, data) {
     let lastPaint = 0;
     let fallback = null; // {offset, utter}
     let doneEvt = null;
-    const sdk = await Promise.race([loadSpeechSdk(), new Promise((r) => setTimeout(() => r(null), 1500))]);
-    const clientTts = !!sdk;
+    // The browser synthesizes unless the SDK is known to be unavailable. If it's still
+    // loading, the streaming speaker waits for it and falls back to server audio for
+    // whatever it couldn't voice — never both.
+    const clientTts = !sdkUnavailable();
     abortCtl = new AbortController();
     const paint = (force) => {
       const now = performance.now();
@@ -25663,7 +25725,7 @@ function ix(root, debateId, t, data) {
   refreshRound();
   refreshStatus();
   showTargetBanner();
-  if (!ended && (data.turns ?? []).length === 0 && t.resolvedFirstSpeaker === "opponent") setTimeout(() => alive && send({ open: true }), 350);
+  if (!ended && (data.turns ?? []).length === 0 && t.resolvedFirstSpeaker === "opponent") photoGate.then(() => alive && send({ open: true }));
   else if (!ended && window.matchMedia("(pointer: fine)").matches) input.focus();
 }
 function $u(i, e, t = 10) {
@@ -25867,6 +25929,7 @@ const lx = {
   islamic_theologian: "The Islamic Theologian",
   biblical_creationist: "The Biblical Creationist",
   moral_humanist: "The Moral Humanist",
+  archetypal_psychologist: "The Archetypal Psychologist",
   jordan_peterson: "The Archetypal Psychologist",
 };
 function Vi(i) {
@@ -26221,6 +26284,41 @@ async function qu(i) {
       }
     }, 0);
   }
+  if (t.isOwner) {
+    const pr = document.createElement("section");
+    pr.className = "card mb-10 p-6";
+    pr.innerHTML = `<h2 class="text-lg font-semibold text-white">Admin: photoreal avatars (Champion)</h2>
+      <p class="mt-1 text-sm text-slate-400">Pick which LiveAvatar avatar plays each opponent. Personas without an avatar stay 3D.</p>
+      <div data-body class="mt-4"><button type="button" class="btn-ghost btn-sm" data-load>Load avatar catalog</button></div>`;
+    e.appendChild(pr);
+    const body = pr.querySelector("[data-body]");
+    pr.querySelector("[data-load]").addEventListener("click", async () => {
+      body.innerHTML = '<p class="text-sm text-slate-400"><span class="spinner mr-2"></span>Loading…</p>';
+      try {
+        const [cat, mp] = await Promise.all([Ut("/api/avatar/catalog"), Ut("/api/avatar/map")]);
+        const opts = (sel) => `<option value="">— 3D (no video) —</option>` + cat.avatars.map((av) => `<option value="${Lt(av.id)}" ${av.id === sel ? "selected" : ""}>${Lt(av.name || av.id)}${av.own ? " (yours)" : ""}${av.gender ? ` · ${Lt(av.gender)}` : ""}</option>`).join("");
+        body.innerHTML = `<div class="grid gap-3 sm:grid-cols-2">${mp.keys
+          .map((k) => `<label class="block"><span class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">${Lt(k.label)}</span><select class="field text-sm" data-key="${Lt(k.key)}">${opts(mp.map[k.key])}</select></label>`)
+          .join("")}</div>
+          <div class="mt-4 flex items-center gap-3"><button type="button" class="btn-primary btn-sm" data-save>Save avatars</button><span data-msg class="text-sm text-slate-400"></span></div>`;
+        body.querySelector("[data-save]").addEventListener("click", async (ev) => {
+          const map = {};
+          body.querySelectorAll("select[data-key]").forEach((x) => x.value && (map[x.dataset.key] = x.value));
+          ev.target.disabled = true;
+          try {
+            await zt("/api/avatar/map", { map });
+            body.querySelector("[data-msg]").textContent = "Saved.";
+          } catch {
+            body.querySelector("[data-msg]").textContent = "Couldn’t save — try again.";
+          } finally {
+            ev.target.disabled = false;
+          }
+        });
+      } catch (err) {
+        body.innerHTML = `<p class="text-sm text-amber-300">${err instanceof Bt && err.status === 503 ? "Add the LIVEAVATAR_API_KEY secret in Cloudflare first (see README)." : "Couldn’t load the LiveAvatar catalog."}</p>`;
+      }
+    });
+  }
   const l = document.createElement("section");
   ((l.className = "mb-10"),
     (l.innerHTML = `
@@ -26272,15 +26370,52 @@ async function qu(i) {
       }
     }
   });
+  const photorealLive = !!s?.photoreal;
+  const isChampion = !!s?.champion;
+  const curTier = a && /active|trialing/.test(a.status || "") ? a.tier : null;
+  const photoLine = photorealLive ? "Photoreal video opponents — 150 min/month" : "Photoreal video opponents (rolling out)";
+  const TIER_FEATURES = {
+    debater: ["300 rounds / month", "All 11 practice modes", "Voiced 3D opponents with real lip-sync", "Scorecards + impartial judge verdicts", "Unused credits roll over"],
+    coach: ["1,000 rounds / month", "Everything in Debater", "Best for weekly practice & interview season", "Unused credits roll over"],
+    champion: ["1,000 rounds / month", photoLine, "Strongest reasoning model — sharper opponents, deeper judge feedback", "Priority speed", "Everything in Coach"],
+  };
   const p = document.createElement("section");
-  ((p.innerHTML = `
-    <h2 class="font-display text-display-md text-white mb-1">Upgrade your plan</h2>
-    <p class="text-slate-400 text-body-sm mb-5">Subscriptions renew monthly with fresh rounds, and unused credits roll over month-to-month.</p>
-    <div class="grid sm:grid-cols-3 gap-4 mb-10" id="tier-grid"></div>`),
-    e.appendChild(p));
+  p.id = "plans";
+  p.innerHTML = `
+    ${
+      isChampion
+        ? ""
+        : `<div class="card relative mb-6 overflow-hidden border-amber-500/30 p-6 sm:p-8">
+      <div class="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-amber-500/10 blur-3xl" aria-hidden="true"></div>
+      <p class="eyebrow mb-2 !text-amber-300">Champion</p>
+      <h2 class="text-2xl font-extrabold tracking-tight text-white sm:text-3xl">Practice against someone who looks you in the eye.</h2>
+      <p class="mt-2 max-w-xl text-sm leading-relaxed text-slate-400">Pressure is what you're training for. Champion puts a photoreal human opponent on screen — real eye contact, real facial reactions, lips that match every word — driven by our sharpest reasoning model.</p>
+      <ul class="mt-5 grid gap-3 text-sm sm:grid-cols-3">
+        <li class="rounded-xl border border-ink-700 bg-ink-800/60 p-4"><div class="font-semibold text-white">Photoreal video</div><div class="mt-1 text-slate-400">${photorealLive ? "150 minutes a month of lifelike video opponents." : "Lifelike video opponents — rolling out to Champions first."}</div></li>
+        <li class="rounded-xl border border-ink-700 bg-ink-800/60 p-4"><div class="font-semibold text-white">Sharper opponent</div><div class="mt-1 text-slate-400">DeepSeek-V4-Pro finds the hole in your argument faster and pushes harder.</div></li>
+        <li class="rounded-xl border border-ink-700 bg-ink-800/60 p-4"><div class="font-semibold text-white">Deeper feedback</div><div class="mt-1 text-slate-400">The judge and coach run on the Pro model too — more specific notes, better turning points.</div></li>
+      </ul>
+    </div>`
+    }
+    <h2 class="text-display-md text-white mb-1">${curTier ? "Your plan" : "Choose a plan"}</h2>
+    <p class="text-slate-400 text-body-sm mb-5">Monthly, cancel anytime. Unused rounds roll over.</p>
+    <div class="grid gap-4 mb-6 lg:grid-cols-3" id="tier-grid"></div>
+    <details class="card mb-10 p-5 text-sm">
+      <summary class="cursor-pointer font-semibold text-white">Compare plans</summary>
+      <div class="mt-4 overflow-x-auto"><table class="w-full min-w-[520px] text-left">
+        <thead class="text-xs uppercase tracking-wider text-slate-500"><tr><th class="py-2 pr-4 font-semibold"></th><th class="py-2 pr-4">Debater</th><th class="py-2 pr-4">Coach</th><th class="py-2 text-amber-300">Champion</th></tr></thead>
+        <tbody class="divide-y divide-ink-700/70 text-slate-300">
+          <tr><td class="py-2.5 pr-4 text-slate-400">Rounds / month</td><td>300</td><td>1,000</td><td>1,000</td></tr>
+          <tr><td class="py-2.5 pr-4 text-slate-400">Opponent on screen</td><td>3D, lip-synced</td><td>3D, lip-synced</td><td class="font-semibold text-white">Photoreal video${photorealLive ? " (150 min)" : " (rolling out)"}</td></tr>
+          <tr><td class="py-2.5 pr-4 text-slate-400">Reasoning model</td><td>Standard</td><td>Standard</td><td class="font-semibold text-white">Pro</td></tr>
+          <tr><td class="py-2.5 pr-4 text-slate-400">Judge & coach feedback</td><td>✓</td><td>✓</td><td class="font-semibold text-white">✓ Pro-level detail</td></tr>
+          <tr><td class="py-2.5 pr-4 text-slate-400">All 11 modes · rollover</td><td>✓</td><td>✓</td><td>✓</td></tr>
+        </tbody></table></div>
+    </details>`;
+  e.appendChild(p);
   const g = document.createElement("section");
   ((g.innerHTML = `
-    <h2 class="font-display text-display-md text-white mb-1">Round packs</h2>
+    <h2 class="text-display-md text-white mb-1">Round packs</h2>
     <p class="text-slate-400 text-body-sm mb-5">One-time top-ups. Credits roll over and never expire — spent automatically when your plan quota runs out.</p>
     <div class="grid sm:grid-cols-3 gap-4" id="pack-grid"></div>`),
     e.appendChild(g));
@@ -26297,22 +26432,24 @@ async function qu(i) {
       ((T.disabled = !1), (T.textContent = A ?? ""), alert("Could not start checkout. Please try again."));
     }
   }
-  const E = n.tiers.find((x) => x.name.toLowerCase() === "coach");
   for (const x of n.tiers) {
-    const R = E ? x.id === E.id : !1,
+    const champ = x.id === "champion",
+      popular = x.id === "coach",
+      current = curTier === x.id,
+      feats = TIER_FEATURES[x.id] || [`${(x.rounds || x.debates).toLocaleString()} rounds / month`],
       T = document.createElement("div");
-    ((T.className = `card p-6 flex flex-col transition-all duration-200 ease-out-expo hover:-translate-y-1 hover:shadow-lift ${R ? "border-accent-600/60 shadow-glow" : ""}`),
-      (T.innerHTML = `
-      ${R ? '<span class="self-start mb-3 text-caption font-bold uppercase tracking-widest text-[#fff] bg-accent-400 rounded-full px-3 py-1">Most popular</span>' : ""}
-      <div class="font-semibold text-white text-lg">${Lt(xs(x.name))}</div>
-      <div class="mt-2 mb-1"><span class="font-display text-display-md text-accent-400">${Lt(Kl(x.price, x.currency))}</span>
-      <span class="text-slate-500 text-body-sm">/${Lt(x.interval)}</span></div>
-      <p class="text-body-sm text-accent-400 font-semibold mb-2">${(x.rounds || x.debates).toLocaleString()} sparring rounds per month · Credits roll over</p>
-      ${x.description ? `<p class="text-body-sm text-slate-400 mb-4">${Lt(x.description)}</p>` : '<div class="mb-4"></div>'}
-      <button class="${R ? "btn-primary" : "btn-ghost"} mt-auto px-4 py-2.5 text-sm">Choose ${Lt(xs(x.name))}</button>`));
+    T.className = `card relative flex flex-col p-6 ${champ ? "border-amber-400/50 shadow-[0_0_0_1px_rgba(251,191,36,0.25),0_18px_50px_-20px_rgba(251,191,36,0.35)]" : popular ? "border-accent-600/50" : ""}`;
+    T.innerHTML = `
+      ${champ ? '<span class="badge mb-3 self-start border-amber-400/40 bg-amber-400/15 text-amber-200">Best experience</span>' : popular ? '<span class="badge mb-3 self-start border-accent-500/40 bg-accent-500/10 text-accent-300">Most popular</span>' : '<span class="mb-3 h-[22px]"></span>'}
+      <div class="text-lg font-bold text-white">${Lt(xs(x.name))}</div>
+      <div class="mb-4 mt-1"><span class="text-3xl font-extrabold tracking-tight ${champ ? "text-amber-300" : "text-white"}">${Lt(Kl(x.price, x.currency))}</span><span class="text-sm text-slate-500"> /${Lt(x.interval)}</span></div>
+      <ul class="mb-6 space-y-2 text-sm text-slate-300">${feats.map((t) => `<li class="flex gap-2"><span class="${champ ? "text-amber-300" : "text-accent-400"}" aria-hidden="true">✓</span><span>${Lt(t)}</span></li>`).join("")}</ul>
+      <button class="${current ? "btn-ghost" : champ ? "btn-primary !bg-amber-400 !text-black hover:!bg-amber-300" : popular ? "btn-primary" : "btn-ghost"} mt-auto py-2.5 text-sm" ${current ? "disabled" : ""}>${current ? "Current plan" : `Choose ${Lt(xs(x.name))}`}</button>`;
     const A = T.querySelector("button");
-    (A.addEventListener("click", () => void f("subscription", x.id, A)), _.appendChild(T));
+    current || A.addEventListener("click", () => void f("subscription", x.id, A));
+    _.appendChild(T);
   }
+  if (/plans=1/.test(location.hash)) setTimeout(() => p.scrollIntoView({ behavior: "smooth", block: "start" }), 150);
   n.tiers.length === 0 &&
     (_.innerHTML =
       '<p class="text-body-sm text-slate-500 col-span-full">No subscription tiers are available right now.</p>');
@@ -26330,6 +26467,7 @@ async function qu(i) {
   }
   n.packs.length === 0 &&
     (m.innerHTML = '<p class="text-body-sm text-slate-500 col-span-full">No round packs are available right now.</p>');
+  e.appendChild(l); // schools section after plans & packs
   const S = e.querySelector("#portal-btn");
   S &&
     S.addEventListener("click", async () => {

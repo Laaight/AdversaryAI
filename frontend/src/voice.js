@@ -74,6 +74,11 @@ class VoiceEngine {
     this.nextStart = 0;
     this.speakingUntil = 0;
     this.segs = []; // [{start, end, hasVis}] — which scheduled chunks carry Azure visemes
+    this.sink = null; // photoreal video avatar (Champion) — see photoreal.js
+    this.pendingSink = undefined;
+    this.remote = false;
+    this.utterId = "";
+    this.sinkChain = Promise.resolve();
     this.listeners = new Set();
     this.lastUtterance = null; // {segments:[{buffer, visemes}]} for free local replay
     this._state = "idle";
@@ -143,6 +148,12 @@ class VoiceEngine {
   /** Silence everything immediately. Safe to call any time, any number of times. */
   stop() {
     this.gen++;
+    if (this.remote) {
+      try {
+        this.sink?.interrupt();
+      } catch {}
+    }
+    this.remote = false;
     for (const s of this.sources) {
       try {
         s.onended = null;
@@ -167,6 +178,17 @@ class VoiceEngine {
   begin() {
     this.stop();
     this.ensureContext();
+    // A photoreal sink attaches/detaches only between utterances, never mid-sentence.
+    if (this.pendingSink !== undefined) {
+      this.sink = this.pendingSink;
+      this.pendingSink = undefined;
+    }
+    this.remote = !!(this.sink && this.sink.ready);
+    this.utterId = newId();
+    this.sinkChain = Promise.resolve();
+    // In remote mode the local timeline still runs (muted) so state, replay and
+    // fallback keep working; if the video drops mid-reply we simply unmute it.
+    this.gain.gain.value = this.remote ? 0 : 1;
     const gen = this.gen;
     const segments = [];
     this.lastUtterance = { segments, complete: false };
@@ -176,8 +198,15 @@ class VoiceEngine {
     const done = new Promise((r) => (resolveDone = r));
     const finishIfDrained = () => {
       if (ended && pending === 0 && this.sources.size === 0 && gen === this.gen) {
-        this._emit("idle");
-        resolveDone(true);
+        const finish = () => {
+          if (gen !== this.gen) return;
+          this._emit("idle");
+          resolveDone(true);
+        };
+        // The video avatar runs ~0.5–1.5 s behind our muted clock; stay "speaking"
+        // until it reports it has finished.
+        if (this.remote && this.sink) this._whenRemoteQuiet(gen, finish);
+        else finish();
       }
     };
     const self = this;
@@ -219,6 +248,10 @@ class VoiceEngine {
       },
       /** No more chunks are coming. */
       end() {
+        if (!ended && self.remote && gen === self.gen) {
+          const id = self.utterId;
+          self.sinkChain = self.sinkChain.then(() => self.sink?.speakEnd(id)).catch(() => {});
+        }
         ended = true;
         self.lastUtterance.complete = true;
         finishIfDrained();
@@ -239,6 +272,13 @@ class VoiceEngine {
     };
     this.sources.add(src);
     src.start(start);
+    if (this.remote && this.sink) {
+      const id = this.utterId;
+      this.sinkChain = this.sinkChain
+        .then(() => toPcm24kBase64Chunks(buffer))
+        .then((chunks) => gen === this.gen && this.remote && this.sink?.speak(id, chunks))
+        .catch((e) => console.warn("[voice] photoreal send failed", e));
+    }
     this.nextStart = start + buffer.duration;
     this.speakingUntil = this.nextStart;
     const hasVis = !!(visemes && visemes.length);
@@ -263,6 +303,30 @@ class VoiceEngine {
     for (const s of segs) u.enqueueDecoded(s.buffer, s.visemes);
     u.end();
     return u;
+  }
+
+  /** Route opponent speech to a photoreal video avatar (null = local audio). */
+  setSink(sink) {
+    if (!sink && this.sink) {
+      // Video gone: anything still scheduled on the muted timeline becomes audible.
+      if (this.gain) this.gain.gain.value = 1;
+      this.remote = false;
+      this.sink = null;
+      this.pendingSink = undefined;
+      return;
+    }
+    this.pendingSink = sink;
+  }
+
+  _whenRemoteQuiet(gen, cb) {
+    const t0 = performance.now();
+    const tick = () => {
+      if (gen !== this.gen) return;
+      const quiet = !this.sink || !this.sink.talking;
+      if ((quiet && performance.now() - t0 > 300) || performance.now() - t0 > 8000) cb();
+      else setTimeout(tick, 120);
+    };
+    setTimeout(tick, 120);
   }
 
   hasReplay() {
@@ -380,6 +444,39 @@ class VoiceEngine {
   }
 }
 
+function newId() {
+  return typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
+/** AudioBuffer → PCM 16-bit 24 kHz mono, base64, split into ~1 s chunks (LiveAvatar format). */
+export async function toPcm24kBase64Chunks(buffer) {
+  const rate = 24000;
+  const frames = Math.max(1, Math.ceil(buffer.duration * rate));
+  const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  const off = new OAC(1, frames, rate);
+  const src = off.createBufferSource();
+  src.buffer = buffer;
+  src.connect(off.destination);
+  src.start();
+  const rendered = await off.startRendering();
+  const f = rendered.getChannelData(0);
+  const chunks = [];
+  const per = rate; // 1 s
+  for (let i = 0; i < f.length; i += per) {
+    const n = Math.min(per, f.length - i);
+    const bytes = new Uint8Array(n * 2);
+    const dv = new DataView(bytes.buffer);
+    for (let k = 0; k < n; k++) {
+      const v = Math.max(-1, Math.min(1, f[i + k]));
+      dv.setInt16(k * 2, v < 0 ? v * 0x8000 : v * 0x7fff, true);
+    }
+    let bin = "";
+    for (let k = 0; k < bytes.length; k += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(k, k + 0x8000));
+    chunks.push(btoa(bin));
+  }
+  return chunks;
+}
+
 export const voice = new VoiceEngine();
 if (typeof window !== "undefined") {
   window.__voice = voice;
@@ -391,6 +488,10 @@ if (typeof window !== "undefined") {
 const SDK_URL = "/app/vendor/speech-sdk.min.js";
 let sdkPromise = null;
 let sdkFailedAt = 0;
+/** True when the SDK recently failed to load (so the server should synthesize instead). */
+export function sdkUnavailable() {
+  return !window.SpeechSDK && Date.now() - sdkFailedAt < 5 * 60 * 1000;
+}
 /** Resolves to window.SpeechSDK or null if the SDK is not deployed/blocked. */
 export function loadSpeechSdk() {
   if (window.SpeechSDK) return Promise.resolve(window.SpeechSDK);

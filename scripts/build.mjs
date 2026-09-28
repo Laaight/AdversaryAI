@@ -87,6 +87,13 @@ if (sdk) {
   console.warn("⚠  Azure Speech SDK not found — run `npm install`. Voice will fall back to server audio (no visemes).");
 }
 
+// ---- LiveKit client (WebRTC transport for Champion photoreal video)
+const lk = resolveFile("livekit-client/dist/livekit-client.umd.js");
+if (lk) {
+  fs.mkdirSync(path.join(APP, "vendor"), { recursive: true });
+  fs.copyFileSync(lk, path.join(APP, "vendor/livekit-client.umd.js"));
+}
+
 // ---- index.html + service worker
 const idxPath = path.join(APP, "index.html");
 let html = fs.readFileSync(idxPath, "utf8");
@@ -99,4 +106,4 @@ const sw = fs.readFileSync(swPath, "utf8").replace(/const VERSION = '[^']*';/, `
 fs.writeFileSync(swPath, sw);
 
 const kb = (b) => (b.length / 1024).toFixed(0) + " KB";
-console.log(`✓ built ${jsName} (${kb(jsCode)}), ${cssName} (${kb(Buffer.from(cssMin))})${sdk ? ", speech SDK vendored" : ""}`);
+console.log(`✓ built ${jsName} (${kb(jsCode)}), ${cssName} (${kb(Buffer.from(cssMin))})${sdk ? ", speech SDK vendored" : ""}${lk ? ", LiveKit vendored" : ""}`);

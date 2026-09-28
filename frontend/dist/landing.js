@@ -28,8 +28,8 @@ const PRICING = {
       features: [
         '300 sparring rounds per month',
         'All 11 practice modes',
-        'Voice or text sessions',
-        'Session history'
+        'Voiced 3D opponents with real lip-sync',
+        'Scorecards + impartial judge verdicts'
       ]
     },
     {
@@ -42,23 +42,21 @@ const PRICING = {
       features: [
         '1,000 sparring rounds per month',
         'Everything in Debater',
-        'Coaching analytics & scores',
-        'Weakness tracking',
-        'Priority voice quality'
+        'Built for weekly practice & interview season',
+        'Unused rounds roll over'
       ]
     },
     {
       name: 'Champion',
       price: 49,
       per: '/mo',
-      headline: '2,500 sparring rounds per month',
+      headline: 'Photoreal video opponents',
       cta: 'Start free trial',
       features: [
-        '2,500 sparring rounds per month',
-        'DeepSeek-V4-Pro reasoning engine',
-        'Coaching analytics & judge rubrics',
-        'Photorealistic 3D personas',
-        'Priority low-latency synthesis'
+        'Photoreal video opponents (rolling out)',
+        'Strongest reasoning model: sharper opponents, deeper feedback',
+        '1,000 sparring rounds per month',
+        'Priority speed'
       ]
     }
   ],
@@ -92,7 +90,7 @@ function adaptLivePrices(data) {
   const trial = tiers.trial || { name: 'Trial', price: 0, debates: 15, rounds: 15 };
   const debater = tiers.debater || { name: 'Debater', price: 1200, rounds: 300 };
   const coach = tiers.coach || { name: 'Coach', price: 2900, rounds: 1000 };
-  const champion = tiers.champion || { name: 'Champion', price: 4900, rounds: 2500 };
+  const champion = tiers.champion || { name: 'Champion', price: 4900, rounds: 1000 };
 
   const getPrice = (t, def) => {
     if (typeof t.priceMonthly === 'number') return t.priceMonthly;
@@ -124,8 +122,8 @@ function adaptLivePrices(data) {
       features: [
         getRounds(debater, 300).toLocaleString() + ' sparring rounds per month',
         'All 11 practice modes',
-        'Voice or text sessions',
-        'Session history'
+        'Voiced 3D opponents with real lip-sync',
+        'Scorecards + impartial judge verdicts'
       ]
     },
     {
@@ -138,23 +136,22 @@ function adaptLivePrices(data) {
       features: [
         getRounds(coach, 1000).toLocaleString() + ' sparring rounds per month',
         'Everything in Debater',
-        'Coaching analytics & scores',
-        'Weakness tracking',
-        'Priority voice quality'
+        'Built for weekly practice & interview season',
+        'Unused rounds roll over'
       ]
     },
     {
       name: champion.name || 'Champion',
       price: getPrice(champion, 49),
       per: '/mo',
-      headline: getRounds(champion, 2500).toLocaleString() + ' sparring rounds per month',
+      headline: 'Photoreal video opponents',
+      badge: 'Best experience',
       cta: 'Start free trial',
       features: [
-        getRounds(champion, 2500).toLocaleString() + ' sparring rounds per month',
-        'DeepSeek-V4-Pro reasoning engine',
-        'Coaching analytics & judge rubrics',
-        'Photorealistic 3D personas',
-        'Priority low-latency synthesis'
+        champion.photoreal ? 'Photoreal video opponents — ' + (champion.photorealMinutes || 150) + ' min/month' : 'Photoreal video opponents (rolling out)',
+        'Strongest reasoning model: sharper opponents, deeper feedback',
+        getRounds(champion, 1000).toLocaleString() + ' sparring rounds per month',
+        'Priority speed'
       ]
     }
   ];
