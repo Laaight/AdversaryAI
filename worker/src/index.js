@@ -4216,6 +4216,115 @@ function emptyScores(dimensions, notes) {
 }
 __name(emptyScores, "emptyScores");
 
+// ---------------------------------------------------------------- Acting: "Run my script"
+// The partner reads the other characters' lines verbatim — no model call per line, so this
+// mode costs only speech. Accepts "NAME: line", "NAME. line" and screenplay format
+// (character name alone on a line, dialogue below). Stage directions in () or [] are skipped.
+var SCRIPT_MAX_CHARS = 3e4;
+function normCharName(n) {
+  return String(n || "").replace(/\([^)]*\)/g, "").replace(/[^\p{L}\p{N} .'\-]/gu, "").replace(/\.+$/, "").trim().toUpperCase().replace(/\s+/g, " ");
+}
+__name(normCharName, "normCharName");
+function stripDirections(t) {
+  return String(t || "").replace(/\([^)]*\)/g, " ").replace(/\[[^\]]*\]/g, " ").replace(/\s+/g, " ").trim();
+}
+__name(stripDirections, "stripDirections");
+function parseScript(raw) {
+  const out = [];
+  let cur = null;
+  let pending = null;
+  const push = (name, text) => {
+    const t = stripDirections(text);
+    if (!name || !t) return;
+    if (cur && cur.name === name) cur.text += " " + t;
+    else out.push(cur = { name, text: t });
+  };
+  for (const rawLine of String(raw || "").replace(/\r\n?/g, "\n").split("\n")) {
+    const line = rawLine.trim();
+    if (!line) {
+      pending = null;
+      continue;
+    }
+    if (/^(INT|EXT|INT\/EXT|I\/E)[.\s]/.test(line) || /^(FADE|CUT TO|DISSOLVE|SMASH CUT|THE END)/.test(line)) {
+      pending = null;
+      continue;
+    }
+    const colon = line.match(/^([\p{L}][\p{L}\p{N} .'\-]{0,30}?)\s*(\([^)]*\))?\s*:\s*(.+)$/u);
+    if (colon && colon[1].split(" ").length <= 4) {
+      push(normCharName(colon[1]), colon[3]);
+      pending = null;
+      continue;
+    }
+    const dotted = line.match(/^([A-Z][A-Z .'\-]{1,30}?)\.\s+(.+)$/);
+    if (dotted && dotted[1] === dotted[1].toUpperCase() && dotted[1].split(" ").length <= 4) {
+      push(normCharName(dotted[1]), dotted[2]);
+      pending = null;
+      continue;
+    }
+    const caps = line.match(/^([A-Z][A-Z0-9 .'\-]{0,30})(\s*\([^)]*\))?$/);
+    if (caps && /[A-Z]{2}/.test(caps[1]) && caps[1].trim().split(/\s+/).length <= 4) {
+      pending = normCharName(caps[1]);
+      continue;
+    }
+    if (pending) push(pending, line);
+  }
+  return out;
+}
+__name(parseScript, "parseScript");
+function scriptBlocks(entries, role) {
+  const blocks = [];
+  for (const e of entries) {
+    const who = e.name === role ? "user" : "partner";
+    const last = blocks[blocks.length - 1];
+    if (last && last.who === who) last.lines.push(e);
+    else blocks.push({ who, lines: [e] });
+  }
+  return blocks;
+}
+__name(scriptBlocks, "scriptBlocks");
+function blockText(block) {
+  const names = new Set(block.lines.map((l) => l.name));
+  return names.size > 1 ? block.lines.map((l) => `${l.name}: ${l.text}`).join("\n") : block.lines.map((l) => l.text).join(" ");
+}
+__name(blockText, "blockText");
+function lineAccuracy(expected, said) {
+  const w = (x) => String(x || "").toLowerCase().replace(/[’']/g, "").replace(/[^\p{L}\p{N}\s]/gu, " ").split(/\s+/).filter(Boolean);
+  const a = w(expected).slice(0, 600), b = w(said).slice(0, 600);
+  if (!a.length) return 100;
+  if (!b.length) return 0;
+  const dp = new Array(b.length + 1).fill(0);
+  for (let i = 1; i <= a.length; i++) {
+    let prev = 0;
+    for (let j = 1; j <= b.length; j++) {
+      const tmp = dp[j];
+      dp[j] = a[i - 1] === b[j - 1] ? prev + 1 : Math.max(dp[j], dp[j - 1]);
+      prev = tmp;
+    }
+  }
+  return Math.round(200 * dp[b.length] / (a.length + b.length));
+}
+__name(lineAccuracy, "lineAccuracy");
+// The partner block that answers the user's u-th line (u = 0 → the opening, if the partner starts).
+function scriptPartnerReply(blocks, u) {
+  let pos = 0;
+  if (u > 0) {
+    let seen = 0;
+    pos = blocks.length;
+    for (let i = 0; i < blocks.length; i++) {
+      if (blocks[i].who === "user" && ++seen === u) {
+        pos = i + 1;
+        break;
+      }
+    }
+  }
+  const b = blocks[pos];
+  return b && b.who === "partner" ? blockText(b) : null;
+}
+__name(scriptPartnerReply, "scriptPartnerReply");
+function isActingScript(debate, setup) {
+  return debate.mode === "acting" && setup.actingMode === "script" && !!setup.script && !!setup.scriptRole;
+}
+__name(isActingScript, "isActingScript");
 function sideInstruction(debate, setup) {
   if (setup.userSide === "for") return `\nSIDES: The user argues FOR the motion "${debate.topic}". You argue AGAINST it. Never switch sides or concede the motion.`;
   if (setup.userSide === "against") return `\nSIDES: The user argues AGAINST the motion "${debate.topic}". You argue FOR it. Never switch sides or concede the motion.`;
@@ -4378,7 +4487,7 @@ debateRouter.post("/start", async (c) => {
   if (topic.length > 300) topic = topic.slice(0, 300);
   const setup = {};
   for (const [k, v] of Object.entries(rawSetup)) {
-    if (typeof v === "string" && v.length <= 2e3) setup[k] = v;
+    if (typeof v === "string" && (v.length <= 2e3 || k === "script" && v.length <= SCRIPT_MAX_CHARS)) setup[k] = v;
   }
   delete setup.judge;
   if (JUDGE_COMPETITIVE_MODES.has(mode.id) && mode.id !== "thesis") setup.judge = "1";
@@ -4397,13 +4506,33 @@ debateRouter.post("/start", async (c) => {
     actorId = fig.id;
     setup.figureId = fig.id;
   }
+  let scriptFirst = null;
+  let scriptTarget = null;
+  if (mode.id === "acting") {
+    if (setup.actingMode === "script") {
+      const entries = parseScript(setup.script);
+      const role = normCharName(setup.scriptRole);
+      const names = [...new Set(entries.map((e) => e.name))];
+      if (entries.length < 2 || names.length < 2) return c.json({ error: "script_invalid", message: "We couldn’t find at least two characters in that script. Put each line as NAME: line." }, 400);
+      if (!names.includes(role)) return c.json({ error: "script_role_missing", message: "Pick which character you’re playing." }, 400);
+      setup.scriptRole = role;
+      const blocks = scriptBlocks(entries, role);
+      scriptFirst = blocks[0].who === "user" ? "user" : "opponent";
+      scriptTarget = Math.min(100, blocks.filter((b) => b.who === "user").length);
+    } else {
+      setup.actingMode = "improv";
+      delete setup.script;
+      delete setup.scriptRole;
+    }
+  }
   const availability = await checkRoundsAvailable(c, user.id, user.email);
   if (!availability.ok) return c.json({ error: "quota_exhausted", message: "You have no rounds remaining in your wallet. Please select a plan or top-up pack to continue." }, 402);
-  const targetRounds = Math.max(0, Math.min(100, Math.floor(Number(body.targetRounds ?? rawSetup.targetRounds ?? 0)) || 0));
+  const targetRounds = scriptTarget ?? Math.max(0, Math.min(100, Math.floor(Number(body.targetRounds ?? rawSetup.targetRounds ?? 0)) || 0));
   setup.targetRounds = String(targetRounds);
 
   let reqFirstSpeaker = String(body.firstSpeaker ?? rawSetup.firstSpeaker ?? "").toLowerCase();
-  if (rules.fixedFirst) reqFirstSpeaker = rules.fixedFirst;
+  if (scriptFirst) reqFirstSpeaker = scriptFirst;
+  else if (rules.fixedFirst) reqFirstSpeaker = rules.fixedFirst;
   else if (!rules.first.includes(reqFirstSpeaker)) reqFirstSpeaker = rules.first.includes("cointoss") ? "cointoss" : "user";
   let resolvedFirstSpeaker = reqFirstSpeaker;
   if (reqFirstSpeaker === "cointoss") {
@@ -4538,6 +4667,12 @@ debateRouter.post("/turn-stream", async (c) => {
   // to it is already a rebuttal, not a second opening.
   if (!isOpening && setup.resolvedFirstSpeaker === "opponent" && curRound === 1 && targetRounds !== 1) curRound = 2;
   const premium = await isPremium(c, user.id, user.email);
+  // Acting "Run my script": the partner's line comes straight from the script (no model call).
+  let scriptReply = null;
+  if (isActingScript(debate, setup)) {
+    const blocks = scriptBlocks(parseScript(setup.script), setup.scriptRole);
+    scriptReply = scriptPartnerReply(blocks, isOpening ? 0 : await countUserTurns(c.env.DB, debateId)) ?? "That\u2019s the end of the scene. Tap End & grade for your notes.";
+  }
   const forceClosing = body.phase === "closing";
   const userInput = buildTurnPrompt(debate, mode, setup, transcript, isOpening, curRound, targetRounds, forceClosing);
   // When the browser synthesizes speech itself (Azure SDK + visemes), don't pay for a
@@ -4572,9 +4707,14 @@ debateRouter.post("/turn-stream", async (c) => {
       });
       let full = "";
       try {
-        for await (const tok of modelStream(c.env, systemPrompt, userInput, 2e3, { premium })) {
-          full += tok;
-          send({ t: "tok", c: tok });
+        if (scriptReply !== null) {
+          full = scriptReply;
+          send({ t: "tok", c: full });
+        } else {
+          for await (const tok of modelStream(c.env, systemPrompt, userInput, 2e3, { premium })) {
+            full += tok;
+            send({ t: "tok", c: tok });
+          }
         }
         full = full.trim();
         if (!full) throw new Error("Debate model returned an empty response");
@@ -4647,13 +4787,22 @@ debateRouter.post("/end", async (c) => {
     scores = emptyScores(mode.scoringDimensions, "Session concluded with no dialogue.");
   } else {
     const oppName = opponentLabel(debate, mode);
+    const endSetup = parseSetup(debate.setup_json);
+    const scriptMode = isActingScript(debate, endSetup);
+    let accuracyNote = "";
+    if (scriptMode) {
+      const userBlocks = scriptBlocks(parseScript(endSetup.script), endSetup.scriptRole).filter((b) => b.who === "user");
+      const said = turnRows.filter((t) => t.role === "user");
+      const accs = said.map((t, i) => userBlocks[i] ? lineAccuracy(blockText(userBlocks[i]), t.text) : null).filter((x) => x != null);
+      if (accs.length) accuracyNote = `Line accuracy: ${Math.round(accs.reduce((a, b) => a + b, 0) / accs.length)}% word-for-word across ${accs.length} of ${userBlocks.length} lines.`;
+    }
     const transcript = turnRows
       .map((t) => `${t.role === "user" ? "HUMAN" : `AI OPPONENT (${oppName})`}: ${t.text}`)
       .join("\n\n");
     try {
       const raw2 = await modelText(
         c.env,
-        mode.scoringPrompt() + SCORE_HUMAN_ONLY,
+        mode.scoringPrompt() + SCORE_HUMAN_ONLY + (scriptMode ? `\n\nThis was a scripted scene: the HUMAN performed written lines as the character ${endSetup.scriptRole} and the AI OPPONENT read the other parts verbatim. Judge delivery, interpretation and pacing as shown in the text, not the writing itself. ${accuracyNote}` : ""),
         `Session topic: ${debate.topic}
 
 ${transcript}`,
@@ -4664,7 +4813,8 @@ ${transcript}`,
     } catch {
       scores = emptyScores(mode.scoringDimensions, "Scoring unavailable.");
     }
-    scores = capLowEffortScores(scores, turnRows);
+    if (!scriptMode) scores = capLowEffortScores(scores, turnRows);
+    else if (accuracyNote) scores = { ...scores, notes: `${scores.notes ? scores.notes + " " : ""}${accuracyNote}` };
   }
   await ensureScorecardTable(c.env.DB);
   // Only the first concurrent /end wins; a second one returns the stored scorecard.
@@ -6190,6 +6340,7 @@ avatarRouter.post("/session", async (c) => {
   const user = await getSessionUser(c);
   if (!user) return c.json({ error: "unauthorized" }, 401);
   const st = await avatarStatus(c, user);
+  if (st.outOfCredits) return c.json({ error: "photoreal_out_of_credits", ...(st.owner ? { detail: "LiveAvatar account is out of credits — add credits at liveavatar.com (video resumes automatically)." } : {}) }, 402);
   if (!st.enabled) return c.json({ error: "photoreal_not_configured" }, 503);
   if (!st.eligible) return c.json({ error: "champion_required" }, 402);
   if (st.remainingSeconds < 30) return c.json({ error: "video_minutes_exhausted" }, 402);

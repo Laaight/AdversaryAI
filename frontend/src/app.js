@@ -715,6 +715,80 @@ function bh(i, e) {
     sessionStorage.setItem(`adversaryai:session:${i}`, JSON.stringify(e));
   } catch {}
 }
+// ---- Acting "Run my script" (mirrors worker parseScript/scriptBlocks/lineAccuracy)
+const normCharName = (n) =>
+  String(n || "").replace(/\([^)]*\)/g, "").replace(/[^\p{L}\p{N} .'\-]/gu, "").replace(/\.+$/, "").trim().toUpperCase().replace(/\s+/g, " ");
+const stripDirections = (t) => String(t || "").replace(/\([^)]*\)/g, " ").replace(/\[[^\]]*\]/g, " ").replace(/\s+/g, " ").trim();
+function parseScript(raw) {
+  const out = [];
+  let cur = null,
+    pending = null;
+  const push = (name, text) => {
+    const tx = stripDirections(text);
+    if (!name || !tx) return;
+    if (cur && cur.name === name) cur.text += " " + tx;
+    else out.push((cur = { name, text: tx }));
+  };
+  for (const rawLine of String(raw || "").replace(/\r\n?/g, "\n").split("\n")) {
+    const line = rawLine.trim();
+    if (!line) {
+      pending = null;
+      continue;
+    }
+    if (/^(INT|EXT|INT\/EXT|I\/E)[.\s]/.test(line) || /^(FADE|CUT TO|DISSOLVE|SMASH CUT|THE END)/.test(line)) {
+      pending = null;
+      continue;
+    }
+    const colon = line.match(/^([\p{L}][\p{L}\p{N} .'\-]{0,30}?)\s*(\([^)]*\))?\s*:\s*(.+)$/u);
+    if (colon && colon[1].split(" ").length <= 4) {
+      push(normCharName(colon[1]), colon[3]);
+      pending = null;
+      continue;
+    }
+    const dotted = line.match(/^([A-Z][A-Z .'\-]{1,30}?)\.\s+(.+)$/);
+    if (dotted && dotted[1] === dotted[1].toUpperCase() && dotted[1].split(" ").length <= 4) {
+      push(normCharName(dotted[1]), dotted[2]);
+      pending = null;
+      continue;
+    }
+    const caps = line.match(/^([A-Z][A-Z0-9 .'\-]{0,30})(\s*\([^)]*\))?$/);
+    if (caps && /[A-Z]{2}/.test(caps[1]) && caps[1].trim().split(/\s+/).length <= 4) {
+      pending = normCharName(caps[1]);
+      continue;
+    }
+    if (pending) push(pending, line);
+  }
+  return out;
+}
+function scriptUserLines(entries, role) {
+  const lines = [];
+  let prevUser = false;
+  for (const e of entries) {
+    const mine = e.name === role;
+    if (mine && prevUser) lines[lines.length - 1] += " " + e.text;
+    else if (mine) lines.push(e.text);
+    prevUser = mine;
+  }
+  return lines;
+}
+function lineAccuracy(expected, said) {
+  const w = (x) => String(x || "").toLowerCase().replace(/[’']/g, "").replace(/[^\p{L}\p{N}\s]/gu, " ").split(/\s+/).filter(Boolean);
+  const a = w(expected).slice(0, 600),
+    b = w(said).slice(0, 600);
+  if (!a.length) return 100;
+  if (!b.length) return 0;
+  const dp = new Array(b.length + 1).fill(0);
+  for (let i = 1; i <= a.length; i++) {
+    let prev = 0;
+    for (let j = 1; j <= b.length; j++) {
+      const tmp = dp[j];
+      dp[j] = a[i - 1] === b[j - 1] ? prev + 1 : Math.max(dp[j], dp[j - 1]);
+      prev = tmp;
+    }
+  }
+  return Math.round((200 * dp[b.length]) / (a.length + b.length));
+}
+const titleCase = (n) => String(n || "").toLowerCase().replace(/(^|[\s'-])\p{L}/gu, (m) => m.toUpperCase());
 function deriveTopic(s, T, figure) {
   if (T.topic) return T.topic;
   const cut = (x) => String(x).slice(0, 300);
@@ -853,15 +927,24 @@ async function Mh(i, e) {
       <p class="mb-2 text-xs font-medium text-slate-400">Their voice &amp; look</p>
       <div class="flex flex-wrap gap-2" id="present-grid"><button type="button" class="pill-chip" data-present="masc" aria-pressed="true">Masculine</button><button type="button" class="pill-chip" data-present="fem" aria-pressed="false">Feminine</button></div></section>` : ""}
 
+    ${s.id === "acting" ? `<section class="setup-section"><h2 class="section-title">How do you want to rehearse?</h2><div class="opt-grid grid-cols-1 sm:grid-cols-2">${optChips("actMode", [{ v: "script", t: "Run my script", s: "Paste your scene — your partner reads every other part, word for word" }, { v: "improv", t: "Improvise", s: "Describe a scene — your partner improvises in character" }], "script")}</div></section>
+    <section class="setup-section" id="script-sec">
+      <label class="label" for="setup-script">Your scene</label>
+      <textarea id="setup-script" rows="9" class="field text-sm leading-relaxed" placeholder="ROMEO: But soft, what light through yonder window breaks?&#10;JULIET: Ay me.&#10;ROMEO: She speaks!"></textarea>
+      <p class="help">One line per speech as <b>NAME: line</b> — screenplay format (name on its own line) works too. Stage directions in (parentheses) are skipped.</p>
+      <div class="mt-2 flex flex-wrap items-center gap-3"><label class="btn-ghost btn-sm cursor-pointer">Upload a .txt<input type="file" id="script-file" accept=".txt,.fountain,.md,text/plain" class="hidden" /></label><span id="script-stats" class="text-xs text-slate-400"></span></div>
+      <div id="role-sec" class="mt-5 hidden"><p class="label">Which character are you?</p><div class="flex flex-wrap gap-2" id="role-grid"></div></div>
+    </section>` : ""}
+
     <section class="setup-section space-y-5" id="field-list">${fields.map((f) => `<div>${vh(f)}</div>`).join("")}</section>
 
     ${ui.side ? `<section class="setup-section"><h2 class="section-title">Your side</h2><div class="opt-grid grid-cols-1 sm:grid-cols-3">${optChips("side", SIDE_OPTS, state.side)}</div></section>` : ""}
 
     ${ui.styles ? `<section class="setup-section"><h2 class="section-title">Format</h2><div class="opt-grid grid-cols-2 sm:grid-cols-4">${optChips("style", STYLE_OPTS, state.style)}</div></section>` : ""}
 
-    <section class="setup-section"><h2 class="section-title">Length</h2><p class="section-sub">Each ${ui.unit === "bars" ? "round" : ui.unit} uses one credit.</p><div class="opt-grid grid-cols-2 sm:grid-cols-4">${optChips("rounds", lenOpts, state.rounds)}</div></section>
+    <section class="setup-section" id="len-sec"><h2 class="section-title">Length</h2><p class="section-sub">Each ${ui.unit === "bars" ? "round" : ui.unit} uses one credit.</p><div class="opt-grid grid-cols-2 sm:grid-cols-4">${optChips("rounds", lenOpts, state.rounds)}</div></section>
 
-    ${ui.first ? `<section class="setup-section"><h2 class="section-title">Who speaks first?</h2><div class="opt-grid ${ui.first.length === 3 ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-2"}">${optChips("first", ui.first, state.first)}</div></section>` : `<p class="setup-section flex items-center gap-2 text-sm text-slate-400"><span class="text-accent-400">●</span>${dt(ui.fixedNote)}</p>`}
+    ${ui.first ? `<section class="setup-section" id="first-sec"><h2 class="section-title">Who speaks first?</h2><div class="opt-grid ${ui.first.length === 3 ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-2"}">${optChips("first", ui.first, state.first)}</div></section>` : `<p class="setup-section flex items-center gap-2 text-sm text-slate-400"><span class="text-accent-400">●</span>${dt(ui.fixedNote)}</p>`}
 
     <div class="mt-6 hidden" id="setup-error"></div>
     <button id="start-btn" type="button" class="btn-primary mt-7 w-full py-3.5 text-base">Start session</button>
@@ -879,6 +962,10 @@ async function Mh(i, e) {
   updDisclaimer();
   const note = t.querySelector("#start-note");
   const updNote = () => {
+    if (s.id === "acting" && state.actMode === "script") {
+      note.textContent = "Your partner reads every other part, word for word. You get a line-accuracy check after each line and coaching notes at the end.";
+      return;
+    }
     const judge = ui.judge ? " An impartial judge scores both sides at the end." : " You’ll get a coaching scorecard at the end.";
     const who = ui.fixedFirst ? "" : state.first === "user" ? "You speak first." : state.first === "opponent" ? "They speak first." : "A coin toss decides who opens.";
     note.textContent = `${who}${judge}`.trim();
@@ -886,6 +973,7 @@ async function Mh(i, e) {
   updNote();
 
   // option chips (single-select groups)
+  let applyActMode = null;
   t.addEventListener("click", (ev) => {
     const b = ev.target.closest("[data-opt]");
     if (!b) return;
@@ -893,8 +981,65 @@ async function Mh(i, e) {
     t.querySelectorAll(`[data-opt="${name}"]`).forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
     const v = b.getAttribute("data-value");
     state[name] = name === "rounds" ? Number(v) : v;
+    if (name === "actMode") applyActMode?.();
     updNote();
   });
+
+  // Acting: "Run my script" (default) vs improvise
+  if (s.id === "acting") {
+    state.actMode = "script";
+    state.role = null;
+    state.scriptEntries = [];
+    const ta = t.querySelector("#setup-script"),
+      stats = t.querySelector("#script-stats"),
+      roleSec = t.querySelector("#role-sec"),
+      roleGrid = t.querySelector("#role-grid");
+    const show = (sel, on) => t.querySelector(sel)?.classList.toggle("hidden", !on);
+    applyActMode = () => {
+      const scr = state.actMode === "script";
+      show("#script-sec", scr);
+      show("#field-list", !scr);
+      show("#len-sec", !scr);
+      show("#first-sec", !scr);
+    };
+    const renderRoles = () => {
+      const entries = (state.scriptEntries = parseScript(ta.value));
+      const counts = new Map();
+      entries.forEach((e) => counts.set(e.name, (counts.get(e.name) || 0) + 1));
+      const names = [...counts.keys()];
+      if (!names.includes(state.role)) state.role = null;
+      if (!ta.value.trim()) stats.textContent = "";
+      else if (names.length < 2) stats.textContent = "Couldn’t find two characters yet — use NAME: line.";
+      else {
+        const mine = state.role ? scriptUserLines(entries, state.role).length : 0;
+        stats.textContent = `${entries.length} lines · ${names.length} characters${state.role ? ` · you have ${mine} cue${mine === 1 ? "" : "s"} (${mine} credit${mine === 1 ? "" : "s"})` : ""}`;
+      }
+      roleSec.classList.toggle("hidden", names.length < 2);
+      roleGrid.innerHTML = names
+        .slice(0, 12)
+        .map((n) => `<button type="button" class="pill-chip" data-role="${dt(n)}" aria-pressed="${n === state.role}">${dt(titleCase(n))} <span class="text-slate-500">· ${counts.get(n)}</span></button>`)
+        .join("");
+    };
+    let deb = 0;
+    ta.addEventListener("input", () => {
+      clearTimeout(deb);
+      deb = setTimeout(renderRoles, 250);
+    });
+    roleGrid.addEventListener("click", (ev) => {
+      const b = ev.target.closest("[data-role]");
+      if (!b) return;
+      state.role = b.getAttribute("data-role");
+      renderRoles();
+    });
+    t.querySelector("#script-file").addEventListener("change", async (ev) => {
+      const f = ev.target.files?.[0];
+      if (!f) return;
+      if (f.size > 200000) return (stats.textContent = "That file is too big — paste just the scene you’re rehearsing.");
+      ta.value = (await f.text()).slice(0, 30000);
+      renderRoles();
+    });
+    applyActMode();
+  }
 
   if (isDebate) {
     const g = t.querySelector("#persona-grid");
@@ -973,10 +1118,26 @@ async function Mh(i, e) {
     const T = {};
     let err = null;
     if (figures.length && !state.figure) err = "Pick a figure to spar with first.";
+    const scriptMode = s.id === "acting" && state.actMode === "script";
     for (const V of fields) {
       const G = (t.querySelector(`#setup-${CSS.escape(V.key)}`)?.value ?? "").trim();
       T[V.key] = G;
-      if (V.required && !G && !err) err = `Please fill in “${V.label}”.`;
+      if (V.required && !G && !err && !scriptMode) err = `Please fill in “${V.label}”.`;
+    }
+    if (s.id === "acting") {
+      T.actingMode = scriptMode ? "script" : "improv";
+      if (scriptMode) {
+        const raw = t.querySelector("#setup-script").value.trim();
+        const names = [...new Set(parseScript(raw).map((e) => e.name))];
+        if (!raw) err = "Paste your scene first.";
+        else if (names.length < 2) err = "We couldn’t find two characters — put each line as NAME: line.";
+        else if (!state.role) err = "Pick which character you’re playing.";
+        T.script = raw.slice(0, 30000);
+        T.scriptRole = state.role || "";
+        T.yourRole = titleCase(state.role || "");
+        T.partnerRole = names.filter((n) => n !== state.role).slice(0, 3).map(titleCase).join(" & ");
+        T.sceneContext = "";
+      }
     }
     if (err) return showErr(err);
     const fig = state.figure ? figMap.get(state.figure) : null;
@@ -1020,7 +1181,7 @@ async function Mh(i, e) {
         personaLabel: label,
         judgeEnabled: !!res.judge,
         personaVisual: y.model,
-        targetRounds: state.rounds,
+        targetRounds: res.targetRounds ?? state.rounds,
         firstSpeaker: state.first,
         resolvedFirstSpeaker: res.resolvedFirstSpeaker || state.first,
         debateStyle: res.debateStyle || null,
@@ -25043,6 +25204,7 @@ async function nx(id) {
     userSide: setup.userSide || null,
     figureId: figureId || void 0,
     ended: !!d.ended_at,
+    actingScript: d.mode === "acting" && setup.actingMode === "script" && !!setup.script ? { script: setup.script, role: setup.scriptRole } : null,
   };
   return { meta, data };
 }
@@ -25074,6 +25236,8 @@ function ix(root, debateId, t, data) {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg><span>Replay</span></button>
           <button id="stop-btn" type="button" class="btn-ghost btn-sm" disabled aria-label="Stop audio">
             <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor"/></svg><span>Stop</span></button>
+          ${t.actingScript ? `<button id="cue-btn" type="button" class="btn-ghost btn-sm" title="Show your next line">Line?</button>` : ""}
+          <button id="view-btn" type="button" class="btn-ghost btn-sm hidden" title="Owner: switch between video and 3D"></button>
           <button id="end-btn" type="button" class="btn-danger btn-sm ml-auto">End &amp; grade</button>
         </div>
         <div id="upsell-slot" class="hidden"></div>
@@ -25092,6 +25256,7 @@ function ix(root, debateId, t, data) {
         <div id="banner-slot" class="shrink-0"></div>
         <div id="transcript" class="transcript-scroll min-h-0 flex-1 space-y-3 overflow-y-auto pb-2 pr-1" aria-live="polite"></div>
         <div id="quota-slot" class="shrink-0"></div>
+        ${t.actingScript ? `<div id="cue-box" class="mb-1 hidden shrink-0 rounded-xl border border-accent-500/25 bg-accent-500/5 px-3.5 py-2.5 text-sm leading-relaxed text-slate-200"></div>` : ""}
         <div class="session-composer shrink-0 pt-2">
           <div class="flex items-end gap-2 rounded-2xl border border-ink-700 bg-ink-900 p-2 focus-within:border-accent-500/70">
             <textarea id="msg-input" rows="1" class="max-h-40 min-h-[2.75rem] flex-1 resize-none bg-transparent px-2 py-2.5 text-[15px] leading-snug text-white placeholder:text-slate-500 focus:outline-none" placeholder=""></textarea>
@@ -25191,6 +25356,28 @@ function ix(root, debateId, t, data) {
     if (!alive || !me?.photoreal) return dropPhoto(), openPhotoGate();
     // Historical figures always use their own portrait — no video, no loading screen, no upsell.
     if (t.figureId) return dropPhoto(), openPhotoGate();
+    // Owner: switch between the video opponent and the 3D model at any time (remembered on this device).
+    if (me.isOwner) {
+      const KEY = "aai_owner_view";
+      let pref = "video";
+      try {
+        pref = localStorage.getItem(KEY) || "video";
+      } catch {}
+      const vb = $("#view-btn");
+      vb.textContent = pref === "3d" ? "Show video" : "Show 3D";
+      vb.classList.remove("hidden");
+      vb.onclick = () => {
+        try {
+          localStorage.setItem(KEY, pref === "3d" ? "video" : "3d");
+        } catch {}
+        location.reload(); // the session resumes where it left off
+      };
+      if (pref === "3d") {
+        dropPhoto();
+        setPhotoBadge("3D view (owner)", "text-slate-300");
+        return openPhotoGate();
+      }
+    }
     if (!me.champion) {
       dropPhoto();
       hint(false);
@@ -25294,6 +25481,29 @@ function ix(root, debateId, t, data) {
   // synthesis so words split across stream tokens are still caught.
   const PROFANITY = /\b(f+u+c+k+|s+h+i+t+|b+i+t+c+h+|a+s+s+(h+o+l+e+)?|d+a+m+n+|d+i+c+k+|p+u+s+s+y+|c+u+n+t+|w+h+o+r+e+|s+l+u+t+|n+i+g+g+[aeiou]+|f+a+g+(g+o+t+)?|t+i+t+s+|b+o+o+b+s?|p+e+n+i+s+|v+a+g+i+n+a+|c+l+i+t+|o+r+g+a+s+m+|m+a+s+t+u+r+b+a+t+e+|p+o+r+n+|h+e+n+t+a+i+|r+a+p+i+s+t+|m+o+l+e+s+t+)\b/gi;
   const maskRap = (x) => (t.modeId === "rapbattle" ? x.replace(PROFANITY, "****") : x);
+  // Acting "Run my script": the user's lines, for the "Line?" prompt and the accuracy check.
+  const scriptLines = t.actingScript ? scriptUserLines(parseScript(t.actingScript.script), t.actingScript.role) : null;
+  const cueBox = () => root.querySelector("#cue-box");
+  const hideCue = () => cueBox()?.classList.add("hidden");
+  root.querySelector("#cue-btn")?.addEventListener("click", () => {
+    const box = cueBox();
+    if (!box) return;
+    if (!box.classList.contains("hidden")) return hideCue();
+    const line = scriptLines?.[userTurns];
+    box.innerHTML = line
+      ? `<span class="text-[11px] font-semibold uppercase tracking-wide text-accent-400">Your line</span><br>${xt(line)}`
+      : "That’s the end of your lines — tap End &amp; grade for your notes.";
+    box.classList.remove("hidden");
+  });
+  function lineCheck(mine, said, idx) {
+    if (!scriptLines || !mine || !scriptLines[idx]) return;
+    const acc = lineAccuracy(scriptLines[idx], said);
+    const good = acc >= 90;
+    const el = document.createElement("div");
+    el.className = `mt-2 border-t border-white/10 pt-2 text-xs ${good ? "text-emerald-300" : "text-amber-300"}`;
+    el.textContent = good ? `✓ ${acc}% on script` : `${acc}% on script — the line was: “${scriptLines[idx]}”`;
+    mine.row.firstElementChild.appendChild(el);
+  }
 
   // ---------------------------------------------------------------- UI helpers
   function nearBottom() {
@@ -25360,6 +25570,7 @@ function ix(root, debateId, t, data) {
       ph = p === "Opening" ? "Your opening statement…" : p === "Closing" ? "Your closing argument…" : "Your rebuttal…";
     } else if (t.modeId === "interview" || t.modeId === "thesis" || t.modeId === "expert") ph = "Your answer…";
     else if (t.modeId === "rapbattle") ph = "Drop your bars…";
+    else if (t.actingScript) ph = scriptLines && userTurns >= scriptLines.length ? "End of scene — tap End & grade" : "Your line…";
     else ph = turns.length ? "Your reply…" : "Say something to begin…";
     input.placeholder = ph;
   }
@@ -25452,6 +25663,8 @@ function ix(root, debateId, t, data) {
       input.value = "";
       autosize();
       mine = bubble("you", text);
+      lineCheck(mine, text, userTurns);
+      hideCue();
       userTurns++;
     }
     // The server drops the user's turn when the model fails, so mirror that here.
@@ -25499,7 +25712,7 @@ function ix(root, debateId, t, data) {
         if (clientTts && ev.ttsVoice && silencedGen !== gen) {
           speaker = createStreamingSpeaker({
             voiceCfg: { voice: ev.ttsVoice, hd: !!ev.ttsHd, style: ev.ttsStyle, styleDegree: ev.ttsStyleDegree },
-            transform: maskRap,
+            transform: t.actingScript ? (x) => maskRap(x).replace(/(^|\n)\s*[\p{Lu}][\p{Lu} .'\-]{0,30}:\s*/gu, "$1") : maskRap,
             onFallback: (offset, utter, anchor) => {
               fallback = { offset, utter, anchor };
               if (doneEvt) playServerAudio(utter, offset, anchor);
