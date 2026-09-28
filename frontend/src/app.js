@@ -25189,6 +25189,8 @@ function ix(root, debateId, t, data) {
   (async () => {
     const me = await da().catch(() => null);
     if (!alive || !me?.photoreal) return dropPhoto(), openPhotoGate();
+    // Historical figures always use their own portrait — no video, no loading screen, no upsell.
+    if (t.figureId) return dropPhoto(), openPhotoGate();
     if (!me.champion) {
       dropPhoto();
       hint(false);
@@ -26362,7 +26364,7 @@ async function qu(i) {
     const pr = document.createElement("section");
     pr.className = "card mb-10 p-6";
     pr.innerHTML = `<h2 class="text-lg font-semibold text-white">Admin: photoreal avatars (Champion)</h2>
-      <p class="mt-1 text-sm text-slate-400">Every persona look is cast automatically with a matching LiveAvatar actor — nothing to set up. Override any of them here if you like. Historical figures stay as portraits unless you pick one.</p>
+      <p class="mt-1 text-sm text-slate-400">Every persona look is cast automatically with a matching LiveAvatar actor — nothing to set up. Override any of them here if you like. Historical figures always use their own portraits.</p>
       <div data-body class="mt-4"><button type="button" class="btn-ghost btn-sm" data-load>Load avatar catalog</button></div>`;
     e.appendChild(pr);
     const body = pr.querySelector("[data-body]");

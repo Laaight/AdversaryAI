@@ -6124,9 +6124,11 @@ async function avatarStatus(c, user) {
 }
 __name(avatarStatus, "avatarStatus");
 function avatarKeyForDebate(debate) {
+  // Historical figures never get a video actor: a stock actor isn't them, and the video
+  // provider's policy forbids real-person likenesses without consent. They keep their portraits.
+  if (debate.mode === "historical") return "";
   const setup = parseSetup(debate.setup_json);
-  if (debate.mode === "historical") return setup.figureId || debate.personality || "";
-  return setup.personaVisual || "";
+  return AVATAR_VISUAL_KEYS.includes(setup.personaVisual) ? setup.personaVisual : "";
 }
 __name(avatarKeyForDebate, "avatarKeyForDebate");
 async function liveAvatarFetch(env, path, init = {}) {
@@ -6260,9 +6262,8 @@ avatarRouter.get("/catalog", async (c) => {
 avatarRouter.get("/map", async (c) => {
   const user = await getSessionUser(c);
   if (!user || !isOwnerEmail(user.email, c.env)) return c.json({ error: "forbidden" }, 403);
-  const figures = HISTORICAL_FIGURES.filter((f) => !f.retired).map((f) => ({ key: f.id, label: f.name }));
   const visuals = AVATAR_VISUAL_KEYS.map((k) => ({ key: k, label: k.replace(/-/g, " ") }));
-  return c.json({ map: await resolveAvatarMap(c.env, c.env.DB), keys: [...visuals, ...figures] });
+  return c.json({ map: await resolveAvatarMap(c.env, c.env.DB), keys: visuals });
 });
 avatarRouter.post("/map", async (c) => {
   const user = await getSessionUser(c);
