@@ -5501,7 +5501,7 @@ publicRouter.get("/cast/:look", async (c) => {
   if (!/^https:\/\//.test(actor.image || "")) return miss("no-image");
   const img = await fetch(actor.image).catch(() => null);
   const type = img?.headers.get("content-type") || "";
-  if (!img?.ok || !type.startsWith("image/")) return miss(`fetch-${img?.status ?? "err"}`);
+  if (!img?.ok || !type.startsWith("image/")) return miss(`fetch-${img?.status ?? "err"}-${type.split(";")[0].slice(0, 40)}-${new URL(actor.image).pathname.split(".").pop().slice(0, 8)}`);
   const res = new Response(img.body, { headers: { "Content-Type": type, "Cache-Control": "public, max-age=86400" } });
   if (cache) {
     const put = cache.put(key, res.clone()).catch(() => {});
