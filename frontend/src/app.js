@@ -26607,7 +26607,7 @@ function ix(root, debateId, t, data) {
       autosize();
       if (handsFree) {
         clearTimeout(pauseT);
-        if (input.value.trim()) pauseT = setTimeout(() => listening && autoSend(), 1700);
+        if (input.value.trim()) pauseT = setTimeout(() => listening && autoSend(), 3500);
       }
     };
     let closed = false,
@@ -26633,7 +26633,7 @@ function ix(root, debateId, t, data) {
       // Phones (Android Chrome, iOS Safari) end recognition by themselves when you stop
       // talking, which cancels the pause timer — so in hands-free, ending = send.
       done();
-      if (!failed) autoSend();
+      if (!failed) setTimeout(() => !listening && autoSend(), 1500); // phones end on the first pause — leave room to keep thinking
     };
     rec.onerror = (e) => {
       const c = e?.error || "";
