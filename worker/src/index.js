@@ -5480,6 +5480,35 @@ __name(getVoterKey, "getVoterKey");
 
 var publicRouter = new Hono2();
 
+// Landing page: a still of the stock photoreal actor cast for a persona look (never the owner's
+// own avatars). Proxied so expiring catalog URLs don't matter, and edge-cached for a day.
+publicRouter.get("/cast/:look", async (c) => {
+  const look = c.req.param("look");
+  const miss = /* @__PURE__ */ __name(() => new Response(null, { status: 404, headers: { "Cache-Control": "public, max-age=600" } }), "miss");
+  if (!AVATAR_VISUAL_KEYS.includes(look) || !c.env.LIVEAVATAR_API_KEY) return miss();
+  const cache = typeof caches !== "undefined" ? caches.default : null;
+  const key = new Request(new URL(c.req.url).toString());
+  const hit = await cache?.match(key).catch(() => null);
+  if (hit) return hit;
+  const id = avatarIdFor(await getAvatarMap(c.env.DB), look);
+  if (!id) return miss();
+  const cat = await fetchAvatarCatalog(c.env, c.env.DB).catch(() => []);
+  const actor = cat.find((a) => a.id === id);
+  if (!actor || actor.own || !/^https:\/\//.test(actor.image || "")) return miss();
+  const img = await fetch(actor.image).catch(() => null);
+  const type = img?.headers.get("content-type") || "";
+  if (!img?.ok || !type.startsWith("image/")) return miss();
+  const res = new Response(img.body, { headers: { "Content-Type": type, "Cache-Control": "public, max-age=86400" } });
+  if (cache) {
+    const put = cache.put(key, res.clone()).catch(() => {});
+    try {
+      c.executionCtx.waitUntil(put);
+    } catch {
+    }
+  }
+  return res;
+});
+
 publicRouter.get("/debates", async (c) => {
   const rows = await c.env.DB.prepare(
     `SELECT d.id, d.personality, d.topic, d.mode, d.ended_at, d.created_at, d.views, d.setup_json,

@@ -120,6 +120,8 @@ const it = {
     20,
   ),
   stop: Dt('<rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor" stroke="none"/>', 18),
+  grow: Dt('<polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>', 18),
+  shrink: Dt('<polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/>', 18),
   warning: ha,
   bolt: td,
   scale: Dt(
@@ -449,7 +451,7 @@ const Cc = {
   "older-man": { id: "older-man", model: "/models/personas/older-man.glb", label: "Older gentleman" },
   "older-woman": { id: "older-woman", model: "/models/personas/older-woman.glb", label: "Older woman" },
   "man-casual": { id: "man-casual", model: "/models/adversary-masc.glb", label: "Man" },
-  "woman-casual": { id: "woman-casual", model: "/models/personas/woman-casual.glb", label: "Woman" },
+  "woman-casual": { id: "woman-casual", model: "/models/adversary-fem.glb", label: "Woman" },
   "default-masc": { id: "default-masc", model: "/models/adversary-masc.glb", label: "Opponent" },
   "default-fem": { id: "default-fem", model: "/models/adversary-fem.glb", label: "Opponent" },
 };
@@ -25135,10 +25137,12 @@ class K0 {
       h = el.clientHeight || 1;
     this.renderer.setSize(w, h, !1);
     this.camera.aspect = w / h;
-    // Frame head + shoulders; pull back on tall/narrow stages so the head is never cropped.
-    const portrait = w / h < 1;
-    const dist = portrait ? 3.4 : 2.9;
-    const lookY = portrait ? -0.14 : -0.04;
+    // Frame head + shoulders; pull back on tall/narrow stages so the head is never cropped, and on
+    // the phone's wide strip, where badges and buttons sit over the top and bottom edges.
+    const portrait = w / h < 1,
+      strip = w / h > 1.8;
+    const dist = portrait ? 3.4 : strip ? 3.5 : 2.9;
+    const lookY = portrait ? -0.14 : strip ? 0.02 : -0.04;
     this.camera.position.set(0, lookY + 0.06, dist);
     this.camera.lookAt(0, lookY, 0);
     this.camera.updateProjectionMatrix();
@@ -25303,12 +25307,13 @@ function ix(root, debateId, t, data) {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg><span class="hidden sm:inline">Replay</span></button>
           <button id="stop-btn" type="button" class="btn-ghost btn-sm h-11 w-11 px-0 sm:w-auto sm:px-3 lg:h-auto" disabled aria-label="Stop audio">
             <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor"/></svg><span class="hidden sm:inline">Stop</span></button>
+          <button id="size-btn" type="button" class="btn-ghost btn-sm h-11 w-11 px-0 lg:hidden" aria-pressed="false" aria-label="Show more of ${xt(t.personaLabel)}" title="Bigger / smaller"></button>
           ${t.actingScript ? `<button id="cue-btn" type="button" class="btn-ghost btn-sm h-11 whitespace-nowrap lg:h-auto" title="Show your next line" aria-label="Show your next line">Line?</button>` : ""}
           <button id="view-btn" type="button" class="btn-ghost btn-sm hidden h-11 whitespace-nowrap lg:h-auto" title="Owner: switch between video and 3D"></button>
           <button id="end-btn" type="button" class="btn-danger btn-sm ml-auto h-11 shrink-0 whitespace-nowrap lg:h-auto">End &amp; grade</button>
         </div>
         <div id="upsell-slot" class="hidden"></div>
-        <div id="photo-debug" class="mt-2.5 hidden rounded-lg border border-amber-400/20 bg-amber-400/5 px-3 py-2 text-xs leading-relaxed text-amber-200 break-words"></div>
+        <div id="photo-debug" class="mt-2.5 hidden items-start gap-2 rounded-lg border border-amber-400/20 bg-amber-400/5 px-3 py-2 text-xs leading-relaxed text-amber-200 break-words"><span class="min-w-0 flex-1"></span><button type="button" class="-my-1 -mr-1 shrink-0 rounded px-1.5 py-1 text-amber-200/80 hover:text-amber-100" aria-label="Hide this message">✕</button></div>
       </aside>
 
       <section class="flex min-h-0 min-w-0 flex-1 flex-col pt-2 lg:pt-6">
@@ -25393,15 +25398,20 @@ function ix(root, debateId, t, data) {
       ? `<span class="badge inline-block max-w-full truncate whitespace-nowrap border-white/10 bg-black/60 backdrop-blur ${cls}">${html}</span>`
       : "";
   };
+  // Owner-only diagnostics; ✕ hides that message for the rest of the session (it eats phone height).
+  let photoDebugHidden = "";
+  photoDebug?.querySelector("button").addEventListener("click", () => {
+    photoDebugHidden = photoDebug.dataset.msg || "";
+    photoDebug.classList.add("hidden");
+    photoDebug.classList.remove("flex");
+  });
   const setPhotoDebug = (text) => {
     if (!photoDebug) return;
-    if (!text) {
-      photoDebug.classList.add("hidden");
-      photoDebug.textContent = "";
-      return;
-    }
-    photoDebug.textContent = `Photoreal error (owner only): ${text}`;
-    photoDebug.classList.remove("hidden");
+    const show = !!text && text !== photoDebugHidden;
+    photoDebug.dataset.msg = text || "";
+    photoDebug.firstElementChild.textContent = text ? `Photoreal error (owner only): ${text}` : "";
+    photoDebug.classList.toggle("hidden", !show);
+    photoDebug.classList.toggle("flex", show);
   };
   const mins = (sec) => `${Math.max(0, Math.floor((sec || 0) / 60))} min left`;
   // While photoreal is expected, keep the 3D model hidden and show a still of the video actor
@@ -25738,6 +25748,30 @@ function ix(root, debateId, t, data) {
   const shell = $("#session-shell");
   input.addEventListener("focus", () => shell.classList.add("kb"));
   input.addEventListener("blur", () => shell.classList.remove("kb"));
+  // Phones keep the opponent to a strip so the transcript gets the room; ⤢ (or a tap on them)
+  // shows more of their face. Remembered per device.
+  const STAGE_KEY = "aai_stage_big";
+  const sizeBtn = $("#size-btn");
+  const setStageBig = (on) => {
+    shell.classList.toggle("stage-big", on);
+    sizeBtn.setAttribute("aria-pressed", String(on));
+    sizeBtn.innerHTML = on ? it.shrink : it.grow;
+    sizeBtn.setAttribute("aria-label", on ? `Show less of ${t.personaLabel}` : `Show more of ${t.personaLabel}`);
+    try {
+      localStorage.setItem(STAGE_KEY, on ? "1" : "0");
+    } catch {}
+  };
+  try {
+    setStageBig(localStorage.getItem(STAGE_KEY) === "1");
+  } catch {
+    setStageBig(false);
+  }
+  sizeBtn.addEventListener("click", () => setStageBig(!shell.classList.contains("stage-big")));
+  $("#avatar-canvas").addEventListener("click", () => {
+    // Not on desktop (fixed layout), and not while the stage is a "tap to start the video" button.
+    if (window.matchMedia("(min-width: 1024px)").matches || stage.querySelector(".photoreal-poster")) return;
+    setStageBig(!shell.classList.contains("stage-big"));
+  });
   function bubble(role, text) {
     turns.push({ role, text });
     const row = document.createElement("div");
@@ -25863,9 +25897,19 @@ function ix(root, debateId, t, data) {
     sendBtn.disabled = busy || ended || quotaOut || awaitingOpen || recovering || finishing;
     endBtn.disabled = (busy && !ended) || finishing;
   }
+  // Grow the box with its text. Measuring means collapsing it for a moment, which shrinks the page
+  // and makes the browser clamp its scroll — with the keyboard up that read as the page bouncing on
+  // every keystroke. Browsers with field-sizing size it natively; elsewhere put the scroll back.
+  const nativeSize = window.CSS?.supports?.("field-sizing", "content");
+  if (nativeSize) input.style.fieldSizing = "content";
   function autosize() {
+    if (nativeSize) return;
+    const y = window.scrollY,
+      ts = transcript.scrollTop;
     input.style.height = "auto";
     input.style.height = Math.min(160, input.scrollHeight) + "px";
+    if (window.scrollY !== y) window.scrollTo(0, y);
+    if (transcript.scrollTop !== ts) transcript.scrollTop = ts;
   }
   input.addEventListener("input", () => {
     autosize();

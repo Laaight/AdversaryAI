@@ -366,7 +366,7 @@ const DEMO_PERSONAS = {
   },
   coach: {
     label: 'The Coach',
-    model: '/models/personas/woman-casual.glb?v=1790461873',
+    model: '/models/adversary-fem.glb?v=1790461873',
     src: '/demo-audio/teaser-coach.mp3',
     caption: 'The Coach pushes you, then shows the fix',
   },
@@ -751,6 +751,22 @@ function buildScene(THREE, createHumanAvatar, GLTFLoader, RoomEnvironment, canva
 }
 
 /* ================= boot ================= */
+/* Champion teaser: stills of the photoreal actors cast for the three demo personas. Each image
+   is served (and edge-cached) by the worker; the strip stays hidden unless at least one loads. */
+function showPhotorealCast() {
+  var box = document.getElementById('photorealCast');
+  if (!box) return;
+  box.querySelectorAll('img[data-cast]').forEach(function (img) {
+    img.hidden = true;
+    img.onload = function () {
+      img.hidden = false;
+      box.hidden = false;
+    };
+    img.onerror = function () { img.remove(); };
+    img.src = '/api/public/cast/' + img.getAttribute('data-cast');
+  });
+}
+
 document.addEventListener('DOMContentLoaded', function () {
   /* Pricing: live API wins, hardcoded copy is the fallback. */
   loadLivePricing().then(function (live) {
@@ -762,6 +778,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   wireNav();
   observeReveals(document);
+  showPhotorealCast();
 
   /* The 3D opponent is 7-10 MB of model + three.js. Desktop: load it once the frame is near the
      viewport. Phones / slow or metered connections: show the play button and load on tap, so

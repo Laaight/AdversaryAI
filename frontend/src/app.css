@@ -450,6 +450,13 @@
 .session-composer {
   padding-bottom: calc(0.75rem + var(--safe-bottom));
 }
+/* ⤢ on phones: a bigger look at the opponent, on request (the transcript still keeps ~40%). */
+@media (max-width: 559px), (max-width: 1023px) and (min-height: 601px) {
+  .session-shell.stage-big:not(.kb) .session-stage {
+    height: clamp(200px, 44vh, 520px);
+    height: clamp(200px, 44dvh, 520px);
+  }
+}
 /* Stage corner badges: on desktop each keeps its own absolute corner; on smaller screens they
    flow as one row across the top of the stage. */
 .stage-tl {

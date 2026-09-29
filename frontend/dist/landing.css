@@ -123,7 +123,7 @@ p { margin: 0 0 16px; }
 .brand-name { font-weight: 800; font-size: 1.15rem; letter-spacing: 0.02em; }
 .brand-name em { font-style: normal; color: var(--red); }
 .nav-links { display: flex; gap: 28px; }
-.nav-links a { color: var(--muted); text-decoration: none; font-weight: 600; font-size: 0.95rem; transition: color 0.15s ease; }
+.nav-links a { color: var(--muted); text-decoration: none; font-weight: 600; font-size: 0.95rem; white-space: nowrap; transition: color 0.15s ease; }
 .nav-links a:hover { color: var(--text); }
 .nav-links a:focus-visible, .brand:focus-visible { outline: 2px solid var(--red); outline-offset: 3px; }
 .nav-actions { display: flex; align-items: center; gap: 12px; }
@@ -261,6 +261,42 @@ p { margin: 0 0 16px; }
   min-height: 44px;
 }
 .avatar-caption:empty { display: none; }
+
+/* Stills of the Champion photoreal actors, under the 3D demo. Shown only once a photo loads. */
+.photoreal-cast {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 12px;
+  padding: 10px 14px 10px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.4;
+  text-decoration: none;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+.photoreal-cast[hidden] { display: none; }
+.photoreal-cast:hover { border-color: rgba(255, 46, 63, 0.45); background: var(--red-soft); }
+.photoreal-cast strong { color: var(--text); }
+.photoreal-cast-faces { display: flex; flex-shrink: 0; }
+.photoreal-cast-faces img {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 2px solid var(--bg);
+  object-fit: cover;
+  object-position: 50% 18%;
+  background: var(--panel2);
+}
+.photoreal-cast-faces img + img { margin-left: -14px; }
+.photoreal-cast-faces img[hidden] { display: none; }
+@media (max-width: 400px) {
+  .photoreal-cast-faces img { width: 46px; height: 46px; }
+}
+@END
 
 /* ---------- how it works ---------- */
 .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 40px; }
@@ -568,6 +604,12 @@ a.mode:hover .mode-arr { transform: translateX(4px); }
 @media (max-width: 1020px) {
   .modes { grid-template-columns: repeat(2, 1fr); }
   .mode-skeleton .sk-text { height: 58px; }
+}
+
+/* Tablets: the five links and both actions don't fit on one line — use the menu button. */
+@media (max-width: 920px) {
+  .nav-links { display: none; }
+  .nav-toggle { display: flex; }
 }
 
 @media (max-width: 940px) {
