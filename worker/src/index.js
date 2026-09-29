@@ -5500,8 +5500,13 @@ publicRouter.get("/cast/:look", async (c) => {
   if (actor.own) return miss("own");
   if (!/^https:\/\//.test(actor.image || "")) return miss("no-image");
   const img = await fetch(actor.image).catch(() => null);
-  const type = img?.headers.get("content-type") || "";
-  if (!img?.ok || !type.startsWith("image/")) return miss(`fetch-${img?.status ?? "err"}-${type.split(";")[0].slice(0, 40)}-${new URL(actor.image).pathname.split(".").pop().slice(0, 8)}`);
+  if (!img?.ok) return miss(`fetch-${img?.status ?? "err"}`);
+  // The catalog's storage serves its .webp stills as binary/octet-stream: go by the extension then.
+  const ext = new URL(actor.image).pathname.split(".").pop().toLowerCase();
+  const byExt = { webp: "image/webp", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif", avif: "image/avif" }[ext];
+  const sent = (img.headers.get("content-type") || "").split(";")[0];
+  const type = sent.startsWith("image/") ? sent : byExt;
+  if (!type) return miss("not-image");
   const res = new Response(img.body, { headers: { "Content-Type": type, "Cache-Control": "public, max-age=86400" } });
   if (cache) {
     const put = cache.put(key, res.clone()).catch(() => {});
