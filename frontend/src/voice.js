@@ -80,6 +80,7 @@ class VoiceEngine {
     this.utterId = "";
     this.sinkChain = Promise.resolve();
     this.listeners = new Set();
+    this.blockedListeners = new Set();
     this.lastUtterance = null; // {segments:[{buffer, visemes}]} for free local replay
     this._state = "idle";
     this._cls = { lowAvg: 0, last: 0, lastAt: 0, lastPlosiveAt: -1e9 };
@@ -101,6 +102,26 @@ class VoiceEngine {
       } catch {}
     }
   }
+  /**
+   * fn(true) when audio is stuck mid-reply because the browser suspended the context and
+   * won't resume it without a tap (iOS after a lock/app switch); fn(false) once it runs again.
+   * Kept apart from on(): the state stays idle/speaking, which hands-free and photoreal rely on.
+   */
+  onBlocked(fn) {
+    this.blockedListeners.add(fn);
+    return () => this.blockedListeners.delete(fn);
+  }
+  _blocked(on = true) {
+    for (const fn of this.blockedListeners) {
+      try {
+        fn(on);
+      } catch {}
+    }
+  }
+  _checkBlocked() {
+    const c = this.ctx;
+    if (c && c.state !== "running" && c.state !== "closed" && this._state === "speaking") this._blocked(true);
+  }
 
   ensureContext() {
     if (!this.ctx) {
@@ -115,6 +136,7 @@ class VoiceEngine {
       this.analyser.connect(this.ctx.destination);
       this.freq = new Uint8Array(this.analyser.frequencyBinCount);
       this.time = new Uint8Array(this.analyser.fftSize);
+      this.ctx.onstatechange = () => this.ctx?.state === "running" && this._blocked(false);
     }
     // Safari uses "interrupted" after a phone call / Siri; both need an explicit resume.
     if (this.ctx.state !== "running" && this.ctx.state !== "closed") this.ctx.resume().catch(() => {});
@@ -291,6 +313,13 @@ class VoiceEngine {
     // drop track entries that are long past to keep lookups cheap
     const cutoff = ctx.currentTime - 2;
     if (this.track.length > 400) this.track = this.track.filter((e) => e.t > cutoff);
+    // Scheduled on a context the browser is holding (no tap since iOS interrupted it): try to
+    // resume, and tell the page if that didn't work so it can ask for a tap.
+    if (ctx.state !== "running") {
+      ctx.resume().catch(() => {});
+      clearTimeout(this._blockT);
+      this._blockT = setTimeout(() => this._checkBlocked(), 600);
+    }
     this._emit("speaking");
   }
 
@@ -482,8 +511,27 @@ export async function toPcm24kBase64Chunks(buffer) {
 export const voice = new VoiceEngine();
 if (typeof window !== "undefined") {
   window.__voice = voice;
-  // Leaving the page or backgrounding the tab must never leave a voice talking.
+  // Leaving the page (unload / back-forward cache) must never leave a voice talking.
   window.addEventListener("pagehide", () => voice.stop());
+  // Locking the phone or switching apps doesn't fire pagehide: iOS suspends ("interrupted")
+  // the context instead, and a reply scheduled on it stays silent — stuck in "speaking" —
+  // until something resumes it. Resume on return; if the browser insists on a tap, say so.
+  const revive = () => {
+    const c = voice.ctx;
+    if (document.visibilityState !== "visible" || !c || c.state === "running" || c.state === "closed") return;
+    c.resume().catch(() => {});
+    setTimeout(() => voice._checkBlocked(), 400);
+  };
+  document.addEventListener("visibilitychange", revive);
+  window.addEventListener("pageshow", revive);
+  window.addEventListener("focus", revive);
+  // Any tap is a user gesture, which is what iOS wants before it resumes.
+  const onTap = () => {
+    const c = voice.ctx;
+    if (c && c.state !== "running" && c.state !== "closed") c.resume().catch(() => {});
+  };
+  document.addEventListener("touchend", onTap, { capture: true, passive: true });
+  document.addEventListener("click", onTap, { capture: true, passive: true });
 }
 
 // ---------------------------------------------------------------- Azure TTS (browser SDK)
@@ -524,16 +572,21 @@ export function loadSpeechSdk() {
 }
 
 const tokenCache = {}; // hd|std -> {token, region, at}
+const tokenInflight = {}; // one mint at a time (the speaker pre-warms while the model thinks)
 export async function getSpeechToken(hd = false) {
   const k = hd ? "hd" : "std";
   const cached = tokenCache[k];
   if (cached && Date.now() - cached.at < 8 * 60 * 1000) return cached;
-  const res = await fetch(`/api/speech/token${hd ? "?hd=1" : ""}`, { method: "POST", credentials: "include" });
-  if (!res.ok) throw new Error(`token http ${res.status}`);
-  const j = await res.json();
-  if (!j.token || !j.region) throw new Error("token malformed");
-  tokenCache[k] = { token: j.token, region: j.region, at: Date.now() };
-  return tokenCache[k];
+  if (tokenInflight[k]) return tokenInflight[k];
+  tokenInflight[k] = (async () => {
+    const res = await fetch(`/api/speech/token${hd ? "?hd=1" : ""}`, { method: "POST", credentials: "include" });
+    if (!res.ok) throw new Error(`token http ${res.status}`);
+    const j = await res.json();
+    if (!j.token || !j.region) throw new Error("token malformed");
+    tokenCache[k] = { token: j.token, region: j.region, at: Date.now() };
+    return tokenCache[k];
+  })().finally(() => delete tokenInflight[k]);
+  return tokenInflight[k];
 }
 
 function escXml(s) {
@@ -547,7 +600,7 @@ export function buildSsml(text, v) {
 }
 
 /** Synthesize one chunk of text → {audio: ArrayBuffer, visemes:[{id, ms}]}. */
-export async function synthesize(sdk, text, voiceCfg) {
+export async function synthesize(sdk, text, voiceCfg, timeoutMs = 10000) {
   const { token, region } = await getSpeechToken(!!voiceCfg.hd);
   const cfg = sdk.SpeechConfig.fromAuthorizationToken(token, region);
   cfg.speechSynthesisVoiceName = voiceCfg.voice;
@@ -560,7 +613,7 @@ export async function synthesize(sdk, text, voiceCfg) {
   synth.visemeReceived = (_s, e) => visemes.push({ id: e.visemeId, ms: e.audioOffset / 1e4 });
   try {
     const result = await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error("synthesis timeout")), 10000);
+      const timer = setTimeout(() => reject(new Error("synthesis timeout")), timeoutMs);
       synth.speakSsmlAsync(
         buildSsml(text, voiceCfg),
         (r) => {
@@ -594,6 +647,7 @@ export async function synthesize(sdk, text, voiceCfg) {
  */
 export function createStreamingSpeaker({ voiceCfg, onFallback, transform = (x) => x }) {
   const utter = voice.begin();
+  getSpeechToken(!!voiceCfg.hd).catch(() => {}); // warm the token while the model is still thinking
   const queue = []; // {text, offset}
   let buffer = "";
   let consumed = 0; // chars of the reply already handed to `queue`
@@ -601,6 +655,7 @@ export function createStreamingSpeaker({ voiceCfg, onFallback, transform = (x) =
   let failed = false;
   let pumping = false;
   let cancelled = false;
+  let first = true;
 
   const splitSentences = (force) => {
     const re = /[.!?…]+["'”’)\]]*\s+/g;
@@ -636,13 +691,19 @@ export function createStreamingSpeaker({ voiceCfg, onFallback, transform = (x) =
   };
 
   const pump = async () => {
-    if (pumping || failed || cancelled) return;
+    if (pumping || failed || cancelled || !utter.active) return;
     pumping = true;
     try {
       const sdk = await loadSpeechSdk();
       if (!sdk) return fail(queue[0]?.offset ?? consumed, queue[0] ? transform(queue[0].text) : "");
       let ahead = null; // {item, promise}
-      const start = (item) => ({ item, promise: synthesize(sdk, transform(item.text), voiceCfg) });
+      const start = (item) => {
+        const text = transform(item.text);
+        // Long chunks need longer on a slow phone link; the first one also opens the connection.
+        const ms = Math.max(10000, 4000 + 40 * text.length) + (first ? 5000 : 0);
+        first = false;
+        return { item, promise: synthesize(sdk, text, voiceCfg, ms).catch((e) => ({ err: e || new Error("synthesis error") })) };
+      };
       while (!cancelled && utter.active) {
         if (!ahead) {
           const item = queue.shift();
@@ -653,24 +714,29 @@ export function createStreamingSpeaker({ voiceCfg, onFallback, transform = (x) =
         ahead = null;
         const nextItem = queue.shift();
         if (nextItem) ahead = start(nextItem);
-        let res;
-        try {
-          res = await cur.promise;
-        } catch (e) {
-          console.warn("[voice] SDK synthesis failed, falling back", e);
-          ahead?.promise.catch(() => {});
+        let res = await cur.promise;
+        // A quick failure (dropped socket, token hiccup) usually works the second time; a
+        // timeout has already cost its wait, so that one goes straight to server audio.
+        if (res.err && !/timeout/.test(String(res.err.message || res.err)) && !cancelled && utter.active) {
+          console.warn("[voice] SDK synthesis failed, retrying once", res.err);
+          res = await start(cur.item).promise;
+        }
+        if (res.err) {
+          console.warn("[voice] SDK synthesis failed, falling back", res.err);
           return fail(cur.item.offset, transform(cur.item.text));
         }
         if (cancelled || !utter.active) return;
         const ok = await utter.enqueue(res.audio, res.visemes);
-        if (!ok && utter.active && !cancelled) {
-          ahead?.promise.catch(() => {});
-          return fail(cur.item.offset, transform(cur.item.text));
-        }
+        if (!ok && utter.active && !cancelled) return fail(cur.item.offset, transform(cur.item.text));
       }
     } finally {
       pumping = false;
-      if (!failed && !cancelled && queue.length) pump();
+      // Stopped from outside (pagehide, a newer utterance): a dead utterance must never be
+      // re-pumped — that loop never yields and would freeze the tab.
+      if (!utter.active) {
+        cancelled = true;
+        queue.length = 0;
+      } else if (!failed && !cancelled && queue.length) pump();
       else if (!failed && !cancelled && finished && !queue.length) utter.end();
     }
   };
@@ -678,14 +744,17 @@ export function createStreamingSpeaker({ voiceCfg, onFallback, transform = (x) =
   return {
     utter,
     push(tok) {
-      if (cancelled || failed) return;
+      if (cancelled || failed || !utter.active) return;
       buffer += tok;
       splitSentences(false);
       if (queue.length) pump();
     },
-    finish() {
+    /** No more text. dropTail: the reply was cut off — speak up to its last complete sentence only. */
+    finish({ dropTail = false } = {}) {
       if (cancelled) return;
+      if (!utter.active) return void (cancelled = true);
       finished = true;
+      if (dropTail) buffer = buffer.match(/^[\s\S]*[.!?…]+["'”’)\]]*(?=\s|$)/)?.[0] ?? "";
       splitSentences(true);
       if (failed) return;
       if (queue.length) pump();
@@ -697,6 +766,10 @@ export function createStreamingSpeaker({ voiceCfg, onFallback, transform = (x) =
     },
     get failed() {
       return failed;
+    },
+    /** Chars of the reply handed to synthesis so far — where the voice stops if nothing more comes. */
+    get offset() {
+      return consumed;
     },
     /** True while sentences are still being synthesized/queued (audio not all scheduled yet). */
     pending() {

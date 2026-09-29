@@ -372,6 +372,10 @@ const DEMO_PERSONAS = {
   },
 };
 let demoPersonaId = 'prosecutor';
+/* Set once buildScene has wired its own tab/play handlers; before that the boot
+   handlers remember the pick (and a tap on "Hear…") so the first load honours it. */
+let demoSceneReady = false;
+let demoWantPlay = false;
 
 function initAvatar() {
   const canvas = document.getElementById('avatarCanvas');
@@ -542,7 +546,14 @@ function buildScene(THREE, createHumanAvatar, GLTFLoader, RoomEnvironment, canva
         h.group.position.y = -0.05;
         scene.add(h.group);
         if (caption && !playing) caption.textContent = '';
-        setOverlayForPersona();
+        /* one-shot: clear it even if the teaser already started, so a later persona swap doesn't autoplay */
+        const wantPlay = demoWantPlay && !playing;
+        demoWantPlay = false;
+        if (wantPlay) {
+          ensureProbed().then(function (ok) { if (ok) playCurrent(); else noAudio(); });
+        } else {
+          setOverlayForPersona();
+        }
       })
       .catch(function () {
         if (!ticket.cancelled && caption) caption.textContent = 'Avatar failed to load — check your connection and reload.';
@@ -584,7 +595,8 @@ function buildScene(THREE, createHumanAvatar, GLTFLoader, RoomEnvironment, canva
 
     renderer.render(scene, camera);
   }
-  tick();
+  /* first frame on the next rAF: tick reads `playing`, declared below, so calling it now throws (TDZ) */
+  requestAnimationFrame(tick);
 
 /* ---- demo audio: one teaser per persona, click-to-play ---- */
   const audio = new Audio();
@@ -623,7 +635,8 @@ function buildScene(THREE, createHumanAvatar, GLTFLoader, RoomEnvironment, canva
   }
 
   function setOverlayForPersona() {
-    if (!overlay || !playBtn) return;
+    /* a model finishing its load mid-teaser must not put the play overlay back over the audio */
+    if (playing || !overlay || !playBtn) return;
     const id = demoPersonaId;
     const p = DEMO_PERSONAS[id];
     overlay.classList.remove('hidden');
@@ -727,6 +740,7 @@ function buildScene(THREE, createHumanAvatar, GLTFLoader, RoomEnvironment, canva
   }
 
   /* persona tabs: hot-swap the opponent (model + voice) */
+  demoSceneReady = true;
   const tabsEl = document.getElementById('demoPersonaTabs');
   if (tabsEl) {
     tabsEl.addEventListener('click', function (e) {
@@ -758,13 +772,41 @@ document.addEventListener('DOMContentLoaded', function () {
   var started = false;
   function startAvatar() { if (started) return; started = true; initAvatar(); }
   if (!frame) return;
+  var caption = document.getElementById('avatarCaption');
+  var playBtn = document.getElementById('playBtn');
+  /* The tabs sit outside the frame and their real handler only exists once the scene is built;
+     until then, apply the pick here (and start loading) so the first model is the one chosen. */
+  var tabs = document.getElementById('demoPersonaTabs');
+  if (tabs) {
+    tabs.addEventListener('click', function (e) {
+      if (demoSceneReady) return;
+      var btn = e.target.closest('[data-demo-persona]');
+      var id = btn && btn.getAttribute('data-demo-persona');
+      if (!id || !DEMO_PERSONAS[id]) return;
+      demoPersonaId = id;
+      tabs.querySelectorAll('.demo-persona-tab').forEach(function (b) {
+        var on = b === btn;
+        b.classList.toggle('is-active', on);
+        b.setAttribute('aria-selected', on ? 'true' : 'false');
+      });
+      if (playBtn) playBtn.innerHTML = '<span aria-hidden="true">▶</span> Hear ' + DEMO_PERSONAS[id].label;
+      if (caption && !started) caption.textContent = 'Loading your opponent…';
+      startAvatar();
+    });
+  }
   if (light) {
-    var caption = document.getElementById('avatarCaption');
     if (caption) caption.textContent = 'Tap to load the 3D opponent';
-    var playBtn = document.getElementById('playBtn');
-    var kick = function (ev) { ev && ev.preventDefault(); if (caption) caption.textContent = 'Loading your opponent…'; startAvatar(); };
-    if (playBtn) playBtn.addEventListener('click', kick, { once: true });
-    frame.addEventListener('click', kick, { once: true });
+    var kick = function (ev) {
+      if (demoSceneReady) return;
+      ev && ev.preventDefault();
+      /* a tap on "Hear…" should play once the model is in, not only load it */
+      if (ev && ev.currentTarget === playBtn) demoWantPlay = true;
+      /* only on the first tap: later taps must not hide a load-failure message */
+      if (caption && !started) caption.textContent = 'Loading your opponent…';
+      startAvatar();
+    };
+    if (playBtn) playBtn.addEventListener('click', kick);
+    frame.addEventListener('click', kick);
   } else if ('IntersectionObserver' in window) {
     var io = new IntersectionObserver(function (entries) {
       if (entries.some(function (e) { return e.isIntersecting; })) { io.disconnect(); startAvatar(); }

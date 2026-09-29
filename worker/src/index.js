@@ -3114,8 +3114,33 @@ authRouter.get("/me", async (c) => {
 });
 
 // worker/src/model.ts
+// Throttling (429), 408, 5xx and dropped connections are usually gone a second later, so
+// they get one short retry. Errors with a status outside that set fail straight through.
+function isTransientModelError(err) {
+  const s = err?.status;
+  return !s || s === 408 || s === 429 || s >= 500;
+}
+__name(isTransientModelError, "isTransientModelError");
+function retryDelayMs(res) {
+  const ms = Number(res?.headers?.get("retry-after-ms")) || Number(res?.headers?.get("retry-after")) * 1e3 || (res?.status === 429 ? 1500 : 700);
+  return Math.min(3e3, ms) + 200 + Math.floor(Math.random() * 400);
+}
+__name(retryDelayMs, "retryDelayMs");
+async function modelHttpError(res, label) {
+  const body = await res.text().catch(() => "");
+  console.error(`[deepseek] ${label}HTTP ${res.status} body: ${body.slice(0, 3e3)}`);
+  const err = new Error(
+    `DeepSeek ${label}request failed: HTTP ${res.status} ${body.slice(0, 300)}`
+  );
+  err.status = res.status;
+  err.retryAfterMs = retryDelayMs(res);
+  // Azure puts the code after a ~280-char message, past the slice kept in err.message.
+  err.contentFilter = /content_filter|ResponsibleAIPolicyViolation/i.test(body);
+  return err;
+}
+__name(modelHttpError, "modelHttpError");
 async function callOnce(baseUrl, apiKey, model, systemPrompt, userInput, maxTokens) {
-  const res = await fetch(baseUrl, {
+  const init = {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -3131,25 +3156,147 @@ async function callOnce(baseUrl, apiKey, model, systemPrompt, userInput, maxToke
       ],
       max_tokens: maxTokens
     })
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    console.error(`[deepseek] HTTP ${res.status} body: ${body.slice(0, 3e3)}`);
-    const err = new Error(
-      `DeepSeek request failed: HTTP ${res.status} ${body.slice(0, 300)}`
-    );
-    err.status = res.status;
-    throw err;
-  }
-  const data = await res.json();
-  const message = data?.choices?.[0]?.message ?? {};
-  const text = typeof message.content === "string" ? message.content.trim() : "";
-  return {
-    text,
-    hitTokenCap: data?.choices?.[0]?.finish_reason === "length"
   };
+  for (let attempt = 0; ; attempt++) {
+    // Scoring and judging must not hang forever on a stalled upstream. Not streamed, so this
+    // covers the whole generation: leave room for a reasoning model to use the 4000+ budget.
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 15e4);
+    try {
+      const res = await fetch(baseUrl, { ...init, signal: ac.signal });
+      if (!res.ok) throw await modelHttpError(res, "");
+      const data = await res.json();
+      const message = data?.choices?.[0]?.message ?? {};
+      const text = typeof message.content === "string" ? message.content.trim() : "";
+      return {
+        text,
+        hitTokenCap: data?.choices?.[0]?.finish_reason === "length"
+      };
+    } catch (err) {
+      // A timeout is not retried: the user is already waiting on End & grade.
+      if (ac.signal.aborted) throw new Error("DeepSeek request timed out");
+      if (attempt >= 1 || !isTransientModelError(err)) throw err;
+      console.warn(`[deepseek] ${err?.status ? `HTTP ${err.status}` : `fetch failed: ${err?.message || err}`}, retrying once`);
+      await new Promise((r) => setTimeout(r, err?.retryAfterMs || retryDelayMs(null)));
+    } finally {
+      clearTimeout(timer);
+    }
+  }
 }
 __name(callOnce, "callOnce");
+// One streamed completion. Records why it ended in `meta` (finishReason, sawDone, reasoning
+// size) and aborts when upstream goes quiet, so a stalled model can't hang the turn forever.
+async function* modelStreamOnce(baseUrl, apiKey, model, systemPrompt, userInput, maxTokens, meta) {
+  // Until text or reasoning starts flowing, allow a long quiet spell: an early role or
+  // filter-results chunk can be followed by a silent think before the first word.
+  const FIRST_MS = 45e3, IDLE_MS = 2e4;
+  const ac = new AbortController();
+  let timedOut = false, reader = null, timer, waitMs = FIRST_MS, flowing = false;
+  const arm = /* @__PURE__ */ __name((ms) => {
+    clearTimeout(timer);
+    waitMs = ms;
+    timer = setTimeout(() => {
+      timedOut = true;
+      ac.abort();
+      reader?.cancel().catch(() => {
+      });
+    }, ms);
+  }, "arm");
+  const stalled = /* @__PURE__ */ __name(() => new Error(`DeepSeek stream stalled: no data for ${waitMs / 1e3}s`), "stalled");
+  // Returns the line's visible text. Hidden reasoning is counted but never shown.
+  const parse = /* @__PURE__ */ __name((line) => {
+    const t = line.trim();
+    if (!t.startsWith("data:")) return "";
+    const payload = t.slice(5).trim();
+    if (payload === "[DONE]") {
+      meta.sawDone = true;
+      return "";
+    }
+    if (!payload) return "";
+    let json;
+    try {
+      json = JSON.parse(payload);
+    } catch {
+      return "";
+    }
+    if (json?.error) {
+      const e = json.error;
+      const err = new Error(`DeepSeek stream error: ${String(e.message || e.code || "unknown").slice(0, 300)}`);
+      if (/content_filter/i.test(String(e.code || ""))) err.status = 400;
+      throw err;
+    }
+    const ch = json?.choices?.[0];
+    if (ch?.finish_reason) meta.finishReason = ch.finish_reason;
+    if (json?.usage) meta.usage = json.usage;
+    const rc = ch?.delta?.reasoning_content ?? ch?.delta?.reasoning;
+    if (typeof rc === "string") meta.reasoningChars += rc.length;
+    const d = ch?.delta?.content;
+    return typeof d === "string" ? d : "";
+  }, "parse");
+  arm(FIRST_MS);
+  try {
+    let res;
+    try {
+      res = await fetch(baseUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          // Never log this header value.
+          "api-key": apiKey
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userInput }
+          ],
+          max_tokens: maxTokens,
+          stream: true
+        }),
+        signal: ac.signal
+      });
+    } catch (err) {
+      throw timedOut ? stalled() : err;
+    }
+    if (!res.ok || !res.body) throw await modelHttpError(res, "stream ");
+    reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    for (; ; ) {
+      let r;
+      try {
+        r = await reader.read();
+      } catch (err) {
+        throw timedOut ? stalled() : err;
+      }
+      if (timedOut) throw stalled();
+      if (r.done) break;
+      arm(flowing ? IDLE_MS : FIRST_MS);
+      buf += decoder.decode(r.value, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop() ?? "";
+      for (const line of lines) {
+        const d = parse(line);
+        if (!flowing && (d || meta.reasoningChars)) {
+          flowing = true;
+          arm(IDLE_MS);
+        }
+        if (d) yield d;
+        if (meta.sawDone) return;
+      }
+    }
+    // Upstream closed: a last line may have arrived without its trailing newline.
+    const d = parse(buf + decoder.decode());
+    if (d) yield d;
+  } finally {
+    clearTimeout(timer);
+    reader?.cancel().catch(() => {
+    });
+  }
+}
+__name(modelStreamOnce, "modelStreamOnce");
+// Streams the reply's visible text. Pass `opts.meta = {}` to learn how it ended:
+// finishReason ("stop" | "length" | "content_filter" | null), sawDone, reasoningChars, attempts.
 async function* modelStream(env, systemPrompt, userInput, maxTokens, opts) {
   // Champion uses the Pro model when it's configured; otherwise fall back to the base model
   // rather than failing every Champion turn.
@@ -3172,60 +3319,32 @@ async function* modelStream(env, systemPrompt, userInput, maxTokens, opts) {
       premium ? "FOUNDRY_KEY_DEEPSEEK_PRO is not configured" : "FOUNDRY_KEY is not configured"
     );
   }
-  const res = await fetch(baseUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      // Never log this header value.
-      "api-key": apiKey
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userInput }
-      ],
-      max_tokens: Math.max(1500, Math.floor(maxTokens)),
-      stream: true
-    })
-  });
-  if (!res.ok || !res.body) {
-    const body = await res.text().catch(() => "");
-    console.error(`[deepseek] stream HTTP ${res.status} body: ${body.slice(0, 3e3)}`);
-    const err = new Error(
-      `DeepSeek stream request failed: HTTP ${res.status} ${body.slice(0, 300)}`
-    );
-    err.status = res.status;
-    throw err;
-  }
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buf = "";
-  try {
-    for (; ; ) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buf += decoder.decode(value, { stream: true });
-      const lines = buf.split("\n");
-      buf = lines.pop() ?? "";
-      for (const line of lines) {
-        const t = line.trim();
-        if (!t.startsWith("data:")) continue;
-        const payload = t.slice(5).trim();
-        if (payload === "[DONE]") return;
-        if (!payload) continue;
-        try {
-          const json = JSON.parse(payload);
-          const delta = json?.choices?.[0]?.delta?.content;
-          if (typeof delta === "string" && delta) yield delta;
-        } catch {
-        }
-      }
-    }
-  } finally {
+  const meta = opts?.meta ?? {};
+  meta.model = model;
+  meta.attempts = 0;
+  let budget = Math.max(1500, Math.floor(maxTokens));
+  let yielded = false;
+  for (; ; ) {
+    meta.attempts++;
+    meta.finishReason = null;
+    meta.sawDone = false;
+    meta.reasoningChars = 0;
     try {
-      reader.releaseLock();
-    } catch {
+      for await (const tok of modelStreamOnce(baseUrl, apiKey, model, systemPrompt, userInput, budget, meta)) {
+        yielded = true;
+        yield tok;
+      }
+      if (yielded || meta.attempts > 1 || meta.finishReason === "content_filter") return;
+      // Nothing visible came back (e.g. hidden reasoning spent the whole budget). The client
+      // has seen nothing yet, so one more try is invisible to it.
+      if (meta.finishReason === "length") budget += 2e3;
+      console.warn(`[deepseek] empty stream (finish=${meta.finishReason} done=${meta.sawDone} reasoning=${meta.reasoningChars}), retrying once`);
+      await new Promise((r) => setTimeout(r, 400));
+    } catch (err) {
+      // Once text has gone out, a retry would repeat it: only retry before the first token.
+      if (yielded || meta.attempts > 1 || !isTransientModelError(err)) throw err;
+      console.warn(`[deepseek] stream failed before first token (${err?.status ? `HTTP ${err.status}` : err?.message || err}), retrying once`);
+      await new Promise((r) => setTimeout(r, err?.retryAfterMs || retryDelayMs(null)));
     }
   }
 }
@@ -3257,7 +3376,8 @@ async function modelText(env, systemPrompt, userInput, maxTokens, opts) {
   try {
     result = await callOnce(baseUrl, apiKey, model, systemPrompt, userInput, budget);
   } catch (err) {
-    if (err.status === 400) {
+    // A content-filter 400 fails the same way every time; other 400s are worth one more try.
+    if (err.status === 400 && !err.contentFilter) {
       await new Promise((r) => setTimeout(r, 1500));
       result = await callOnce(baseUrl, apiKey, model, systemPrompt, userInput, budget);
     } else {
@@ -3267,6 +3387,8 @@ async function modelText(env, systemPrompt, userInput, maxTokens, opts) {
   if (result.hitTokenCap) {
     budget += 1e3;
     result = await callOnce(baseUrl, apiKey, model, systemPrompt, userInput, budget);
+    // Callers parse this as JSON: a reply cut off twice would only be saved as garbage.
+    if (result.hitTokenCap) throw new Error("Debate model output truncated at token cap");
   }
   if (!result.text) {
     throw new Error("Debate model returned an empty response");
@@ -4352,9 +4474,8 @@ function parseScores(raw2, dimensions) {
     } catch {
     }
   }
-  const fb = fallback();
-  fb.notes = raw2.slice(0, 500);
-  return fb;
+  // Cut off or malformed: flag it so /end asks again instead of saving raw JSON as the notes.
+  return { ...fallback(), failed: true };
 }
 __name(parseScores, "parseScores");
 // Appended to every mode's scoring prompt: the scorecard is the HUMAN's grade, never the AI's.
@@ -4751,6 +4872,14 @@ debateRouter.post("/start", async (c) => {
     judge: setup.judge === "1"
   }, 201);
 });
+// Cut a reply that stopped early back to its last complete sentence (or line, for verse).
+function trimToLastSentence(s) {
+  const re = /[.!?…]["'”’)\]*_]*(?=\s|$)|\n/g;
+  let end = 0;
+  for (let m; (m = re.exec(s)); ) end = m[0] === "\n" ? m.index : m.index + m[0].length;
+  return s.slice(0, end).trim();
+}
+__name(trimToLastSentence, "trimToLastSentence");
 // (The non-streaming /turn endpoint was removed: the app only uses /turn-stream.)
 debateRouter.post("/turn-stream", async (c) => {
   const user = await getSessionUser(c);
@@ -4768,51 +4897,87 @@ debateRouter.post("/turn-stream", async (c) => {
     const existingAssistant = await c.env.DB.prepare("SELECT id FROM turns WHERE debate_id = ? AND role = 'assistant' LIMIT 1").bind(debateId).first();
     if (existingAssistant) return c.json({ error: "opening_already_delivered" }, 400);
   }
-  const consumption = await consumeRound(c, user.id, user.email);
-  if (!consumption.allowed) return c.json({ error: "quota_exhausted", message: "You have used all rounds in your wallet." }, 402);
-  let userTurnId = null;
-  if (!isOpening) {
-    const ins = await c.env.DB.prepare("INSERT INTO turns (debate_id, role, text, created_at) VALUES (?, ?, ?, ?)").bind(debateId, "user", text, nowIso()).run();
-    userTurnId = ins?.meta?.last_row_id ?? null;
-  }
   const mode = getMode(debate.mode);
   const setup = parseSetup(debate.setup_json);
   const targetRounds = parseInt(setup.targetRounds ?? "0", 10) || 0;
   const systemPrompt = mode.systemPrompt({ ...setup, topic: debate.topic }) + (debate.mode === "acting" ? "" : difficultyRules(debate.mode, setup.difficulty || "hard")) + roleLock(debate, mode, setup);
-  const history = await c.env.DB.prepare(
-    "SELECT role, text FROM turns WHERE debate_id = ? ORDER BY id DESC LIMIT 20"
-  ).bind(debateId).all();
-  const transcript = roleTranscript([...history.results ?? []].reverse(), debate, mode, setup);
-  // A round = one user turn + one opponent reply, so the round being answered is
-  // the number of user turns so far (the opening, if the AI opens, is round 1).
-  let curRound = Math.max(1, await countUserTurns(c.env.DB, debateId));
-  // If the opponent opened, the user's first reply is their opening; the opponent's answer
-  // to it is already a rebuttal, not a second opening.
-  if (!isOpening && setup.resolvedFirstSpeaker === "opponent" && curRound === 1 && targetRounds !== 1) curRound = 2;
   const premium = await isPremium(c, user.id, user.email);
-  // Acting "Run my script": the partner's line comes straight from the script (no model call).
-  let scriptReply = null;
-  if (isActingScript(debate, setup)) {
-    const blocks = scriptBlocks(parseScript(setup.script), setup.scriptRole);
-    scriptReply = scriptPartnerReply(blocks, isOpening ? 0 : await countUserTurns(c.env.DB, debateId)) ?? "That\u2019s the end of the scene. Tap End & grade for your notes.";
-  }
   const forceClosing = body.phase === "closing";
-  const userInput = buildTurnPrompt(debate, mode, setup, transcript, isOpening, curRound, targetRounds, forceClosing);
   // When the browser synthesizes speech itself (Azure SDK + visemes), don't pay for a
   // second server-side synthesis of the same text.
   const clientTts = body.clientTts === true;
   const figureId = debate.mode === "historical" ? figureById(setup.figureId)?.id : void 0;
   const personaVisualId = typeof setup.personaVisual === "string" ? setup.personaVisual : void 0;
-  const voiceInfo = await resolveTtsVoice(debate.personality, figureId, personaVisualId).catch(() => null);
+  const consumption = await consumeRound(c, user.id, user.email);
+  if (!consumption.allowed) return c.json({ error: "quota_exhausted", message: "You have used all rounds in your wallet." }, 402);
+  // From here the round is charged: every failure path must undo the stored turn and the charge.
+  let userTurnId = null;
+  const undoTurn = /* @__PURE__ */ __name(async () => {
+    // Remove the user's turn so a resend doesn't duplicate it in the transcript.
+    if (userTurnId) {
+      try {
+        await c.env.DB.prepare("DELETE FROM turns WHERE id = ? AND debate_id = ?").bind(userTurnId, debateId).run();
+      } catch {
+      }
+    }
+    await refundRound(c, user.id, consumption);
+  }, "undoTurn");
+  const snag = "The opponent hit a snag — try sending that again. That round wasn’t charged.";
+  let userInput, voiceInfo, scriptReply = null;
+  try {
+    if (!isOpening) {
+      const ins = await c.env.DB.prepare("INSERT INTO turns (debate_id, role, text, created_at) VALUES (?, ?, ?, ?)").bind(debateId, "user", text, nowIso()).run();
+      userTurnId = ins?.meta?.last_row_id ?? null;
+    }
+    const history = await c.env.DB.prepare(
+      "SELECT role, text FROM turns WHERE debate_id = ? ORDER BY id DESC LIMIT 20"
+    ).bind(debateId).all();
+    const transcript = roleTranscript([...history.results ?? []].reverse(), debate, mode, setup);
+    // A round = one user turn + one opponent reply, so the round being answered is
+    // the number of user turns so far (the opening, if the AI opens, is round 1).
+    let curRound = Math.max(1, await countUserTurns(c.env.DB, debateId));
+    // If the opponent opened, the user's first reply is their opening; the opponent's answer
+    // to it is already a rebuttal, not a second opening.
+    if (!isOpening && setup.resolvedFirstSpeaker === "opponent" && curRound === 1 && targetRounds !== 1) curRound = 2;
+    // Acting "Run my script": the partner's line comes straight from the script (no model call).
+    if (isActingScript(debate, setup)) {
+      const blocks = scriptBlocks(parseScript(setup.script), setup.scriptRole);
+      scriptReply = scriptPartnerReply(blocks, isOpening ? 0 : await countUserTurns(c.env.DB, debateId)) ?? "That’s the end of the scene. Tap End & grade for your notes.";
+    }
+    userInput = buildTurnPrompt(debate, mode, setup, transcript, isOpening, curRound, targetRounds, forceClosing);
+    voiceInfo = await resolveTtsVoice(debate.personality, figureId, personaVisualId).catch(() => null);
+  } catch (err) {
+    console.error("turn-stream setup failed:", err instanceof Error ? err.message : err);
+    await undoTurn();
+    return c.json({ error: "turn_failed", message: snag }, 503);
+  }
   const encoder = new TextEncoder();
+  let controller = null;
+  let gone = false;
   const stream = new ReadableStream({
-    async start(controller) {
-      const send = /* @__PURE__ */ __name((obj) => {
-        try {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
-        } catch {
-        }
-      }, "send");
+    start(ctl) {
+      controller = ctl;
+    },
+    cancel() {
+      gone = true;
+    }
+  });
+  const send = /* @__PURE__ */ __name((obj) => {
+    if (gone) return;
+    try {
+      controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
+    } catch {
+      gone = true;
+    }
+  }, "send");
+  const t0 = Date.now();
+  // The turn runs outside the response stream and under waitUntil, so a phone that locks or
+  // drops the connection mid-reply doesn't cancel it: the reply is still saved (or the round
+  // refunded) and shows up on reload.
+  const work = (async () => {
+    // Keeps phones and proxies from dropping a quiet connection while the model thinks.
+    const ping = setInterval(() => send({ t: "ping" }), 8e3);
+    try {
       let hdVoice = null;
       if (clientTts && premium && voiceInfo?.voice && HD_VOICE_MAP[voiceInfo.voice] && hdSpeechConfigured(c.env) && c.env.LIVEAVATAR_API_KEY) {
         try {
@@ -4829,69 +4994,92 @@ debateRouter.post("/turn-stream", async (c) => {
         ttsStyleDegree: hdVoice ? null : voiceInfo?.styledegree ?? null
       });
       let full = "";
-      try {
-        if (scriptReply !== null) {
-          full = scriptReply;
-          send({ t: "tok", c: full });
-        } else {
-          // Clean modes: stream whole words only, masked, so profanity never reaches the screen
-          // even for a moment.
-          let hold = "";
-          for await (const tok of modelStream(c.env, systemPrompt, userInput, 2e3, { premium })) {
-            full += tok;
-            if (!mode.clean) {
-              send({ t: "tok", c: tok });
-              continue;
-            }
-            hold += tok;
-            const cut = hold.search(/[\s.,!?;:]\S*$/);
-            if (cut > 0) {
-              send({ t: "tok", c: maskProfanity(hold.slice(0, cut + 1)) });
-              hold = hold.slice(cut + 1);
-            }
+      let truncated = false;
+      if (scriptReply !== null) {
+        full = scriptReply;
+        send({ t: "tok", c: full });
+      } else {
+        // Clean modes: stream whole words only, masked, so profanity never reaches the screen
+        // even for a moment.
+        let hold = "";
+        const meta = {};
+        // max_tokens is only a ceiling (replies are prompted to ~200 tokens); the headroom is for
+        // any hidden reasoning, which counts against it.
+        for await (const tok of modelStream(c.env, systemPrompt, userInput, 4e3, { premium, meta })) {
+          full += tok;
+          if (!mode.clean) {
+            send({ t: "tok", c: tok });
+            continue;
           }
-          if (mode.clean && hold) send({ t: "tok", c: maskProfanity(hold) });
-        }
-        full = full.trim();
-        if (!full) throw new Error("Debate model returned an empty response");
-        if (mode.clean) full = maskProfanity(full);
-        await c.env.DB.prepare("INSERT INTO turns (debate_id, role, text, created_at) VALUES (?, ?, ?, ?)").bind(debateId, "assistant", full, nowIso()).run();
-        let tts = { audioBase64: null, timings: [], timingsEstimated: true };
-        let audioFailed = false;
-        if (!clientTts) {
-          try {
-            tts = await ttsDebateLine(c.env, full, debate.personality, figureId, personaVisualId);
-          } catch (err) {
-            console.error("TTS failed, returning text-only turn:", err instanceof Error ? err.message : err);
+          hold += tok;
+          const cut = hold.search(/[\s.,!?;:]\S*$/);
+          if (cut > 0) {
+            send({ t: "tok", c: maskProfanity(hold.slice(0, cut + 1)) });
+            hold = hold.slice(cut + 1);
           }
-          audioFailed = !tts.audioBase64;
         }
-        send({
-          t: "done",
-          text: full,
-          audioBase64: tts.audioBase64,
-          audioFailed,
-          remainingRounds: consumption.remaining
+        if (mode.clean && hold) send({ t: "tok", c: maskProfanity(hold) });
+        // Stopped by the token cap or content filter, or upstream closed without finishing.
+        const cutOff = meta.finishReason === "length" || meta.finishReason === "content_filter" || !meta.sawDone && !meta.finishReason;
+        console[cutOff ? "warn" : "log"]("[turn-stream] end", {
+          debateId,
+          premium,
+          model: meta.model,
+          finishReason: meta.finishReason,
+          sawDone: meta.sawDone,
+          attempts: meta.attempts,
+          len: full.length,
+          reasoningChars: meta.reasoningChars,
+          usage: meta.usage,
+          ms: Date.now() - t0,
+          clientGone: gone
         });
-      } catch (err) {
-        console.error("turn-stream failed:", err instanceof Error ? err.message : err);
-        // Remove the user's turn so a resend doesn't duplicate it in the transcript.
-        if (userTurnId) {
-          try {
-            await c.env.DB.prepare("DELETE FROM turns WHERE id = ? AND debate_id = ?").bind(userTurnId, debateId).run();
-          } catch {
-          }
-        }
-        await refundRound(c, user.id, consumption);
-        send({ t: "err", message: "The opponent hit a snag \u2014 try sending that again. That round wasn\u2019t charged." });
-      } finally {
-        try {
-          controller.close();
-        } catch {
+        if (cutOff) {
+          const kept = trimToLastSentence(full);
+          if (kept.length < 40) throw new Error(`reply cut off (${meta.finishReason || "no [DONE]"}) with too little to keep`);
+          truncated = kept !== full.trim();
+          full = kept;
         }
       }
+      full = full.trim();
+      if (!full) throw new Error("Debate model returned an empty response");
+      if (mode.clean) full = maskProfanity(full);
+      await c.env.DB.prepare("INSERT INTO turns (debate_id, role, text, created_at) VALUES (?, ?, ?, ?)").bind(debateId, "assistant", full, nowIso()).run();
+      let tts = { audioBase64: null, timings: [], timingsEstimated: true };
+      let audioFailed = false;
+      if (!clientTts && !gone) {
+        try {
+          tts = await ttsDebateLine(c.env, full, debate.personality, figureId, personaVisualId);
+        } catch (err) {
+          console.error("TTS failed, returning text-only turn:", err instanceof Error ? err.message : err);
+        }
+        audioFailed = !tts.audioBase64;
+      }
+      send({
+        t: "done",
+        text: full,
+        audioBase64: tts.audioBase64,
+        audioFailed,
+        remainingRounds: consumption.remaining,
+        // The client shows done.text and must not speak the cut-off tail it already streamed.
+        ...(truncated ? { truncated: true } : {})
+      });
+    } catch (err) {
+      console.error("turn-stream failed:", err instanceof Error ? err.message : err, { debateId, clientGone: gone });
+      await undoTurn();
+      send({ t: "err", message: snag });
+    } finally {
+      clearInterval(ping);
+      try {
+        controller.close();
+      } catch {
+      }
     }
-  });
+  })();
+  try {
+    c.executionCtx.waitUntil(work);
+  } catch {
+  }
   return new Response(stream, {
     headers: {
       "Content-Type": "text/event-stream",
@@ -4937,16 +5125,23 @@ debateRouter.post("/end", async (c) => {
       .map((t) => `${t.role === "user" ? "HUMAN" : `AI OPPONENT (${oppName})`}: ${t.text}`)
       .join("\n\n");
     try {
-      const raw2 = await modelText(
-        c.env,
-        mode.scoringPrompt() + SCORE_HUMAN_ONLY + (scriptMode ? `\n\nThis was a scripted scene: the HUMAN performed written lines as the character ${endSetup.scriptRole} and the AI OPPONENT read the other parts verbatim. Judge delivery, interpretation and pacing as shown in the text, not the writing itself. ${accuracyNote}` : ""),
-        `Session topic: ${debate.topic}
+      const premium = await isPremium(c, user.id, user.email);
+      // A cut-off or malformed scorecard is never saved: ask once more, then let the user retry.
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        const raw2 = await modelText(
+          c.env,
+          mode.scoringPrompt() + SCORE_HUMAN_ONLY + (scriptMode ? `\n\nThis was a scripted scene: the HUMAN performed written lines as the character ${endSetup.scriptRole} and the AI OPPONENT read the other parts verbatim. Judge delivery, interpretation and pacing as shown in the text, not the writing itself. ${accuracyNote}` : ""),
+          `Session topic: ${debate.topic}
 
 ${transcript}`,
-        2e3,
-        { premium: await isPremium(c, user.id, user.email) }
-      );
-      scores = parseScores(raw2, mode.scoringDimensions);
+          4e3,
+          { premium }
+        );
+        scores = parseScores(raw2, mode.scoringDimensions);
+        if (!scores.failed) break;
+        console.warn("[end] unparseable scorecard", { debateId, attempt, len: raw2.length });
+      }
+      if (scores.failed) throw new Error("unparseable scorecard");
     } catch {
       // Don't close the debate on a scoring outage: the user can press End & grade again.
       return c.json({ error: "scoring_unavailable", message: "Scoring is briefly unavailable \u2014 try End & grade again in a moment." }, 502);

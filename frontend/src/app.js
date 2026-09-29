@@ -91,7 +91,7 @@ const sh =
 function vr(i = "") {
   const e = document.createElement("button");
   ((e.type = "button"),
-    (e.className = `p-2 rounded-lg text-slate-400 hover:text-white hover:bg-ink-800 transition-colors ${i}`.trim()));
+    (e.className = `inline-flex h-11 w-11 items-center justify-center md:h-auto md:w-auto md:p-2 rounded-lg text-slate-400 hover:text-white hover:bg-ink-800 transition-colors ${i}`.trim()));
   const t = () => {
     const n = No() === "dark";
     ((e.innerHTML = n ? sh : rh),
@@ -214,16 +214,16 @@ function id(i, e) {
 function sd() {
   const i = document.createElement("div");
   return (
-    (i.className = "card max-w-md mx-auto my-12 p-8 text-center animate-pop-in shadow-glow border-accent-600/50"),
+    (i.className = "quota-card card max-w-md mx-auto my-12 p-8 text-center animate-pop-in shadow-glow border-accent-600/50"),
     i.setAttribute("role", "alert"),
     (i.innerHTML = `
-    <div class="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-500/15 border border-accent-600/40 text-accent-400" aria-hidden="true">${td}</div>
-    <h2 class="text-display-md text-white mb-2">You're out of rounds</h2>
-    <p class="text-body-sm text-slate-400 mb-7">
+    <div class="quota-icon mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-500/15 border border-accent-600/40 text-accent-400" aria-hidden="true">${td}</div>
+    <h2 class="quota-title text-display-md text-white mb-2">You're out of rounds</h2>
+    <p class="quota-body text-body-sm text-slate-400 mb-7">
       You've used all the rounds in your wallet for now. Pick a plan or grab a one-time pack
       to keep practicing — pack credits never expire, and unused plan rounds roll over.
     </p>
-    <div class="flex flex-col sm:flex-row gap-3 justify-center">
+    <div class="quota-actions flex flex-col sm:flex-row gap-3 justify-center">
       <a href="#/account?plans=1" class="btn-primary">View plans</a>
       <a href="#/account?plans=1&packs=1" class="btn-ghost">Buy a pack</a>
     </div>`),
@@ -231,6 +231,8 @@ function sd() {
   );
 }
 function rd(i, e, t, n) {
+  // t is where the switch link points, so the sign-up screen is the one linking to /login
+  const isSignup = t === "/login";
   const s = document.createElement("div");
   ((s.className = "w-full max-w-md animate-fade-up"),
     (s.innerHTML = `
@@ -247,12 +249,13 @@ function rd(i, e, t, n) {
         <input id="auth-email" type="email" required autocomplete="email" placeholder="you@example.com"
           class="field mb-4" />
         <label class="block text-body-sm font-medium text-slate-300 mb-1.5" for="auth-password">Password</label>
-        <input id="auth-password" type="password" required autocomplete="${t === "/signup" ? "new-password" : "current-password"}" minlength="8" placeholder="Minimum 8 characters"
+        <input id="auth-password" type="password" required autocomplete="${isSignup ? "new-password" : "current-password"}" minlength="8" placeholder="Minimum 8 characters"
           class="field mb-6" />
+        ${isSignup ? "" : `<div class="-mt-4 mb-6 text-right"><a href="mailto:support@getadversaryai.com?subject=Password%20reset" class="link text-body-sm">Forgot password?</a></div>`}
         <button type="submit" class="btn-primary w-full py-3">
           ${i}
         </button>
-        ${t === "/signup" ? `<p class="mt-4 text-center text-xs leading-relaxed text-slate-500">By creating an account you agree to our <a href="/terms.html" target="_blank" rel="noopener" class="link">Terms</a> and <a href="/privacy.html" target="_blank" rel="noopener" class="link">Privacy Policy</a>, and confirm you are 13 or older (or a school-enrolled student). Your practice sessions are recorded as text so you can review them; audio isn’t stored.</p>` : ""}
+        ${isSignup ? `<p class="mt-4 text-center text-xs leading-relaxed text-slate-500">By creating an account you agree to our <a href="/terms.html" target="_blank" rel="noopener" class="link">Terms</a> and <a href="/privacy.html" target="_blank" rel="noopener" class="link">Privacy Policy</a>, and confirm you are 13 or older (or a school-enrolled student). Your practice sessions are recorded as text so you can review them; audio isn’t stored.</p>` : ""}
       </form>
     </div>
     <p class="text-center text-body-sm text-slate-500 mt-6">
@@ -276,7 +279,7 @@ function Rc(i, e, t) {
       : (i.textContent = t));
 }
 function ad() {
-  return vr("fixed top-4 right-4 z-30 border border-ink-700 bg-ink-900/80 backdrop-blur");
+  return vr("fixed top-[calc(1rem+var(--safe-top))] right-4 z-30 border border-ink-700 bg-ink-900/80 backdrop-blur");
 }
 function track(event, data) {
   try {
@@ -310,7 +313,7 @@ async function od(i, e, t) {
     c === 409
       ? os(e, "An account with that email already exists. Try logging in instead.")
       : c === 401
-        ? os(e, "Wrong email or password. Try again.")
+        ? os(e, "Wrong email or password. Try again — or, if you forgot it, email support@getadversaryai.com.")
         : os(e, "Something went wrong. Please try again.");
   } finally {
     Rc(r, !1, a);
@@ -362,15 +365,23 @@ async function fa(i = !1) {
 function Ca(i) {
   return i.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
+// Mirrors the mode card below (compact row on phones, tall card from sm) so nothing jumps on load.
 function cd(i) {
   return Array.from(
     { length: i },
     () => `
-    <div class="rounded-2xl border border-ink-700 bg-ink-900 p-6 animate-pulse">
-      <div class="w-10 h-10 rounded-xl bg-ink-700 mb-4"></div>
-      <div class="h-5 rounded bg-ink-700 w-2/3 mb-2"></div>
-      <div class="h-4 rounded bg-ink-800 w-full mb-1"></div>
-      <div class="h-4 rounded bg-ink-800 w-5/6"></div>
+    <div class="flex flex-row items-center gap-3 rounded-2xl border border-ink-700 bg-ink-900 p-4 animate-pulse sm:flex-col sm:items-stretch sm:gap-0 sm:p-6" aria-hidden="true">
+      <div class="h-11 w-11 shrink-0 rounded-xl bg-ink-700 sm:mb-4"></div>
+      <div class="min-w-0 flex-1">
+        <div class="h-5 w-2/3 rounded bg-ink-700 sm:h-6"></div>
+        <div class="mt-2 h-3 w-1/2 rounded bg-ink-800 sm:mb-3"></div>
+        <div class="hidden sm:block">
+          <div class="mb-2 h-3.5 w-full rounded bg-ink-800"></div>
+          <div class="mb-2 h-3.5 w-full rounded bg-ink-800"></div>
+          <div class="h-3.5 w-4/5 rounded bg-ink-800"></div>
+          <div class="mt-6 h-4 w-1/4 rounded bg-ink-800"></div>
+        </div>
+      </div>
     </div>`,
   ).join("");
 }
@@ -380,8 +391,8 @@ async function lh(i) {
       <h1 class="text-3xl font-extrabold tracking-tight text-white sm:text-4xl">What do you want to practice?</h1>
       <p class="text-slate-400 mt-2 max-w-xl mx-auto text-sm sm:text-base">Pick an arena. A live AI opponent meets you there — with voice, pushback, and a scorecard when you’re done.</p>
     </div>
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="mode-grid">
-      ${cd(8)}
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4" id="mode-grid">
+      ${cd(11)}
     </div>
   </div>`;
   const e = i.querySelector("#mode-grid");
@@ -404,13 +415,17 @@ async function ld(i) {
     for (const t of [...e].sort((a, b) => rank(a.id) - rank(b.id))) {
       const n = document.createElement("a");
       n.href = `#/setup/${encodeURIComponent(t.id)}`;
-      n.className = "group card flex flex-col p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-accent-500/60 sm:p-6";
+      // Phones get a compact row (icon, name, tagline) so 11 modes fit in ~2 screens; sm+ keeps the tall card.
+      n.className = "group card flex flex-row items-center gap-3 p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-accent-500/60 sm:flex-col sm:items-stretch sm:gap-0 sm:p-6";
       n.innerHTML = `
-        <div class="mb-4 flex h-11 w-11 items-center justify-center rounded-xl border border-ink-700 bg-ink-800 text-accent-500 transition-colors group-hover:border-accent-500/50 [&>svg]:h-6 [&>svg]:w-6">${ch[t.id] ?? it.chat}</div>
-        <div class="text-lg font-bold leading-tight text-white">${Ca(t.name)}</div>
-        <div class="mt-1 mb-2 text-xs font-semibold uppercase tracking-wide text-accent-400">${Ca(t.tagline)}</div>
-        <p class="text-sm leading-relaxed text-slate-400 line-clamp-3">${Ca(t.description)}</p>
-        <div class="mt-auto pt-4 text-sm font-semibold text-accent-400">Set up <span aria-hidden="true" class="inline-block transition-transform group-hover:translate-x-0.5">→</span></div>`;
+        <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-ink-700 bg-ink-800 text-accent-500 transition-colors group-hover:border-accent-500/50 sm:mb-4 [&>svg]:h-6 [&>svg]:w-6">${ch[t.id] ?? it.chat}</div>
+        <div class="min-w-0 flex-1 sm:flex sm:flex-col">
+          <div class="text-base font-bold leading-tight text-white sm:text-lg">${Ca(t.name)}</div>
+          <div class="mt-1 text-xs font-semibold uppercase tracking-wide text-accent-400 line-clamp-1 sm:mb-2 sm:line-clamp-none">${Ca(t.tagline)}</div>
+          <p class="text-sm leading-relaxed text-slate-400 line-clamp-3 max-sm:hidden">${Ca(t.description)}</p>
+        </div>
+        <span aria-hidden="true" class="shrink-0 text-xl leading-none text-accent-400 sm:hidden">›</span>
+        <div class="mt-auto hidden pt-4 text-sm font-semibold text-accent-400 sm:block">Set up <span aria-hidden="true" class="inline-block transition-transform group-hover:translate-x-0.5">→</span></div>`;
       i.appendChild(n);
     }
   } catch {
@@ -419,10 +434,10 @@ async function ld(i) {
         <div class="mb-4 flex justify-center text-danger [&>svg]:w-10 [&>svg]:h-10">${it.warning}</div>
         <p class="text-white font-semibold mb-1">Couldn’t load practice modes</p>
         <p class="text-sm text-slate-400 mb-6">Check your connection and try again.</p>
-        <button id="modes-retry" class="px-5 py-2.5 rounded-xl bg-accent-500 hover:bg-accent-400 text-[#fff] font-semibold text-sm">Retry</button>
+        <button id="modes-retry" class="btn-primary text-sm">Retry</button>
       </div>`),
       i.querySelector("#modes-retry").addEventListener("click", () => {
-        ((i.innerHTML = cd(8)), ld(i));
+        ((i.innerHTML = cd(11)), ld(i));
       }));
   }
 }
@@ -892,6 +907,7 @@ async function Mh(i, e) {
     return;
   }
   const s = n.find((x) => x.id === e);
+  if (s && t.isConnected) document.title = `${s.name} setup · AdversaryAI`;
   if (!s) {
     t.innerHTML = `<div class="py-16 text-center text-slate-400"><h1 class="mb-3 text-display-md text-white">Mode not found</h1><p class="mb-6 text-sm">That practice mode doesn’t exist.</p><a href="#/" class="btn-primary">Back to practice</a></div>`;
     return;
@@ -924,7 +940,7 @@ async function Mh(i, e) {
   const prefill = new URLSearchParams(location.hash.split("?")[1] || "").get("topic");
   const lenOpts = LEN_PRESETS[ui.unit];
   t.innerHTML = `
-    <a href="#/" class="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-300">← All modes</a>
+    <a href="#/" class="-my-2 inline-flex items-center gap-1 py-3 text-sm text-slate-500 hover:text-slate-300">← All modes</a>
     <div class="mb-2 mt-4 flex items-center gap-4">
       <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-ink-700 bg-ink-900 text-accent-500 [&>svg]:h-7 [&>svg]:w-7">${ch[s.id] ?? it.chat}</div>
       <div class="min-w-0">
@@ -959,7 +975,7 @@ async function Mh(i, e) {
 
     ${ui.styles ? `<section class="setup-section"><h2 class="section-title">Format</h2><div class="opt-grid grid-cols-2 sm:grid-cols-4">${optChips("style", STYLE_OPTS, state.style)}</div></section>` : ""}
 
-    ${s.id !== "acting" ? `<section class="setup-section"><h2 class="section-title">Difficulty</h2><div class="opt-grid grid-cols-3">${optChips("difficulty", DIFFICULTY_OPTS, "normal")}</div></section>` : ""}
+    ${s.id !== "acting" ? `<section class="setup-section"><h2 class="section-title">Difficulty</h2><div class="opt-grid grid-cols-1 sm:grid-cols-3">${optChips("difficulty", DIFFICULTY_OPTS, "normal")}</div></section>` : ""}
 
     <section class="setup-section" id="len-sec"><h2 class="section-title">Length</h2><p class="section-sub">Each ${ui.unit === "bars" ? "round" : ui.unit} uses one credit.</p><div class="opt-grid grid-cols-2 sm:grid-cols-4">${optChips("rounds", lenOpts, state.rounds)}</div></section>
 
@@ -1128,7 +1144,7 @@ async function Mh(i, e) {
   const showErr = (msg) => {
     os(x, msg);
     x.classList.remove("hidden");
-    x.scrollIntoView({ behavior: "smooth", block: "center" });
+    x.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" });
   };
   S.addEventListener("click", async () => {
     voice.unlock();
@@ -25141,25 +25157,39 @@ function Xu(i) {
 /* ------------------------------------------------------------------ modal */
 function uiModal({ title, body = "", actions = [] }) {
   return new Promise((resolve) => {
+    const prev = document.activeElement;
     const m = document.createElement("div");
-    m.className = "fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 backdrop-blur-sm animate-fade-in sm:items-center";
+    m.className = "fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 pb-[calc(1rem+var(--safe-bottom))] backdrop-blur-sm animate-fade-in sm:items-center";
     m.setAttribute("role", "dialog");
     m.setAttribute("aria-modal", "true");
-    m.innerHTML = `<div class="w-full max-w-md rounded-3xl border border-ink-700 bg-ink-900 p-6 shadow-2xl animate-pop-in">
-      <h3 class="text-display-sm text-white">${xt(title)}</h3>
+    m.setAttribute("aria-labelledby", "ui-modal-title");
+    m.innerHTML = `<div class="max-h-full w-full max-w-md overflow-y-auto rounded-3xl border border-ink-700 bg-ink-900 p-5 shadow-2xl animate-pop-in sm:p-6">
+      <h3 id="ui-modal-title" class="text-display-sm text-white">${xt(title)}</h3>
       ${body ? `<p class="mt-2 text-sm leading-relaxed text-slate-400">${body}</p>` : ""}
-      <div class="mt-6 flex flex-col gap-2.5">${actions
+      <div class="mt-5 flex flex-col gap-2.5 sm:mt-6">${actions
         .map(
           (a, idx) =>
-            `<button type="button" data-idx="${idx}" class="${a.kind === "primary" ? "btn-primary" : a.kind === "danger" ? "btn-danger" : "btn-ghost"} w-full ${a.hint ? "justify-between" : "justify-center"} py-3"><span>${xt(a.label)}</span>${a.hint ? `<span class="text-xs font-medium opacity-70">${xt(a.hint)}</span>` : ""}</button>`,
+            `<button type="button" data-idx="${idx}" class="${a.kind === "primary" ? "btn-primary" : a.kind === "danger" ? "btn-danger" : "btn-ghost"} w-full ${a.hint ? "flex-col items-start gap-0.5 px-4 text-left sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-5" : "justify-center"} py-3"><span>${xt(a.label)}</span>${a.hint ? `<span class="shrink-0 whitespace-nowrap text-xs font-medium opacity-70">${xt(a.hint)}</span>` : ""}</button>`,
         )
         .join("")}</div></div>`;
     const close = (v) => {
       document.removeEventListener("keydown", onKey);
       m.remove();
+      // Hand focus back to whatever opened the dialog — but not to a text field, which would
+      // pop the phone keyboard back up.
+      if (prev?.isConnected && prev !== document.body && !prev.matches("textarea,input,[contenteditable]")) prev.focus({ preventScroll: true });
       resolve(v);
     };
-    const onKey = (e) => e.key === "Escape" && close(null);
+    const onKey = (e) => {
+      if (e.key === "Escape") return close(null);
+      if (e.key !== "Tab") return;
+      const bs = [...m.querySelectorAll("button")];
+      const i = bs.indexOf(document.activeElement);
+      if (i < 0 || (e.shiftKey ? i === 0 : i === bs.length - 1)) {
+        e.preventDefault();
+        bs[e.shiftKey ? bs.length - 1 : 0]?.focus();
+      }
+    };
     document.addEventListener("keydown", onKey);
     m.addEventListener("click", (e) => {
       if (e.target === m) return close(null);
@@ -25167,7 +25197,9 @@ function uiModal({ title, body = "", actions = [] }) {
       b && close(actions[Number(b.dataset.idx)].value);
     });
     document.body.appendChild(m);
-    m.querySelector("button")?.focus();
+    // Start on the recommended choice, never on a destructive one.
+    const btns = [...m.querySelectorAll("button")];
+    (btns.find((b) => b.classList.contains("btn-primary")) || btns.find((b) => !b.classList.contains("btn-danger")) || btns[0])?.focus();
   });
 }
 /* --------------------------------------------------------------- session */
@@ -25178,8 +25210,16 @@ async function tx(i, e) {
   const s = i.querySelector("#session-root");
   const loaded = await nx(e);
   if (!s.isConnected) return; // user navigated away while we were loading
-  if (!loaded) {
-    s.innerHTML = `<div class="py-16 text-center text-slate-400"><h1 class="mb-3 text-display-md text-white">Session not found</h1><p class="mb-6 text-sm">That session doesn’t exist or was deleted.</p><a href="#/" class="btn-primary">Back to practice</a></div>`;
+  if (!loaded || loaded.error) {
+    // Only a real 404 means the session is gone; a flaky connection or a server hiccup must not
+    // tell someone their session was deleted.
+    const st = loaded?.error instanceof Bt ? loaded.error.status : 0;
+    if (!loaded || st === 404) {
+      s.innerHTML = `<div class="py-16 text-center text-slate-400"><h1 class="mb-3 text-display-md text-white">Session not found</h1><p class="mb-6 text-sm">That session doesn’t exist or was deleted.</p><a href="#/" class="btn-primary">Back to practice</a></div>`;
+    } else if (st === 401) {
+      ua(null);
+      location.hash = `#/login?next=${encodeURIComponent("/session/" + e)}`;
+    } else s.replaceChildren(id("Couldn’t load your session. Check your connection and try again.", () => tx(i, e)));
     return;
   }
   ix(s, e, loaded.meta, loaded.data);
@@ -25195,7 +25235,7 @@ async function nx(id) {
     data = await Ut(`/api/debates/${encodeURIComponent(id)}`);
   } catch (err) {
     console.error("Failed to load session", err);
-    return null;
+    return { error: err };
   }
   const d = data.debate;
   if (!d) return null;
@@ -25235,11 +25275,12 @@ function ix(root, debateId, t, data) {
   const unit = UNIT_LABEL[ui.unit] || "Round";
   const isDeb = DEBATE_MODES.has(t.modeId);
   const target = t.targetRounds || 0;
+  if (t.topic) document.title = `${t.topic} · AdversaryAI`;
   root.className = "mx-auto w-full max-w-6xl px-4";
   root.innerHTML = `
     <div class="session-shell" id="session-shell">
-      <aside class="shrink-0 pt-3 lg:pt-6">
-        <div class="mb-2.5 flex items-center justify-between gap-3">
+      <aside class="session-aside shrink-0 pt-2 lg:pt-6">
+        <div class="mb-2.5 hidden items-center justify-between gap-3 lg:flex">
           <div class="min-w-0">
             <p class="eyebrow truncate !tracking-[0.14em]">${xt(t.modeName)}</p>
             <h2 class="truncate text-lg font-bold leading-tight text-white">${xt(t.personaLabel)}</h2>
@@ -25249,46 +25290,56 @@ function ix(root, debateId, t, data) {
         <div class="avatar-stage-wrap session-stage border border-ink-700 shadow-card">
           <canvas id="avatar-canvas" class="avatar-canvas" aria-label="${xt(t.personaLabel)}"></canvas>
           <div id="avatar-loading" class="absolute inset-0 flex items-center justify-center text-sm text-slate-500 ${t.figureId ? "hidden" : ""}"><span class="spinner mr-2"></span>Loading ${xt(t.personaLabel)}…</div>
-          ${isDeb ? `<span id="phase-badge" class="badge absolute left-3 top-3 border-white/10 bg-black/60 text-slate-200 backdrop-blur"></span>` : ""}
-          <span id="photo-badge" class="absolute right-3 top-3 hidden"></span>
-          <span id="status-pill" class="badge absolute bottom-3 left-3 border-white/10 bg-black/60 text-slate-200 backdrop-blur"><span id="status-dot" class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span><span id="status-text">Ready</span></span>
+          <div class="stage-tl">
+            ${isDeb ? `<span id="phase-badge" class="badge absolute left-3 top-3 border-white/10 bg-black/60 text-slate-200 backdrop-blur"></span>` : ""}
+            <span id="round-badge-m" class="badge border-white/10 bg-black/60 text-slate-200 backdrop-blur lg:hidden"></span>
+            <span id="status-pill" class="badge absolute bottom-3 left-3 border-white/10 bg-black/60 text-slate-200 backdrop-blur"><span id="status-dot" class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span><span id="status-text">Ready</span></span>
+            <span id="photo-badge" class="absolute right-3 top-3 hidden"></span>
+          </div>
         </div>
-        <div class="mt-2.5 flex items-center gap-2">
-          <button id="replay-btn" type="button" class="btn-ghost btn-sm" disabled aria-label="Replay last reply">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg><span>Replay</span></button>
-          <button id="stop-btn" type="button" class="btn-ghost btn-sm" disabled aria-label="Stop audio">
-            <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor"/></svg><span>Stop</span></button>
-          ${t.actingScript ? `<button id="cue-btn" type="button" class="btn-ghost btn-sm" title="Show your next line">Line?</button>` : ""}
-          <button id="view-btn" type="button" class="btn-ghost btn-sm hidden" title="Owner: switch between video and 3D"></button>
-          <button id="end-btn" type="button" class="btn-danger btn-sm ml-auto">End &amp; grade</button>
+        <div class="session-controls mt-2.5 flex items-center gap-2">
+          <span class="stage-name flex min-w-0 flex-1 lg:hidden" aria-hidden="true"><span class="badge min-w-0 shrink"><span class="truncate">${xt(t.personaLabel)}</span></span></span>
+          <button id="replay-btn" type="button" class="btn-ghost btn-sm h-11 w-11 px-0 sm:w-auto sm:px-3 lg:h-auto" disabled aria-label="Replay last reply">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg><span class="hidden sm:inline">Replay</span></button>
+          <button id="stop-btn" type="button" class="btn-ghost btn-sm h-11 w-11 px-0 sm:w-auto sm:px-3 lg:h-auto" disabled aria-label="Stop audio">
+            <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor"/></svg><span class="hidden sm:inline">Stop</span></button>
+          ${t.actingScript ? `<button id="cue-btn" type="button" class="btn-ghost btn-sm h-11 whitespace-nowrap lg:h-auto" title="Show your next line" aria-label="Show your next line">Line?</button>` : ""}
+          <button id="view-btn" type="button" class="btn-ghost btn-sm hidden h-11 whitespace-nowrap lg:h-auto" title="Owner: switch between video and 3D"></button>
+          <button id="end-btn" type="button" class="btn-danger btn-sm ml-auto h-11 shrink-0 whitespace-nowrap lg:h-auto">End &amp; grade</button>
         </div>
         <div id="upsell-slot" class="hidden"></div>
         <div id="photo-debug" class="mt-2.5 hidden rounded-lg border border-amber-400/20 bg-amber-400/5 px-3 py-2 text-xs leading-relaxed text-amber-200 break-words"></div>
       </aside>
 
-      <section class="flex min-h-0 min-w-0 flex-1 flex-col pt-3 lg:pt-6">
-        <div class="mb-2 shrink-0">
-          <h1 class="text-base font-bold leading-snug text-white line-clamp-2 sm:text-lg lg:text-xl" title="${xt(t.topic || "")}">${xt(t.topic || "Live session")}</h1>
-          <div class="mt-1.5 flex flex-wrap items-center gap-1.5" id="meta-badges">
-            ${t.debateStyle && isDeb ? `<span class="badge border-ink-700 bg-ink-900 text-slate-400">${xt((STYLE_OPTS.find((o) => o.v === t.debateStyle) || {}).t || t.debateStyle)}</span>` : ""}
+      <section class="flex min-h-0 min-w-0 flex-1 flex-col pt-2 lg:pt-6">
+        <div class="session-topic mb-1.5 shrink-0 sm:mb-2">
+          <h1 id="session-topic" class="text-[15px] font-bold leading-snug text-white line-clamp-1 max-sm:cursor-pointer sm:text-lg sm:line-clamp-2 lg:text-xl" title="${xt(t.topic || "")}">${xt(t.topic || "Live session")}</h1>
+          <div class="mt-1 flex flex-nowrap items-center gap-1.5 overflow-hidden sm:mt-1.5 sm:flex-wrap" id="meta-badges">
+            ${t.debateStyle && isDeb ? `<span class="meta-extra badge hidden border-ink-700 bg-ink-900 text-slate-400 sm:inline-flex">${xt((STYLE_OPTS.find((o) => o.v === t.debateStyle) || {}).t || t.debateStyle)}</span>` : ""}
             ${t.userSide && t.userSide !== "open" ? `<span class="badge border-ink-700 bg-ink-900 text-slate-400">You argue ${t.userSide === "for" ? "FOR" : "AGAINST"}</span>` : ""}
-            ${t.difficulty ? `<span class="badge border-ink-700 bg-ink-900 text-slate-400">${DIFFICULTY_LABEL[t.difficulty] || ""}</span>` : ""}
+            ${t.difficulty ? `<span class="meta-extra badge hidden border-ink-700 bg-ink-900 text-slate-400 sm:inline-flex">${DIFFICULTY_LABEL[t.difficulty] || ""}</span>` : ""}
             <span id="wallet-badge" class="badge hidden border-amber-500/30 bg-amber-500/10 text-amber-300"></span>
           </div>
         </div>
         <div id="banner-slot" class="shrink-0"></div>
-        <div id="transcript" class="transcript-scroll min-h-0 flex-1 space-y-3 overflow-y-auto pb-2 pr-1" aria-live="polite"></div>
+        <div class="relative flex min-h-0 flex-1 flex-col">
+          <div id="transcript" class="transcript-scroll relative min-h-0 flex-1 space-y-3 overflow-y-auto pb-2 pr-1"></div>
+          <button id="jump-btn" type="button" hidden aria-label="Jump to latest" class="absolute bottom-2 left-1/2 z-10 -translate-x-1/2 rounded-full border border-ink-600 bg-ink-800/95 px-3.5 py-2 text-xs font-semibold text-white shadow-lift backdrop-blur">↓ Latest</button>
+        </div>
+        <div id="sr-live" class="sr-only" aria-live="polite" aria-atomic="true"></div>
         <div id="quota-slot" class="shrink-0"></div>
         ${t.actingScript ? `<div id="cue-box" class="mb-1 hidden shrink-0 rounded-xl border border-accent-500/25 bg-accent-500/5 px-3.5 py-2.5 text-sm leading-relaxed text-slate-200"></div>` : ""}
-        <div class="session-composer shrink-0 pt-2">
-          <div class="flex items-end gap-2 rounded-2xl border border-ink-700 bg-ink-900 p-2 focus-within:border-accent-500/70">
-            <textarea id="msg-input" rows="1" class="max-h-40 min-h-[2.75rem] flex-1 resize-none bg-transparent px-2 py-2.5 text-[15px] leading-snug text-white placeholder:text-slate-500 focus:outline-none" placeholder=""></textarea>
+        <div class="session-composer shrink-0 pt-1.5 sm:pt-2">
+          <div class="flex items-end gap-2 rounded-2xl border border-ink-700 bg-ink-900 p-1.5 focus-within:border-accent-500/70 sm:p-2">
+            <textarea id="msg-input" rows="1" maxlength="4000" class="max-h-40 min-h-[2.75rem] flex-1 resize-none bg-transparent px-2 py-2.5 text-[15px] leading-snug text-white placeholder:text-slate-500 focus:outline-none" placeholder=""></textarea>
             <button id="mic-btn" type="button" class="icon-btn hidden h-11 w-11 [&>svg]:h-5 [&>svg]:w-5" aria-label="Speak your reply" title="Speak your reply">${it.mic}</button>
             <button id="send-btn" type="button" class="btn-primary h-11 shrink-0 px-4" aria-label="Send">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg><span class="hidden sm:inline">Send</span></button>
           </div>
-          <p id="mic-hint" class="mt-2 hidden text-xs text-slate-400"></p>
-          <button id="hf-btn" type="button" class="mt-1.5 hidden text-xs text-slate-400 hover:text-slate-200" title="Mic turns on when it's your turn and sends when you pause"></button>
+          <div class="composer-foot">
+            <p id="mic-hint" class="mt-2 hidden text-xs text-slate-400"></p>
+            <button id="hf-btn" type="button" class="mt-1.5 hidden text-xs text-slate-400 hover:text-slate-200" title="Mic turns on when it's your turn and sends when you pause"></button>
+          </div>
         </div>
       </section>
     </div>`;
@@ -25302,7 +25353,11 @@ function ix(root, debateId, t, data) {
     stopBtn = $("#stop-btn"),
     endBtn = $("#end-btn"),
     quotaSlot = $("#quota-slot"),
-    bannerSlot = $("#banner-slot");
+    bannerSlot = $("#banner-slot"),
+    srLive = $("#sr-live"),
+    jumpBtn = $("#jump-btn");
+  // Phones clamp the motion to one line; a tap shows all of it (title tooltips don't exist on touch).
+  $("#session-topic").addEventListener("click", (e) => e.currentTarget.classList.toggle("line-clamp-1"));
 
   let avatar;
   try {
@@ -25418,7 +25473,7 @@ function ix(root, debateId, t, data) {
       hint(false);
       openPhotoGate();
       const up = $("#upsell-slot");
-      up.className = "mt-2.5";
+      up.className = "mt-2.5 hidden lg:block"; // phones: every pixel above the composer belongs to the transcript
       up.innerHTML = `<a href="#/account?plans=1" class="flex items-center justify-between gap-3 rounded-xl border border-amber-400/25 bg-amber-400/5 px-3.5 py-2.5 text-xs text-amber-100 transition-colors hover:border-amber-400/50"><span><span class="font-semibold text-amber-300">✦ Champion</span> — face a photoreal opponent on video</span><span aria-hidden="true">→</span></a>`;
       return;
     }
@@ -25488,8 +25543,80 @@ function ix(root, debateId, t, data) {
   let rec = null;
   let listening = false;
   let silencedGen = 0; // turn whose audio the user silenced (Stop / mic barge-in)
+  let awaitingOpen = false; // the opponent speaks first and hasn't yet: the user can't go first
+  let tapToOpen = false; // …and the browser needs a tap before it will play that opening
+  let recovering = false; // a turn's stream dropped: asking the server what it kept
+  let lastTurnFailed = false; // hands-free must not reopen the mic (and resend) after a failed turn
+  let confirming = false; // the End & grade dialog is open
+  let finishing = false; // scoring is in flight
+  let lastStreamAt = 0; // last byte from the turn stream (stall watchdog)
+  let tapResume = null;
+  // Not the user's turn to speak even though no reply is streaming: hands-free stays off.
+  const micHeld = () => awaitingOpen || recovering || confirming || finishing;
 
-  const unsubVoice = voice.on(() => refreshStatus());
+  // "Tap to keep listening": iOS suspended the audio mid-reply and won't resume without a tap.
+  const hideTapResume = () => {
+    tapResume?.remove();
+    tapResume = null;
+  };
+  const showTapResume = () => {
+    if (tapResume || !alive) return;
+    tapResume = document.createElement("button");
+    tapResume.type = "button";
+    tapResume.className = "absolute inset-0 z-[3] flex items-center justify-center bg-black/55 text-white";
+    tapResume.innerHTML = '<span class="rounded-full border border-white/20 bg-black/60 px-5 py-3 text-sm font-semibold backdrop-blur">▶ Tap to keep listening</span>';
+    tapResume.addEventListener("click", () => {
+      voice.unlock();
+      hideTapResume();
+    });
+    stage.appendChild(tapResume);
+  };
+  const unsubBlocked = voice.onBlocked((on) => (on ? showTapResume() : hideTapResume()));
+
+  // Keep the screen awake while a session is live: a spoken reply (or a hands-free turn)
+  // easily outlasts a phone's auto-lock, and a locked phone suspends the audio.
+  let wake = null,
+    wakeBusy = false,
+    wakeT = 0;
+  const holdWake = async () => {
+    // …but once nobody has sent or tapped anything for a while, let the screen sleep again.
+    clearTimeout(wakeT);
+    wakeT = setTimeout(() => {
+      wake?.release().catch(() => {});
+      wake = null;
+    }, 5 * 60000);
+    if (!("wakeLock" in navigator) || wake || wakeBusy || !alive || ended || document.visibilityState !== "visible") return;
+    wakeBusy = true;
+    try {
+      const w = await navigator.wakeLock.request("screen");
+      if (!alive || ended) return void w.release().catch(() => {});
+      wake = w;
+      w.addEventListener("release", () => wake === w && (wake = null));
+    } catch {
+    } finally {
+      wakeBusy = false;
+    }
+  };
+  // The browser drops the wake lock when the page is hidden, and a phone kills the mic too.
+  const onVis = () => {
+    if (!alive) return;
+    if (document.visibilityState !== "visible") {
+      clearTimeout(autoListenT);
+      // Reset the mic cleanly (keeping what was heard, never sending) rather than leave it
+      // half-dead; desktop tab switches keep listening as before.
+      if (listening && window.matchMedia("(pointer: coarse)").matches) abortListening();
+      return;
+    }
+    lastStreamAt = performance.now(); // time in the background doesn't count as a stall
+    holdWake();
+    if (voice.state === "idle") maybeAutoListen();
+  };
+  document.addEventListener("visibilitychange", onVis);
+
+  const unsubVoice = voice.on((st) => {
+    if (st === "idle") hideTapResume();
+    refreshStatus();
+  });
   const cleanup = () => {
     if (!alive) return;
     alive = false;
@@ -25502,8 +25629,14 @@ function ix(root, debateId, t, data) {
       rec?.abort();
     } catch {}
     unsubVoice();
+    unsubBlocked();
     unsubHandsFree?.();
     clearTimeout(autoListenT);
+    document.removeEventListener("visibilitychange", onVis);
+    hideTapResume();
+    clearTimeout(wakeT);
+    wake?.release().catch(() => {});
+    wake = null;
     photo?.dispose();
     voice.reset();
     avatar.dispose();
@@ -25544,12 +25677,62 @@ function ix(root, debateId, t, data) {
   }
 
   // ---------------------------------------------------------------- UI helpers
-  function nearBottom() {
-    return transcript.scrollHeight - transcript.scrollTop - transcript.clientHeight < 140;
-  }
+  // Follow new text only while the reader is at the bottom (within 40px); if they scrolled up,
+  // leave them there and offer a "Latest" pill instead of yanking them back on every token.
+  const narrow = window.matchMedia("(max-width: 1023px)");
+  let pinned = true,
+    readRow = null, // phones: the reply being streamed, held in view from its first line
+    progTop = -1, // where we last scrolled to, so our own scroll events aren't read as the user's
+    lastErr = null; // the error note on screen, if any (see note())
   function scrollToEnd(force) {
-    if (!force && !nearBottom()) return;
-    transcript.scrollTo({ top: transcript.scrollHeight, behavior: force ? "smooth" : "auto" });
+    if (force) pinned = true;
+    if (!pinned) return void (jumpBtn.hidden = false);
+    const max = transcript.scrollHeight - transcript.clientHeight;
+    const top = readRow?.isConnected ? Math.min(max, readRow.offsetTop - 8) : max;
+    // Instant, never smooth: a smooth scroll still in flight would look like the user scrolling up.
+    transcript.scrollTop = top;
+    progTop = transcript.scrollTop;
+    jumpBtn.hidden = top >= max - 1;
+  }
+  transcript.addEventListener(
+    "scroll",
+    () => {
+      if (Math.abs(transcript.scrollTop - progTop) < 2) return;
+      progTop = -1;
+      pinned = transcript.scrollHeight - transcript.scrollTop - transcript.clientHeight < 40;
+      if (!pinned) return;
+      jumpBtn.hidden = true;
+      // Reading to the end of the reply means "follow the tail" from here on. (A pane that grows,
+      // e.g. the input shrinking after Send, also scrolls; that must not end reading mode.)
+      if (readRow && transcript.scrollTop > readRow.offsetTop + 32) readRow = null;
+    },
+    { passive: true },
+  );
+  jumpBtn.addEventListener("click", () => {
+    readRow = null;
+    scrollToEnd(true);
+  });
+  // Keyboard, textarea growth or a banner resize the pane: stay on the latest line if we were there.
+  new ResizeObserver(() => pinned && scrollToEnd(false)).observe(transcript);
+  // Screen readers: the transcript is not a live region (it's rewritten every 50ms while a reply
+  // streams). Finished replies and notes are announced once, through #sr-live.
+  let lastSaid = { msg: "", at: 0 };
+  function announce(msg) {
+    msg = String(msg || "").trim();
+    if (!msg || (msg === lastSaid.msg && Date.now() - lastSaid.at < 4000)) return;
+    lastSaid = { msg, at: Date.now() };
+    srLive.textContent = "";
+    requestAnimationFrame(() => (srLive.textContent = msg));
+  }
+  // Announce a finished opponent reply (the object bubble() returned) exactly once. The turn logic
+  // can call this as soon as the final text is in; a reply it doesn't report is announced by
+  // announceWhenSettled() once its text stops changing and the turn is over.
+  function announceReply(o) {
+    const row = o?.row;
+    if (!row?.isConnected || row.dataset.said) return;
+    row.dataset.said = "1";
+    row.firstElementChild?.removeAttribute("aria-busy");
+    announce(`${t.personaLabel}: ${o.textEl.textContent}`);
   }
   // Give the transcript more room while the on-screen keyboard is up on phones.
   const shell = $("#session-shell");
@@ -25559,27 +25742,65 @@ function ix(root, debateId, t, data) {
     turns.push({ role, text });
     const row = document.createElement("div");
     const you = role === "you";
+    const streaming = !you && !text;
     row.className = `flex ${you ? "justify-end" : "justify-start"} animate-fade-up`;
-    row.innerHTML = `<div class="max-w-[88%] rounded-2xl px-4 py-3 text-[15px] leading-relaxed sm:max-w-[80%] ${you ? "rounded-br-md border border-accent-500/30 bg-accent-500/10 text-slate-100" : "rounded-bl-md border border-ink-700 bg-ink-800 text-slate-200"}">
-      <div class="mb-1 text-[11px] font-semibold uppercase tracking-wide ${you ? "text-accent-400" : "text-slate-500"}">${you ? "You" : xt(t.personaLabel)}</div>
+    row.innerHTML = `<div class="t-bubble max-w-[92%] rounded-2xl px-3.5 py-2.5 text-base leading-relaxed sm:max-w-[80%] sm:px-4 sm:py-3 sm:text-[15px] ${you ? "rounded-br-md border border-accent-500/30 bg-accent-500/10 text-slate-100" : "rounded-bl-md border border-ink-700 bg-ink-800 text-slate-100"}"${streaming ? ' aria-busy="true"' : ""}>
+      <div class="mb-1 text-xs font-semibold uppercase tracking-wide ${you ? "bubble-you text-accent-400" : "text-slate-400"}">${you ? "You" : xt(t.personaLabel)}</div>
       <div class="whitespace-pre-wrap break-words" data-text>${xt(text)}</div></div>`;
     transcript.appendChild(row);
+    lastErr?.remove();
+    lastErr = null;
+    // Phones: read a long reply top-down (while the voice catches up) instead of chasing its tail.
+    readRow = streaming && narrow.matches ? row : null;
     scrollToEnd(true);
-    return { row, textEl: row.querySelector("[data-text]"), entry: turns[turns.length - 1] };
+    const textEl = row.querySelector("[data-text]");
+    if (streaming) announceWhenSettled(row, textEl);
+    return { row, textEl, entry: turns[turns.length - 1] };
+  }
+  // Fallback for announceReply(): once the streamed text has stopped changing and the turn is over.
+  function announceWhenSettled(row, textEl) {
+    let idle = 0;
+    const mo = new MutationObserver(() => {
+      clearTimeout(idle);
+      idle = setTimeout(settle, 800);
+    });
+    const settle = () => {
+      if (!alive || !row.isConnected || row.dataset.said) return mo.disconnect();
+      if (busy) return void (idle = setTimeout(settle, 400));
+      mo.disconnect();
+      announceReply({ row, textEl });
+    };
+    mo.observe(textEl, { childList: true, characterData: true, subtree: true });
   }
   function typingRow() {
     const r = document.createElement("div");
     r.className = "flex justify-start";
     r.innerHTML = `<div class="flex gap-1.5 rounded-2xl rounded-bl-md border border-ink-700 bg-ink-800 px-4 py-3.5" aria-label="${xt(t.personaLabel)} is thinking"><span class="typing-dot h-2 w-2 rounded-full bg-slate-400"></span><span class="typing-dot h-2 w-2 rounded-full bg-slate-400"></span><span class="typing-dot h-2 w-2 rounded-full bg-slate-400"></span></div>`;
     transcript.appendChild(r);
+    readRow = null;
     scrollToEnd(true);
     return r;
   }
+  // Only the latest error is kept, and the next bubble (a retry or a reply) clears it; a note
+  // identical to the one just above it (e.g. "Voice unavailable…" every turn) replaces it.
   function note(text, tone = "muted") {
     const p = document.createElement("p");
     p.className = `text-center text-sm ${tone === "error" ? "text-red-300" : "text-slate-500"}`;
     p.textContent = text;
+    const prev = transcript.lastElementChild;
+    if (prev?.tagName === "P" && prev.textContent === text) prev.remove();
+    if (tone === "error") {
+      lastErr?.remove();
+      lastErr = p;
+      readRow = null; // an error must be seen, even while a reply is held in reading position
+      // A reply cut off by this error is not read out after it (announceWhenSettled would, ~1s later).
+      for (const b of transcript.querySelectorAll("[aria-busy]")) {
+        b.removeAttribute("aria-busy");
+        b.parentElement.dataset.said = "1";
+      }
+    }
     transcript.appendChild(p);
+    announce(text);
     scrollToEnd(true);
     return p;
   }
@@ -25594,7 +25815,7 @@ function ix(root, debateId, t, data) {
   }
   function refreshRound() {
     const r = Math.min(currentRound(), target || Infinity);
-    $("#round-badge").textContent = target ? `${unit} ${r} of ${target}` : `${unit} ${r}`;
+    $("#round-badge").textContent = $("#round-badge-m").textContent = target ? `${unit} ${r} of ${target}` : `${unit} ${r}`;
     const pb = $("#phase-badge");
     if (pb) {
       const p = phaseFor(r);
@@ -25603,6 +25824,7 @@ function ix(root, debateId, t, data) {
     }
     let ph;
     if (ended) ph = "This session is finished.";
+    else if (awaitingOpen) ph = "Your opponent opens first…";
     else if (isDeb) {
       const p = phaseFor(currentRound()).label;
       ph = p === "Opening" ? "Your opening statement…" : p === "Closing" ? "Your closing argument…" : "Your rebuttal…";
@@ -25629,14 +25851,17 @@ function ix(root, debateId, t, data) {
     } else if (ended) {
       dot.className = "h-1.5 w-1.5 rounded-full bg-slate-500";
       txt.textContent = "Finished";
+    } else if (recovering || awaitingOpen) {
+      dot.className = "h-1.5 w-1.5 rounded-full bg-sky-400 animate-pulse";
+      txt.textContent = recovering ? "Waiting for reply" : tapToOpen ? "Tap to hear your opponent" : "Opponent is about to open…";
     } else {
       dot.className = "h-1.5 w-1.5 rounded-full bg-emerald-400";
       txt.textContent = "Your turn";
     }
     stopBtn.disabled = !speaking;
     replayBtn.disabled = speaking || busy || !voice.hasReplay();
-    sendBtn.disabled = busy || ended || quotaOut;
-    endBtn.disabled = busy && !ended;
+    sendBtn.disabled = busy || ended || quotaOut || awaitingOpen || recovering || finishing;
+    endBtn.disabled = (busy && !ended) || finishing;
   }
   function autosize() {
     input.style.height = "auto";
@@ -25645,13 +25870,21 @@ function ix(root, debateId, t, data) {
   input.addEventListener("input", () => {
     autosize();
     photo?.touch();
+    // maxlength silently drops the rest of a long paste — say so.
+    if (input.value.length >= 4000 && !listening) {
+      const msg = "That’s the 4,000-character limit — anything past it was left out.";
+      micHint.textContent = msg;
+      micHint.className = "mt-2 text-xs text-amber-300";
+      setTimeout(() => micHint.textContent === msg && micHint.classList.add("hidden"), 6000);
+    }
   });
 
   function showTargetBanner() {
     if (!target || userTurns < target || ended || bannerSlot.firstChild) return;
-    bannerSlot.innerHTML = `<div class="mb-3 flex flex-col gap-3 rounded-2xl border border-accent-500/30 bg-accent-500/10 p-4 sm:flex-row sm:items-center sm:justify-between">
-      <p class="text-sm text-slate-200"><span class="font-semibold text-white">That was the final ${unit.toLowerCase()}.</span> Get your scorecard now — or keep going (each extra ${unit.toLowerCase()} uses a credit).</p>
-      <button type="button" class="btn-primary btn-sm shrink-0" id="banner-score">Get my scorecard</button></div>`;
+    // One short row on phones: this sits above the transcript and must not squeeze it.
+    bannerSlot.innerHTML = `<div class="target-banner mb-2 flex items-center justify-between gap-2 rounded-xl border border-accent-500/30 bg-accent-500/10 px-3 py-1.5 sm:mb-3 sm:gap-3 sm:rounded-2xl sm:p-4">
+      <p class="min-w-0 text-xs leading-snug text-slate-200 sm:text-sm"><span class="tb-short sm:hidden"><span class="font-semibold text-white">Final ${unit.toLowerCase()} done.</span> Extra ${unit.toLowerCase()}s use a credit.</span><span class="tb-long hidden sm:inline"><span class="font-semibold text-white">That was the final ${unit.toLowerCase()}.</span> Get your scorecard now — or keep going (each extra ${unit.toLowerCase()} uses a credit).</span></p>
+      <button type="button" class="btn-primary btn-xs shrink-0 sm:btn-sm" id="banner-score">Get my scorecard</button></div>`;
     $("#banner-score").onclick = () => finish(true);
   }
   function setWallet(rem) {
@@ -25663,8 +25896,10 @@ function ix(root, debateId, t, data) {
   }
 
   // ---------------------------------------------------------------- audio fallback
+  let serverAudioPending = false;
   async function playServerAudio(utter, offset = 0, anchor = "") {
     if (!utter.active || !alive) return utter.end();
+    serverAudioPending = true;
     try {
       const res = await fetch("/api/speech/turn-audio", {
         method: "POST",
@@ -25674,27 +25909,92 @@ function ix(root, debateId, t, data) {
       });
       if (!res.ok) throw new Error("http " + res.status);
       const buf = await res.arrayBuffer();
-      if (!utter.active || !alive) return;
+      if (!utter.active || !alive || !buf.byteLength) return; // 204: nothing left to say
       await utter.enqueue(buf, null);
     } catch (e) {
       console.warn("[voice] server audio unavailable", e);
       if (alive && utter.active) note("Voice unavailable for this reply — text only.");
     } finally {
+      serverAudioPending = false;
       utter.end();
     }
+  }
+
+  // ---------------------------------------------------------------- turn recovery
+  const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+  // Error notes from failed turns; cleared once a turn goes through.
+  const errNotes = [];
+  const errNote = (msg) => {
+    const n = note(msg, "error");
+    errNotes.push(n);
+    return n;
+  };
+  const clearErrNotes = () => errNotes.splice(0).forEach((n) => n.remove());
+  // An error note with one action. Created once the turn has settled, and a click while another
+  // turn is in flight is ignored (the button stays), so the action is never swallowed.
+  function actionNote(msg, label, fn) {
+    const n = errNote(msg);
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "btn-ghost btn-xs ml-2 align-middle";
+    b.textContent = label;
+    b.addEventListener("click", () => {
+      if (busy || recovering || finishing || !alive || ended) return;
+      n.remove();
+      fn();
+    });
+    n.append(" ", b);
+    return n;
+  }
+  const offerOpenRetry = (msg) => actionNote(msg, "Retry opening", () => send({ open: true }));
+  // The server finishes and saves a reply even if the phone disconnects mid-stream, and on a
+  // real failure deletes the user's turn and refunds the round. After a drop, poll until one of
+  // those shows: {state: "reply", text} | {state: "gone"} (the user's turn isn't there) |
+  // {state: "pending"} (still no reply) | {state: "offline"} (never got through) — or null
+  // once the session has moved on.
+  async function awaitServerReply(userText, userCount, waits = [1500, 2500, 4000, 6000, 8000, 10000, 10000]) {
+    let reached = false;
+    for (const ms of waits) {
+      await delay(ms);
+      if (!alive || ended || finishing) return null;
+      let d;
+      try {
+        d = await Ut(`/api/debates/${encodeURIComponent(debateId)}`);
+      } catch {
+        continue; // still offline
+      }
+      reached = true;
+      if (!alive || ended || finishing) return null;
+      const st = d.turns ?? [];
+      const replyAfter = (k) => st.slice(k).find((x) => x.role !== "user");
+      let r;
+      if (userText == null) r = replyAfter(0); // the opening
+      else {
+        const users = st.filter((x) => x.role === "user");
+        const last = users.at(-1);
+        if (!last || users.length < userCount || String(last.text ?? "").trim() !== userText) return { state: "gone" };
+        r = replyAfter(st.indexOf(last) + 1);
+      }
+      if (r) return { state: "reply", text: String(r.text ?? ""), remaining: d.remainingRounds };
+    }
+    return { state: reached ? "pending" : "offline" };
   }
 
   // ---------------------------------------------------------------- one turn
   async function send({ open = false, closing = false } = {}) {
     const text = input.value.trim();
-    if (busy || ended || quotaOut || (!open && !text)) return;
+    if (busy || ended || quotaOut || finishing || recovering || (!open && (!text || awaitingOpen))) return;
+    // Dictation isn't bound by the textarea's maxlength; check before anything is torn down.
+    if (!open && text.length > 4000) return void errNote(`That’s ${text.length.toLocaleString()} characters — keep it under 4,000 and send again.`);
     voice.unlock();
     abortListening();
     photo?.touch();
+    holdWake();
     speaker?.cancel();
     speaker = null;
     voice.stop();
     busy = true;
+    lastTurnFailed = false;
     const gen = ++turnGen;
     silencedGen = 0;
     let mine = null;
@@ -25705,7 +26005,10 @@ function ix(root, debateId, t, data) {
       lineCheck(mine, text, userTurns);
       hideCue();
       userTurns++;
+      // The final-round banner goes while they keep going; showTargetBanner() re-adds it after the reply.
+      if (bannerSlot.querySelector(".target-banner")) bannerSlot.replaceChildren();
     }
+    const userCount = userTurns;
     // The server drops the user's turn when the model fails, so mirror that here.
     const unsend = () => {
       if (!mine) return;
@@ -25725,13 +26028,30 @@ function ix(root, debateId, t, data) {
     let opp = null;
     let full = "";
     let lastPaint = 0;
-    let fallback = null; // {offset, utter}
+    let fallback = null; // {offset, utter, anchor}
+    let voiceSettled = false; // a dropped reply's recovery gave up: a late SDK failure just ends the utterance
     let doneEvt = null;
+    let failed = false; // the server said no (err event or an error response)
+    let failMsg = "";
+    let handled = false; // outcome already known — anything else is a dropped stream
+    let stalled = false;
+    let gotByte = false;
     // The browser synthesizes unless the SDK is known to be unavailable. If it's still
     // loading, the streaming speaker waits for it and falls back to server audio for
     // whatever it couldn't voice — never both.
     const clientTts = !sdkUnavailable();
-    abortCtl = new AbortController();
+    const ctl = new AbortController();
+    abortCtl = ctl;
+    // Stall watchdog: the server sends a token or a ping at least every ~8 s, so a long silence
+    // means the connection is dead even when the socket never says so (phones changing networks).
+    lastStreamAt = performance.now();
+    const wd = setInterval(() => {
+      if (gen !== turnGen || !alive || document.hidden) return;
+      if (performance.now() - lastStreamAt > (gotByte ? 30000 : 45000)) {
+        stalled = true;
+        ctl.abort();
+      }
+    }, 2000);
     const paint = (force) => {
       const now = performance.now();
       if (!opp) {
@@ -25745,6 +26065,13 @@ function ix(root, debateId, t, data) {
         scrollToEnd(false);
       }
     };
+    const dropOpp = () => {
+      if (!opp) return;
+      opp.row.remove();
+      const k = turns.indexOf(opp.entry);
+      k >= 0 && turns.splice(k, 1);
+      opp = null;
+    };
     const handle = (ev) => {
       if (gen !== turnGen || !alive) return;
       if (ev.t === "hello") {
@@ -25755,6 +26082,7 @@ function ix(root, debateId, t, data) {
             onFallback: (offset, utter, anchor) => {
               fallback = { offset, utter, anchor };
               if (doneEvt) playServerAudio(utter, offset, anchor);
+              else if (voiceSettled) utter.end(); // otherwise the voice stays "speaking" forever
             },
           });
         }
@@ -25765,17 +26093,23 @@ function ix(root, debateId, t, data) {
       } else if (ev.t === "done") {
         doneEvt = ev;
         paint(true);
+        // The saved text wins; with `truncated` the server has cut it back to its last whole sentence.
         if (typeof ev.text === "string" && ev.text.trim()) {
           full = ev.text;
           opp.textEl.textContent = full;
           opp.entry.text = full;
         }
+        announceReply(opp);
         setWallet(ev.remainingRounds);
+        clearErrNotes();
         if (silencedGen === gen) {
           speaker?.cancel();
         } else if (speaker) {
-          speaker.finish();
-          if (fallback) playServerAudio(fallback.utter, fallback.offset, fallback.anchor);
+          speaker.finish({ dropTail: !!ev.truncated }); // never voice an unfinished sentence
+          if (fallback) {
+            if (ev.truncated && fallback.offset >= full.length) fallback.utter.end();
+            else playServerAudio(fallback.utter, fallback.offset, fallback.anchor);
+          }
         } else if (ev.audioBase64) {
           const u = voice.begin();
           const bin = Uint8Array.from(atob(ev.audioBase64), (c) => c.charCodeAt(0));
@@ -25784,33 +26118,143 @@ function ix(root, debateId, t, data) {
           playServerAudio(voice.begin(), 0, "");
         } else note("Voice unavailable for this reply — text only.");
       } else if (ev.t === "err") {
+        // The server deleted the user's turn, refunded the round and kept no reply: drop the
+        // partial reply as well so the screen matches it.
+        failed = handled = true;
+        failMsg = ev.message || "";
         typing.remove();
-        if (opp && !full) {
-          opp.row.remove();
-          turns.pop();
+        dropOpp();
+      }
+      // "ping" is a keep-alive: every chunk already resets the stall watchdog.
+    };
+
+    // The stream died with no outcome: a dropped connection, a stall, or the Worker was cut off.
+    let spk = null; // the speaker, if it's still finishing the sentences it had
+    let streamed = ""; // what had arrived before the drop
+    const cutMark = () => {
+      if (!opp || opp.row.querySelector("[data-cut]")) return;
+      const m = document.createElement("div");
+      m.dataset.cut = "";
+      m.className = "mt-2 border-t border-white/10 pt-2 text-xs text-amber-300";
+      m.textContent = "Reply cut off";
+      opp.row.firstElementChild.appendChild(m);
+    };
+    // A reply recovered from the server: voice the part the listener hasn't heard.
+    const voiceRest = async () => {
+      if (silencedGen === gen || !alive) return void fallback?.utter.end();
+      serverAudioPending = true; // hands-free: more audio is on its way
+      // let the sentences already queued finish first
+      const t0 = Date.now();
+      while (spk && alive && spk.utter.active && (spk.pending() || (voice.state === "speaking" && !spk.failed)) && Date.now() - t0 < 90000) await delay(200);
+      serverAudioPending = false;
+      if (silencedGen === gen || !alive || gen !== turnGen) return void fallback?.utter.end();
+      if (fallback) return playServerAudio(fallback.utter, fallback.offset, fallback.anchor);
+      const from = spk ? Math.max(0, spk.offset - (streamed.length - streamed.trimStart().length)) : 0;
+      if (from < full.trimEnd().length) playServerAudio(voice.begin(), from, from ? full.slice(from, from + 40) : "");
+    };
+    const recover = async (waits) => {
+      recovering = true;
+      refreshStatus();
+      const wait = note(
+        stalled
+          ? `${t.personaLabel} went quiet — checking with the server…`
+          : opp
+            ? "The connection dropped mid-reply — getting the rest…"
+            : open
+              ? "The connection dropped — checking on your opponent…"
+              : "The connection dropped — checking whether your message went through…",
+      );
+      const r = await awaitServerReply(open ? null : text, userCount, waits);
+      wait.remove();
+      recovering = false;
+      if (!r || gen !== turnGen || !alive) {
+        voiceSettled = true;
+        if (spk?.failed) fallback?.utter.end();
+        return false;
+      }
+      if (r.state === "reply") {
+        voiceSettled = false;
+        if (!opp) opp = bubble("opp", "");
+        opp.row.querySelector("[data-cut]")?.remove();
+        full = r.text;
+        opp.textEl.textContent = full;
+        opp.entry.text = full;
+        scrollToEnd(false);
+        setWallet(r.remaining);
+        clearErrNotes();
+        lastTurnFailed = false;
+        if (open) awaitingOpen = false;
+        voiceRest();
+        return true;
+      }
+      lastTurnFailed = true;
+      if (r.state === "gone" || open) {
+        // Whatever is still playing belongs to a reply the server doesn't have.
+        spk?.cancel();
+        if (speaker === spk) speaker = null;
+        voice.stop();
+        dropOpp();
+        if (open) offerOpenRetry("Your opponent couldn’t start — the connection dropped.");
+        else {
+          unsend();
+          errNote(`The connection dropped before ${t.personaLabel} could answer — your message is back in the box. Tap Send to try again.`);
         }
-        note(ev.message || "Your message didn’t go through. Try sending again.", "error");
-        unsend();
+        return false;
+      }
+      // Still no reply: the server has the message but never finished answering it — or we
+      // couldn't reach it at all (then check again as soon as the connection is back).
+      voiceSettled = true;
+      if (spk?.failed) fallback?.utter.end();
+      cutMark();
+      const recheck = async () => {
+        if (gen !== turnGen) return; // a newer turn has started since
+        const ok = await recover([0, 2000, 4000]);
+        if (alive && gen === turnGen) afterTurn(ok);
+      };
+      const offline = r.state === "offline";
+      const n = actionNote(offline ? "Couldn’t reach the server — check your connection, then try again." : `${t.personaLabel}’s reply didn’t come through.`, "Check again", recheck);
+      if (offline) window.addEventListener("online", () => n.isConnected && !busy && !recovering && (n.remove(), recheck()), { once: true });
+      return false;
+    };
+    const afterTurn = async (ok) => {
+      refreshRound();
+      refreshStatus();
+      showTargetBanner();
+      maybeAutoListen?.();
+      if (closingRequested && ok) {
+        // let them hear the opponent's closing before we score
+        await waitForSilence(90000);
+        if (alive && gen === turnGen) finish(true);
       }
     };
+
     try {
       const res = await fetch("/api/debate/turn-stream", {
         method: "POST",
         credentials: "include",
-        signal: abortCtl.signal,
+        signal: ctl.signal,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ debateId, text: open ? "" : text, action: open ? "open" : void 0, phase: closing ? "closing" : void 0, clientTts }),
+        body: JSON.stringify({ debateId, text: open ? "" : text, action: open ? "open" : void 0, phase: (closing || closingRequested) && !open ? "closing" : void 0, clientTts }),
       });
+      gotByte = true;
+      lastStreamAt = performance.now();
       const ct = res.headers.get("content-type") || "";
       if (!res.ok || !ct.includes("text/event-stream")) {
         let j = {};
         try {
           j = await res.json();
-        } catch {}
+        } catch (e) {
+          if (stalled) throw e;
+        }
+        handled = true;
         typing.remove();
+        // The server refuses these before storing the turn (it cleans up its own pre-stream
+        // failures): hand the text back.
+        unsend();
         if (res.status === 402) {
           // Out of rounds: no more turns, but the session can still be graded.
           quotaOut = true;
+          awaitingOpen = false;
           quotaSlot.replaceChildren(sd());
           input.disabled = true;
           micBtn.disabled = true;
@@ -25820,8 +26264,20 @@ function ix(root, debateId, t, data) {
           ended = true;
           note("This session has already been scored.");
         } else if (j.error === "opening_already_delivered") {
-          /* harmless: opening exists already */
-        } else note(j.message || "Your message didn’t go through. Try sending again.", "error");
+          // An opening whose stream dropped was saved after all: show it.
+          awaitingOpen = false;
+          const r = await awaitServerReply(null, 0, [0]);
+          if (r?.state === "reply" && gen === turnGen && alive && !turns.some((x) => x.role === "opp")) bubble("opp", r.text);
+          else if (r?.state !== "reply") errNote("Couldn’t load your opponent’s opening — reload the page to see it.");
+        } else {
+          failed = true;
+          failMsg =
+            j.error === "text_too_long"
+              ? "That message is over 4,000 characters — trim it and send again."
+              : res.status === 401
+                ? "You’ve been signed out — log in again, then come back to this session."
+                : j.message || "";
+        }
         return;
       }
       const reader = res.body.getReader();
@@ -25830,6 +26286,7 @@ function ix(root, debateId, t, data) {
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
+        lastStreamAt = performance.now();
         buf += dec.decode(value, { stream: true });
         const parts = buf.split("\n\n");
         buf = parts.pop() ?? "";
@@ -25845,39 +26302,42 @@ function ix(root, debateId, t, data) {
           break;
         }
       }
-      if (!doneEvt && gen === turnGen && alive && !opp) {
-        typing.remove();
-        note("The connection dropped. Try sending again.", "error");
-      }
     } catch (e) {
-      if (e?.name !== "AbortError" && alive) {
-        typing.remove();
-        note("Your message didn’t go through. Check your connection and try again.", "error");
-        if (!open && !input.value) {
-          input.value = text;
-          autosize();
-        }
-      }
+      // Aborted on purpose (the session closed): nothing to report. A stall or a network error
+      // is a drop, which the server may have survived.
+      if (e?.name === "AbortError" && !stalled) handled = true;
     } finally {
+      clearInterval(wd);
       if (gen === turnGen && alive) {
         typing.remove();
-        if (!doneEvt) {
-          // stream failed or dropped: never leave a half-spoken reply hanging
-          speaker?.cancel();
-          speaker = null;
-          voice.stop();
-        }
         busy = false;
         abortCtl = null;
+        const dropped = !doneEvt && !handled;
+        if (!doneEvt) {
+          if (dropped && opp) paint(true); // show every token that did arrive
+          // A dropped reply keeps playing the whole sentences it has (the rest may still come
+          // from the server); anything the server threw away stops now.
+          if (dropped && speaker && silencedGen !== gen) {
+            spk = speaker;
+            spk.finish({ dropTail: true });
+          } else {
+            speaker?.cancel();
+            speaker = null;
+            voice.stop();
+          }
+        }
+        streamed = full;
+        if (failed) {
+          lastTurnFailed = true;
+          unsend();
+          if (open) offerOpenRetry(`Your opponent couldn’t start.${failMsg.includes("wasn’t charged") ? " That round wasn’t charged." : ""}`);
+          else errNote(failMsg || "Your message didn’t go through. Try sending again.");
+        }
+        if (doneEvt && open) awaitingOpen = false;
         refreshRound();
         refreshStatus();
-        showTargetBanner();
-        maybeAutoListen?.();
-        if (closingRequested && doneEvt) {
-          // let them hear the opponent's closing before we score
-          await waitForSilence(90000);
-          if (alive && gen === turnGen) finish(true);
-        }
+        const ok = doneEvt ? true : dropped ? await recover() : false;
+        if (alive && gen === turnGen) await afterTurn(ok);
       }
     }
   }
@@ -25885,24 +26345,34 @@ function ix(root, debateId, t, data) {
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const t0 = Date.now();
     while (voice.state === "idle" && Date.now() - t0 < 1500) await sleep(150); // queued audio may start a beat late
-    while (voice.state !== "idle" && Date.now() - t0 < maxMs) await sleep(200);
+    while ((voice.state !== "idle" || serverAudioPending) && Date.now() - t0 < maxMs) await sleep(200);
     await sleep(300);
   }
 
   // ---------------------------------------------------------------- end + score
   async function finish(skipConfirm = false) {
     if (ended) return renderStored();
+    if (finishing || confirming) return;
     if (!skipConfirm) {
-      if (userTurns === 0) {
-        const c = await uiModal({ title: "Nothing to grade yet", body: "Say at least one thing before asking for a scorecard.", actions: [{ label: "Keep going", value: "stay", kind: "primary" }, { label: "Leave session", value: "leave" }] });
-        if (c === "leave") location.hash = "#/";
-        return;
+      // The dialog covers the composer: nothing may listen or send behind it.
+      confirming = true;
+      clearTimeout(autoListenT);
+      abortListening(); // keeps whatever was heard in the box, never sends
+      let c;
+      try {
+        if (userTurns === 0) {
+          c = await uiModal({ title: "Nothing to grade yet", body: "Say at least one thing before asking for a scorecard.", actions: [{ label: "Keep going", value: "stay", kind: "primary" }, { label: "Leave session", value: "leave" }] });
+        } else {
+          const openEnded = !target;
+          const acts = [];
+          if (isDeb && openEnded && userTurns >= 2 && !closingRequested) acts.push({ label: "Deliver a closing statement first", hint: "1 more round", value: "closing" });
+          acts.push({ label: "Grade my session now", value: "score", kind: "primary" }, { label: "Keep going", value: "stay" });
+          c = await uiModal({ title: "End this session?", body: ui.judge ? "You’ll get your coaching scorecard, and an impartial judge will score both sides." : "You’ll get your coaching scorecard.", actions: acts });
+        }
+      } finally {
+        confirming = false;
       }
-      const openEnded = !target;
-      const acts = [];
-      if (isDeb && openEnded && userTurns >= 2 && !closingRequested) acts.push({ label: "Deliver a closing statement first", hint: "1 more round", value: "closing" });
-      acts.push({ label: "Grade my session now", value: "score", kind: "primary" }, { label: "Keep going", value: "stay" });
-      const c = await uiModal({ title: "End this session?", body: ui.judge ? "You’ll get your coaching scorecard, and an impartial judge will score both sides." : "You’ll get your coaching scorecard.", actions: acts });
+      if (c === "leave") return void (location.hash = "#/");
       if (c === "closing") {
         closingRequested = true;
         refreshRound();
@@ -25910,23 +26380,37 @@ function ix(root, debateId, t, data) {
         input.focus();
         return;
       }
-      if (c !== "score") return;
+      if (c !== "score") return void maybeAutoListen();
     }
-    if (busy) return;
-    speaker?.cancel();
-    voice.stop();
+    finishing = true; // before any await: a second tap or the closing auto-finish is ignored
+    clearTimeout(autoListenT);
     abortListening();
+    const bs = $("#banner-score");
+    bs && (bs.disabled = true);
     endBtn.disabled = true;
     endBtn.innerHTML = '<span class="spinner"></span><span>Scoring…</span>';
+    if (busy) {
+      // A reply started behind the dialog: let it land, then score.
+      const n = note("Finishing their reply, then scoring…");
+      while (busy && alive && !ended) await delay(200);
+      n.remove();
+    }
+    if (!alive) return;
+    speaker?.cancel();
+    voice.stop();
     try {
       const { scores } = await zt("/api/debate/end", { debateId });
       if (!alive) return;
       ended = true;
       sx(root, avatar, t, debateId, turns, scores);
-    } catch {
+    } catch (e) {
+      finishing = false;
+      if (!alive) return;
+      bs && (bs.disabled = false);
       endBtn.disabled = false;
       endBtn.textContent = "End & grade";
-      note("Couldn’t fetch your scores. Try again in a moment.", "error");
+      errNote(e?.body?.message || "Couldn’t fetch your scores. Try again in a moment.");
+      refreshStatus();
     }
   }
   async function renderStored() {
@@ -25957,6 +26441,7 @@ function ix(root, debateId, t, data) {
     voice.stop();
   });
   endBtn.addEventListener("click", () => (ended ? renderStored() : finish(false)));
+  root.addEventListener("click", holdWake); // some browsers only grant the wake lock after a tap
 
   // ---------------------------------------------------------------- voice input
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -25966,15 +26451,49 @@ function ix(root, debateId, t, data) {
       rec?.stop();
     } catch {}
   }
+  // Hard stop, never sends. Detaches the handlers first so a late result can't refill the
+  // box we just sent and the `end` that follows can't auto-send; resets the mic UI right
+  // away instead of trusting the browser to fire `end` after an abort.
+  let recDone = null;
   function abortListening() {
+    clearTimeout(pauseT);
     if (!rec) return;
-    rec.onresult = null; // a late final result must not refill the box we just sent
-    suppressSend = true; // and the resulting `end` must not auto-send (hands-free)
+    const r = rec;
+    r.onresult = r.onend = r.onerror = null;
     try {
-      rec.abort();
+      r.abort();
     } catch {}
+    if (listening) recDone?.();
   }
-  let suppressSend = false;
+  // Android Chrome repeats earlier phrases inside later results ("so so fridges so fridges
+  // are"), and some engines resend a final result. Merge instead of blindly concatenating.
+  const mergeHeard = (parts) => {
+    let out = "";
+    for (const raw of parts) {
+      const p = raw.trim();
+      if (!p) continue;
+      const o = out.toLowerCase(),
+        q = p.toLowerCase();
+      if (!out || q.startsWith(o)) out = p;
+      else if (!o.endsWith(q)) out += " " + p;
+    }
+    return out;
+  };
+  // Safety net for speakers without echo cancellation: if what the mic "heard" is mostly
+  // the opponent's own last reply, it's their voice coming back in — don't send it.
+  const soundsLikeOpponent = (said) => {
+    const last = [...turns].reverse().find((x) => x.role === "opp")?.text || "";
+    const words = (s) => s.toLowerCase().replace(/[^\p{L}\p{N}' ]+/gu, " ").split(/\s+/).filter(Boolean);
+    const w = words(said);
+    if (w.length < 4 || !last) return false;
+    const opp = new Set();
+    const ow = words(last);
+    for (let k = 0; k + 2 < ow.length; k++) opp.add(ow[k] + " " + ow[k + 1] + " " + ow[k + 2]);
+    let hit = 0;
+    for (let k = 0; k + 2 < w.length; k++) if (opp.has(w[k] + " " + w[k + 1] + " " + w[k + 2])) hit++;
+    return hit / (w.length - 2) >= 0.5;
+  };
+  const isAndroid = /Android/i.test(navigator.userAgent);
   // Hands-free: the mic switches on by itself when it's your turn (never while the opponent
   // talks, so it can't transcribe itself) and sends when you pause. Remembered per device;
   // it turns itself on the first time someone uses the mic.
@@ -25988,6 +26507,7 @@ function ix(root, debateId, t, data) {
     if (!hfBtn || !SR) return;
     hfBtn.classList.remove("hidden");
     hfBtn.innerHTML = `Hands-free mic: <b class="${handsFree ? "text-emerald-300" : "text-slate-300"}">${handsFree ? "On" : "Off"}</b>`;
+    hfBtn.setAttribute("aria-pressed", String(handsFree));
   };
   const setHandsFree = (on) => {
     handsFree = on;
@@ -26006,27 +26526,53 @@ function ix(root, debateId, t, data) {
       speaker?.cancel();
       voice.stop();
     }
+    abortListening(); // never two recognizers at once
     rec = new SR();
     rec.lang = navigator.language || "en-US";
     rec.interimResults = true;
-    rec.continuous = true;
+    // Android ends recognition on every pause anyway, and its continuous mode is what
+    // produces the repeated phrases — use single-utterance mode there.
+    rec.continuous = !isAndroid;
     const base = input.value ? input.value.replace(/\s+$/, "") + " " : "";
+    const heard = () => input.value.slice(base.length).trim();
+    // Hands-free: send what you said, unless it was the opponent's own voice echoing back.
+    // Only new speech counts — text already in the box (say, a failed message handed back)
+    // is never resent on its own.
+    const autoSend = () => {
+      if (!handsFree || busy || !alive || ended || quotaOut || micHeld() || !heard()) return;
+      if (soundsLikeOpponent(heard())) {
+        input.value = base.trim();
+        autosize();
+        micHint.textContent = "That sounded like your opponent’s voice — try headphones, or turn the volume down.";
+        micHint.className = "mt-2 text-xs text-amber-300";
+        return;
+      }
+      send({ closing: closingRequested });
+    };
     rec.onresult = (e) => {
-      let finalT = "",
-        interim = "";
+      const finals = [],
+        interims = [];
       for (let k = 0; k < e.results.length; k++) {
         const r = e.results[k];
-        r.isFinal ? (finalT += r[0].transcript) : (interim += r[0].transcript);
+        (r.isFinal ? finals : interims).push(r[0].transcript);
       }
-      input.value = (base + finalT + interim).replace(/\s+/g, " ").trimStart();
+      const f = mergeHeard(finals),
+        m = mergeHeard(interims);
+      const said = !m ? f : !f || m.toLowerCase().startsWith(f.toLowerCase()) ? m : `${f} ${m}`;
+      input.value = (base + said).replace(/\s+/g, " ").trimStart();
       autosize();
       if (handsFree) {
         clearTimeout(pauseT);
-        if (input.value.trim()) pauseT = setTimeout(() => listening && input.value.trim() && !busy && send(), 1700);
+        if (input.value.trim()) pauseT = setTimeout(() => listening && autoSend(), 1700);
       }
     };
+    let closed = false,
+      failed = "";
     const done = (msg) => {
+      if (closed) return; // `error` is followed by `end` — keep the error's message
+      closed = true;
       clearTimeout(pauseT);
+      recDone = null;
       listening = false;
       micBtn.classList.remove("mic-live");
       micBtn.innerHTML = it.mic;
@@ -26034,21 +26580,20 @@ function ix(root, debateId, t, data) {
       if (msg) {
         micHint.textContent = msg;
         micHint.className = "mt-2 text-xs text-red-300";
-        setTimeout(() => micHint.classList.add("hidden"), 5000);
-      } else micHint.classList.add("hidden");
+        setTimeout(() => micHint.textContent === msg && micHint.classList.add("hidden"), 5000);
+      } else if (!micHint.className.includes("amber")) micHint.classList.add("hidden");
       refreshStatus();
     };
+    recDone = done;
     rec.onend = () => {
       // Phones (Android Chrome, iOS Safari) end recognition by themselves when you stop
       // talking, which cancels the pause timer — so in hands-free, ending = send.
-      const said = input.value.trim();
-      const skip = suppressSend;
-      suppressSend = false;
       done();
-      if (!skip && handsFree && said && !busy && alive && !ended && !quotaOut) send();
+      if (!failed) autoSend();
     };
     rec.onerror = (e) => {
       const c = e?.error || "";
+      failed = c || "error";
       done(
         c === "not-allowed" || c === "service-not-allowed"
           ? auto
@@ -26057,7 +26602,9 @@ function ix(root, debateId, t, data) {
           : c === "audio-capture"
             ? "No microphone found on this device."
             : c === "no-speech"
-              ? "Didn’t hear anything — tap the mic when you’re ready."
+              ? auto
+                ? "Didn’t hear anything — tap the mic when you’re ready."
+                : "Didn’t hear anything — tap the mic and try again."
               : c === "aborted"
                 ? ""
                 : "Voice input failed — try again or type instead.",
@@ -26079,26 +26626,39 @@ function ix(root, debateId, t, data) {
   var autoListenT = 0;
   function maybeAutoListen() {
     clearTimeout(autoListenT);
-    if (!SR || !handsFree || !alive || ended || quotaOut || busy || listening) return;
+    // After a failed turn the text is back in the box: wait for a tap, don't listen and resend.
+    if (!SR || !handsFree || !alive || ended || quotaOut || busy || listening || lastTurnFailed || micHeld()) return;
     // Give the last word time to finish playing (longer for the video stream, which lags).
     const wait = stage?.classList.contains("photoreal-live") ? 900 : 450;
     autoListenT = setTimeout(() => {
-      if (!handsFree || !alive || ended || quotaOut || busy || listening || closingRequested) return;
+      if (!handsFree || !alive || ended || quotaOut || busy || listening || closingRequested || lastTurnFailed || micHeld() || document.hidden) return;
       // Short replies are synthesized after the stream ends: if audio is still pending or
       // playing, wait for the voice engine's next "idle" instead of listening now.
       if (voice.state === "speaking" || (speaker && speaker.pending?.())) return;
+      // Server-side audio is still downloading, or the video avatar is still talking (it runs
+      // behind our clock): neither fires another "idle", so check again shortly.
+      if (serverAudioPending || photo?.talking) return void (autoListenT = setTimeout(maybeAutoListen, 400));
       if (scriptLines && userTurns >= scriptLines.length) return; // end of the script
       startListening(true);
     }, wait);
   }
-  var unsubHandsFree = voice.on((st) => st === "idle" && maybeAutoListen());
+  // The mic must never be open while the opponent talks — it would transcribe them.
+  var unsubHandsFree = voice.on((st) => {
+    if (st === "speaking") {
+      clearTimeout(autoListenT);
+      if (listening) abortListening();
+    } else if (st === "idle") maybeAutoListen();
+  });
   if (SR) {
     micBtn.classList.remove("hidden");
     renderHf();
     hfBtn?.addEventListener("click", () => {
       setHandsFree(!handsFree);
       if (handsFree) maybeAutoListen();
-      else clearTimeout(pauseT);
+      else {
+        clearTimeout(autoListenT);
+        abortListening(); // off means off — keep whatever was heard in the box
+      }
     });
     micBtn.addEventListener("click", () => {
       if (listening) {
@@ -26114,9 +26674,10 @@ function ix(root, debateId, t, data) {
   }
 
   // ---------------------------------------------------------------- restore
+  let lastYou = null;
   for (const tr of data.turns ?? []) {
     if (tr.role === "user") {
-      bubble("you", tr.text);
+      lastYou = bubble("you", tr.text);
       userTurns++;
     } else bubble("opp", tr.text);
   }
@@ -26128,13 +26689,61 @@ function ix(root, debateId, t, data) {
     b.querySelector("button").onclick = renderStored;
     bannerSlot.appendChild(b);
     endBtn.textContent = "Scorecard";
+  } else {
+    // Credits up front, so someone with none left finds out before composing a whole answer.
+    setWallet(data?.remainingRounds);
+    if (data?.remainingRounds === 0) {
+      quotaOut = true;
+      quotaSlot.replaceChildren(sd());
+      input.disabled = true;
+      micBtn.disabled = true;
+    }
   }
+  const lastTurn = (data.turns ?? []).at(-1);
+  awaitingOpen = !ended && !quotaOut && !lastTurn && t.resolvedFirstSpeaker === "opponent";
   refreshRound();
   refreshStatus();
   showTargetBanner();
-  if (!ended && (data.turns ?? []).length === 0 && t.resolvedFirstSpeaker === "opponent") {
+  // Reopened while the reply to the last message was still being written (or it got lost):
+  // wait for it instead of showing "Your turn" over an unanswered message.
+  async function resumePending(you, turn) {
+    const said = String(turn.text ?? "").trim();
+    let r = { state: "pending" };
+    if (!(Date.now() - Date.parse(turn.created_at || "") > 180000)) {
+      recovering = true;
+      refreshStatus();
+      const typing = typingRow();
+      r = await awaitServerReply(said, userTurns, [1500, 2500, 4000, 6000, 8000, 10000]);
+      typing.remove();
+      recovering = false;
+      if (!r || !alive) return void refreshStatus();
+    }
+    if (r.state === "reply") {
+      bubble("opp", r.text);
+      setWallet(r.remaining);
+    } else if (r.state === "gone") {
+      // The server dropped it when the reply failed: hand the text back.
+      you.row.remove();
+      const k = turns.indexOf(you.entry);
+      k >= 0 && turns.splice(k, 1);
+      userTurns = Math.max(0, userTurns - 1);
+      if (!input.value) {
+        input.value = said;
+        autosize();
+      }
+      lastTurnFailed = true; // hands-free: wait for a tap, never listen and resend it
+      errNote("Your last message didn’t get a reply — it’s back in the box. Tap Send to try again.");
+    } else if (r.state === "offline") note("Couldn’t check on the reply to your last message — reload to see it.");
+    else note(`${t.personaLabel} never answered your last message. Send your next point to carry on.`);
+    refreshRound();
+    refreshStatus();
+    showTargetBanner();
+    maybeAutoListen();
+  }
+  if (awaitingOpen) {
     // The opponent opens. On iOS/Safari, audio can't start without a tap when the page was
-    // opened by URL/reload — so ask for one instead of hanging in "Speaking".
+    // opened by URL/reload — so ask for one (any tap on the page will do) instead of hanging
+    // in "Speaking". Until the opening lands, the user can't go first.
     const ctxState = (() => {
       try {
         return voice.ensureContext().state;
@@ -26142,21 +26751,35 @@ function ix(root, debateId, t, data) {
         return "running";
       }
     })();
+    let started = false,
+      ov = null;
+    const go = (e) => {
+      if (started || !alive || !awaitingOpen || e?.target?.closest?.("#end-btn")) return;
+      started = true;
+      root.removeEventListener("click", go, true);
+      ov?.remove();
+      voice.unlock();
+      tapToOpen = false;
+      refreshStatus();
+      photoGate.then(() => alive && send({ open: true }));
+    };
     if (ctxState !== "running") {
-      const ov = document.createElement("button");
+      tapToOpen = true;
+      refreshStatus();
+      ov = document.createElement("button");
       ov.type = "button";
       ov.className = "absolute inset-0 z-[3] flex items-center justify-center bg-black/55 text-white";
       ov.innerHTML = '<span class="rounded-full border border-white/20 bg-black/60 px-5 py-3 text-sm font-semibold backdrop-blur">▶ Tap to hear your opponent</span>';
       stage.appendChild(ov);
-      ov.addEventListener("click", () => {
-        voice.unlock();
-        ov.remove();
-        photoGate.then(() => alive && send({ open: true }));
-      }, { once: true });
-    } else photoGate.then(() => alive && send({ open: true }));
+      root.addEventListener("click", go, true);
+    } else go();
+  } else if (!ended && lastTurn?.role === "user") resumePending(lastYou, lastTurn);
+  else if (!ended) {
+    maybeAutoListen(); // hands-free: your turn on arrival → start listening
+    // Desktop: cursor in the box. Wide screens only, so the .kb class doesn't shrink the avatar.
+    if (window.matchMedia("(pointer: fine) and (min-width: 1024px)").matches) input.focus({ preventScroll: true });
   }
-  else if (!ended) maybeAutoListen(); // hands-free: your turn on arrival → start listening
-  else if (!ended && window.matchMedia("(pointer: fine)").matches) input.focus();
+  if (!ended) holdWake();
 }
 function $u(i, e, t = 10) {
   const n = e == null ? 0 : Math.max(0, Math.min(100, (e / t) * 100));
@@ -26216,7 +26839,7 @@ function sx(i, e, t, n, s, r) {
         </div>
         <div id="arena-share-tray" class="mt-4 hidden">
           <div class="flex gap-2"><input id="arena-share-link" class="field text-sm" readonly /><button type="button" id="arena-copy-btn" class="btn-ghost btn-sm shrink-0">Copy</button></div>
-          <div class="mt-3 flex gap-2"><a id="arena-share-x" target="_blank" rel="noopener" class="btn-ghost btn-xs">Share on X</a><a id="arena-share-reddit" target="_blank" rel="noopener" class="btn-ghost btn-xs">Share on Reddit</a></div>
+          <div class="mt-3 flex flex-wrap gap-2"><a id="arena-share-x" target="_blank" rel="noopener" class="btn-ghost btn-sm min-h-[44px]">Share on X</a><a id="arena-share-reddit" target="_blank" rel="noopener" class="btn-ghost btn-sm min-h-[44px]">Share on Reddit</a></div>
         </div>
       </div>
       <div class="flex flex-col gap-3 sm:flex-row">
@@ -26281,14 +26904,27 @@ function ax(i, e, t) {
   }
   const vb = i.querySelector("#verdict-body");
   if (vb) {
-    zt("/api/debate/judge", { debateId: e })
-      .then(({ verdict }) => cx(i, t, verdict))
-      .catch((s) => {
-        const code = s instanceof Bt ? s.body?.error : null;
-        const pl = i.querySelector("#verdict-pill");
-        pl && (pl.innerHTML = "");
-        vb.innerHTML = `<p class="py-4 text-center text-sm text-slate-400">${code === "insufficient_transcript" ? "Not enough of a session to judge — the verdict needs at least one exchange from each side." : "The judge is unavailable right now. Your scorecard below is unaffected."}</p>`;
-      });
+    const pl = i.querySelector("#verdict-pill");
+    // The server doesn't cache a failed verdict, so asking again is a real retry.
+    const runJudge = () => {
+      vb.innerHTML = `<div class="flex items-center justify-center gap-2 py-6 text-sm text-slate-400"><span class="spinner"></span>The judge is deliberating…</div>`;
+      pl && (pl.innerHTML = `<span class="badge border-ink-700 bg-ink-800 text-slate-400"><span class="spinner !h-3 !w-3"></span>Judge deliberating…</span>`);
+      zt("/api/debate/judge", { debateId: e })
+        .then(({ verdict }) => cx(i, t, verdict))
+        .catch((s) => {
+          const code = s instanceof Bt ? s.body?.error : null;
+          pl && (pl.innerHTML = "");
+          if (code === "insufficient_transcript") {
+            vb.innerHTML = `<p class="py-4 text-center text-sm text-slate-400">Not enough of a session to judge — the verdict needs at least one exchange from each side.</p>`;
+            return;
+          }
+          // Only transient failures get a retry; a refusal (not enabled, not ended…) won't change.
+          const retry = !(s instanceof Bt) || s.status >= 500 || s.status === 429 || code === "judge_unavailable";
+          vb.innerHTML = `<div class="flex flex-col items-center gap-3 py-4 text-center"><p class="text-sm text-slate-400">The judge couldn’t reach a verdict just now. Your scorecard above is unaffected.</p>${retry ? '<button type="button" class="btn-ghost btn-sm" data-judge-retry>Try again</button>' : ""}</div>`;
+          vb.querySelector("[data-judge-retry]")?.addEventListener("click", (ev) => ((ev.currentTarget.disabled = true), runJudge()), { once: true });
+        });
+    };
+    runJudge();
   }
 }
 function ox(i) {
@@ -26369,6 +27005,9 @@ const lx = {
 function Vi(i) {
   return i.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
+// Transcript bubbles on History and the Arena replay: 16px on phones, 15px from sm.
+const replayBubbleCls = (you) =>
+  `max-w-[92%] sm:max-w-[80%] rounded-2xl px-4 py-3 text-base leading-relaxed sm:text-[15px] ${you ? "rounded-br-md border border-accent-500/30 bg-accent-500/10 text-slate-100" : "rounded-bl-md border border-ink-700 bg-ink-800 text-slate-200"}`;
 function Yl(i) {
   const e = new Date(i);
   return Number.isNaN(e.getTime())
@@ -26465,8 +27104,8 @@ async function dx(i) {
           <span class="badge ${done ? "border-emerald-700/60 bg-emerald-500/10 text-emerald-300" : "border-amber-500/40 bg-amber-500/10 text-amber-300"}">${done ? (o.overall != null ? `Your score ${Xu(o.overall)}/10` : "Finished") : "In progress"}</span>
         </div>
         <div class="mt-3 flex flex-wrap items-center gap-2 border-t border-ink-700/60 pt-3">
-          ${done ? `<button type="button" data-a="open" class="btn-ghost btn-xs">Transcript &amp; scores</button>` : `<button type="button" data-a="resume" class="btn-primary btn-xs">Resume</button><button type="button" data-a="close" class="btn-ghost btn-xs">Close &amp; grade</button><button type="button" data-a="open" class="btn-ghost btn-xs">Transcript</button>`}
-          <button type="button" data-a="delete" class="ml-auto inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-red-950/50 hover:text-red-300" aria-label="Delete session" title="Delete session"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
+          ${done ? `<button type="button" data-a="open" class="btn-ghost btn-xs max-sm:min-h-[44px]">Transcript &amp; scores</button>` : `<button type="button" data-a="resume" class="btn-primary btn-xs max-sm:min-h-[44px]">Resume</button><button type="button" data-a="close" class="btn-ghost btn-xs max-sm:min-h-[44px]">Close &amp; grade</button><button type="button" data-a="open" class="btn-ghost btn-xs max-sm:min-h-[44px]">Transcript</button>`}
+          <button type="button" data-a="delete" class="ml-auto inline-flex h-11 w-11 sm:h-8 sm:w-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-red-950/50 hover:text-red-300" aria-label="Delete session" title="Delete session"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
         </div>
         <div data-detail class="hidden"></div>`;
       card.addEventListener("click", (ev) => {
@@ -26506,7 +27145,7 @@ async function dx(i) {
           (c.turns || [])
             .map((h) => {
               const you = h.role === "user";
-              return `<div class="flex ${you ? "justify-end" : "justify-start"}"><div class="max-w-[88%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${you ? "rounded-br-md border border-accent-500/30 bg-accent-500/10 text-slate-100" : "rounded-bl-md border border-ink-700 bg-ink-800 text-slate-200"}"><div class="mb-1 text-[11px] font-semibold uppercase tracking-wide ${you ? "text-accent-400" : "text-slate-500"}">${you ? "You" : xt(who)}</div><div class="whitespace-pre-wrap break-words">${xt(h.text)}</div></div></div>`;
+              return `<div class="flex ${you ? "justify-end" : "justify-start"}"><div class="${replayBubbleCls(you)}"><div class="mb-1 text-[11px] font-semibold uppercase tracking-wide ${you ? "text-accent-400" : "text-slate-500"}">${you ? "You" : xt(who)}</div><div class="whitespace-pre-wrap break-words">${xt(h.text)}</div></div></div>`;
             })
             .join("") || '<p class="text-sm text-slate-500">No turns recorded.</p>'
         }</div>`;
@@ -26532,11 +27171,96 @@ function Kl(i, e) {
 }
 function ux(i) {
   if (!i) return "—";
+  // Stripe webhooks store the period end as epoch seconds
+  if (typeof i === "number" || /^\d{9,11}$/.test(String(i))) i = Number(i) * 1000;
   const e = new Date(i);
   return Number.isNaN(e.getTime())
     ? i
     : e.toLocaleDateString(void 0, { month: "long", day: "numeric", year: "numeric" });
 }
+/* Dialog with one field (password confirm, names, copy-this-link fallbacks) — uiModal only
+   has buttons, and window.prompt() can't mask a password. Resolves with the value, or null
+   on cancel. `validate(value)` may be async; a returned string is shown inline and keeps
+   the dialog open so the user can retry. Centered (not bottom-sheet) so the phone keyboard
+   doesn't cover it. */
+function uiPrompt({ title, body = "", label = "", type = "text", value = "", placeholder = "", autocomplete = "off", username = "", readOnly = false, confirm = "OK", kind = "primary", cancel = "Cancel", validate = null }) {
+  return new Promise((resolve) => {
+    const prev = document.activeElement;
+    const uid = `uip-${Date.now().toString(36)}`;
+    const m = document.createElement("div");
+    m.className = "fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm animate-fade-in";
+    m.setAttribute("role", "dialog");
+    m.setAttribute("aria-modal", "true");
+    m.setAttribute("aria-labelledby", `${uid}-t`);
+    m.innerHTML = `<form novalidate class="w-full max-w-md rounded-3xl border border-ink-700 bg-ink-900 p-6 shadow-2xl animate-pop-in">
+      <h3 id="${uid}-t" class="text-display-sm text-white">${xt(title)}</h3>
+      ${body ? `<p class="mt-2 text-sm leading-relaxed text-slate-400">${body}</p>` : ""}
+      ${username ? `<input type="text" name="username" autocomplete="username" value="${xt(username)}" readonly tabindex="-1" aria-hidden="true" class="sr-only" />` : ""}
+      ${label ? `<label for="${uid}-i" class="mt-5 mb-1.5 block text-body-sm font-medium text-slate-300">${xt(label)}</label>` : ""}
+      <input id="${uid}-i" type="${type}" class="field ${label ? "" : "mt-5"}" ${label ? "" : `aria-label="${xt(title)}"`} autocomplete="${autocomplete}" placeholder="${xt(placeholder)}" ${readOnly ? "readonly" : ""} />
+      <div class="hidden" data-err></div>
+      <div class="mt-6 flex flex-col gap-2.5">
+        <button type="submit" class="${kind === "danger" ? "btn-danger" : "btn-primary"} w-full justify-center py-3">${xt(confirm)}</button>
+        ${cancel ? `<button type="button" data-cancel class="btn-ghost w-full justify-center py-3">${xt(cancel)}</button>` : ""}
+      </div>
+    </form>`;
+    const form = m.querySelector("form"),
+      input = m.querySelector("input:not([name=username])"),
+      err = m.querySelector("[data-err]"),
+      ok = m.querySelector('button[type="submit"]');
+    input.value = value;
+    let busy = false;
+    const close = (v) => {
+      document.removeEventListener("keydown", onKey);
+      m.remove();
+      if (prev && prev.isConnected && typeof prev.focus === "function") prev.focus({ preventScroll: true });
+      resolve(v);
+    };
+    const onKey = (e) => {
+      if (e.key === "Escape" && !busy) return close(null);
+      if (e.key !== "Tab") return;
+      const f = [...m.querySelectorAll("input:not([tabindex='-1']), button")].filter((x) => !x.disabled);
+      if (!f.length) return;
+      const first = f[0],
+        last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) (e.preventDefault(), last.focus());
+      else if (!e.shiftKey && document.activeElement === last) (e.preventDefault(), first.focus());
+    };
+    document.addEventListener("keydown", onKey);
+    m.addEventListener("click", (e) => {
+      if (busy) return;
+      if (e.target === m || e.target.closest("[data-cancel]")) close(null);
+    });
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (busy) return;
+      const v = input.value;
+      if (validate) {
+        busy = true;
+        Rc(ok, !0, confirm);
+        let msg = null;
+        try {
+          msg = await validate(v);
+        } catch {
+          msg = "Something went wrong. Please try again.";
+        }
+        busy = false;
+        Rc(ok, !1, confirm);
+        if (msg) {
+          os(err, msg);
+          err.classList.replace("mb-5", "mt-4");
+          input.focus();
+          return;
+        }
+      }
+      close(v);
+    });
+    document.body.appendChild(m);
+    input.focus();
+    readOnly && input.select();
+  });
+}
+const okModal = (title, body = "") => uiModal({ title, body: body && xt(body), actions: [{ label: "OK", value: 1, kind: "primary" }] });
 async function qu(i) {
   i.innerHTML = '<div class="max-w-4xl mx-auto px-4 py-6 sm:py-10" id="account-root"></div>';
   const e = i.querySelector("#account-root");
@@ -26552,7 +27276,11 @@ async function qu(i) {
   }
   const s = await da(),
     r = t.usage.quota > 0 ? Math.min(100, (t.usage.debates_used / t.usage.quota) * 100) : 0,
-    a = t.subscription;
+    a = t.subscription && t.subscription.tier !== "none" && t.subscription.status !== "canceled" ? t.subscription : null,
+    lifetime = !!(t.isLifetime || a?.isLifetime),
+    SUB_STATUS = { active: "Active", trialing: "Trial", past_due: "Payment issue — update your card in Manage billing", incomplete: "Payment pending", unpaid: "Payment issue — update your card in Manage billing" },
+    subStatus = a ? SUB_STATUS[a.status] || (a.status ? a.status[0].toUpperCase() + a.status.slice(1).replace(/_/g, " ") : "") : "",
+    periodEnd = a?.current_period_end ? ux(a.current_period_end) : "";
   e.innerHTML = "";
   // Back from Stripe: thank them, and report the conversion once.
   const qs = new URLSearchParams(location.hash.split("?")[1] ?? "");
@@ -26588,10 +27316,12 @@ async function qu(i) {
       <div class="eyebrow mb-2">Plan</div>
       <div class="text-white font-semibold text-display-sm capitalize">${Lt(t.plan)}</div>
       ${
-        a
+        lifetime
+          ? '<p class="text-body-sm text-slate-400 mt-2">Lifetime access — no renewal, nothing to manage.</p>'
+          : a
           ? `<div class="text-body-sm text-slate-400 mt-2">
-               <span class="capitalize">${Lt(a.tier)}</span> · ${Lt(a.status)}
-               <div class="mt-1">Renews ${Lt(ux(a.current_period_end))}</div>
+               <span class="capitalize">${Lt(a.tier)}</span>${subStatus ? ` · <span class="${/^Payment/.test(subStatus) ? "text-amber-300" : ""}">${Lt(subStatus)}</span>` : ""}
+               ${periodEnd ? `<div class="mt-1">${a.cancel_at_period_end ? "Ends" : "Renews"} ${Lt(periodEnd)}</div>` : ""}
              </div>
              <button id="portal-btn" class="btn-ghost mt-5 px-4 py-2 text-sm">Manage billing</button>`
           : '<p class="text-body-sm text-slate-400 mt-2">No active subscription. Pick a plan below to keep practicing.</p>'
@@ -26842,16 +27572,23 @@ async function qu(i) {
   u();
   const h = l.querySelector("[data-create-school]");
   h.addEventListener("click", async () => {
-    const x = prompt("School name:");
-    if (!(!x || !x.trim())) {
-      h.disabled = !0;
-      try {
-        const { org: R } = await zt("/api/orgs", { name: x.trim() });
-        location.hash = `#/org/${R.id}`;
-      } catch {
-        ((h.disabled = !1), alert("Could not create the school. Please try again."));
-      }
-    }
+    let R = null;
+    const x = await uiPrompt({
+      title: "Create a school",
+      label: "School name",
+      autocomplete: "organization",
+      placeholder: "e.g. Lincoln High Debate Team",
+      confirm: "Create school",
+      validate: async (v) => {
+        if (!v.trim()) return "Enter a name for your school.";
+        try {
+          R = (await zt("/api/orgs", { name: v.trim() })).org;
+        } catch {
+          return "Could not create the school. Please try again.";
+        }
+      },
+    });
+    if (x != null && R) location.hash = `#/org/${R.id}`;
   });
   const photorealLive = !!s?.photoreal;
   const isChampion = !!s?.champion;
@@ -26923,7 +27660,7 @@ async function qu(i) {
           return;
         } catch {}
       }
-      alert("Could not start checkout. Please try again.");
+      okModal("Couldn’t start checkout", "Please try again.");
     }
   }
   for (const x of n.tiers) {
@@ -26943,7 +27680,7 @@ async function qu(i) {
     current || A.addEventListener("click", () => void f("subscription", x.id, A));
     _.appendChild(T);
   }
-  if (/plans=1/.test(location.hash)) setTimeout(() => p.scrollIntoView({ behavior: "smooth", block: "start" }), 150);
+  if (/plans=1/.test(location.hash)) setTimeout(() => p.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" }), 150);
   n.tiers.length === 0 &&
     (_.innerHTML =
       '<p class="text-body-sm text-slate-500 col-span-full">No subscription tiers are available right now.</p>');
@@ -26970,20 +27707,31 @@ async function qu(i) {
     <button type="button" class="btn-danger btn-sm" data-delete-account>Delete my account…</button>`;
   e.appendChild(dz);
   dz.querySelector("[data-delete-account]").addEventListener("click", async () => {
-    const ok = await uiModal({ title: "Delete your account?", body: "All your sessions, scores and history will be erased. This cannot be undone.", actions: [{ label: "Delete everything", kind: "danger", value: true }, { label: "Keep my account", value: false }] });
-    if (!ok) return;
-    const pw = prompt("Enter your password to confirm:");
-    if (!pw) return;
+    const pw = await uiPrompt({
+      title: "Delete your account?",
+      body: "All your sessions, scores and history will be erased. This cannot be undone.",
+      label: "Enter your password to confirm",
+      type: "password",
+      autocomplete: "current-password",
+      username: s?.email ?? t.email ?? "",
+      confirm: "Delete everything",
+      kind: "danger",
+      cancel: "Keep my account",
+      validate: async (v) => {
+        if (!v) return "Enter your password to confirm.";
+        try {
+          await zt("/api/auth/delete-account", { password: v });
+        } catch (err) {
+          return err instanceof Bt && err.status === 401 ? "That password didn’t match." : "Couldn’t delete the account — please email support@getadversaryai.com.";
+        }
+      },
+    });
+    if (pw == null) return;
     try {
-      await zt("/api/auth/delete-account", { password: pw });
-      try {
-        localStorage.clear();
-      } catch {}
-      location.hash = "#/signup";
-      location.reload();
-    } catch (err) {
-      alert(err instanceof Bt && err.status === 401 ? "That password didn’t match." : "Couldn’t delete the account — please email support@getadversaryai.com.");
-    }
+      localStorage.clear();
+    } catch {}
+    location.hash = "#/signup";
+    location.reload();
   });
   const S = e.querySelector("#portal-btn");
   S &&
@@ -26995,7 +27743,7 @@ async function qu(i) {
       } catch {
         ((S.disabled = !1),
           (S.textContent = "Manage billing"),
-          alert("Could not open the billing portal. Please try again."));
+          okModal("Couldn’t open the billing portal", "Please try again."));
       }
     });
 }
@@ -27024,7 +27772,7 @@ function mo(i, e) {
 async function hx(i, e) {
   const t = document.createElement("div");
   ((t.className = "w-full max-w-md animate-fade-up"),
-    i.appendChild(vr("fixed top-4 right-4 z-30 border border-ink-700 bg-ink-900/80 backdrop-blur")),
+    i.appendChild(ad()),
     i.appendChild(t),
     (t.innerHTML = `
     <div class="text-center mb-8">
@@ -27232,7 +27980,7 @@ async function ju(i, e) {
         const { url: C } = await zt(`/api/orgs/${encodeURIComponent(r.id)}/checkout`, { seats: y });
         window.location.href = C;
       } catch {
-        ((L.disabled = !1), (L.textContent = "Buy seats"), alert("Could not start checkout. Please try again."));
+        ((L.disabled = !1), (L.textContent = "Buy seats"), okModal("Couldn’t start checkout", "Please try again."));
       }
     });
     const M = x.querySelector("[data-portal]");
@@ -27245,7 +27993,7 @@ async function ju(i, e) {
         } catch {
           ((M.disabled = !1),
             (M.textContent = "Manage billing"),
-            alert("Could not open the billing portal. Please try again."));
+            okModal("Couldn’t open the billing portal", "Please try again."));
         }
       });
   }
@@ -27306,15 +28054,15 @@ async function ju(i, e) {
                   M.textContent = "Copy link";
                 }, 1500));
             } catch {
-              prompt("Copy this invite link:", R.url);
+              uiPrompt({ title: "Copy this invite link", value: R.url, readOnly: true, confirm: "Done", cancel: "" });
             }
           }),
           T.querySelector("[data-revoke]").addEventListener("click", async () => {
-            if (confirm(`Revoke invite ${R.code}?`))
+            if (await uiModal({ title: "Revoke this invite?", body: `Nobody new can join with <b>${Jt(R.code)}</b> after this.`, actions: [{ label: "Revoke invite", value: 1, kind: "danger" }, { label: "Cancel", value: null }] }))
               try {
                 (await Ac(`/api/orgs/${encodeURIComponent(r.id)}/invites/${encodeURIComponent(R.code)}`), await S());
               } catch {
-                alert("Could not revoke the invite. Please try again.");
+                okModal("Couldn’t revoke the invite", "Please try again.");
               }
           }),
           p.appendChild(T));
@@ -27331,16 +28079,14 @@ async function ju(i, e) {
         maxUses: Number(_.querySelector("#inv-uses").value) || 50,
         expiresInDays: Number(_.querySelector("#inv-days").value) || 30,
       });
+      let copied = false;
       try {
-        (await navigator.clipboard.writeText(T.url),
-          alert(`Invite link created and copied:
-${T.url}`));
-      } catch {
-        prompt("Invite link created — copy it:", T.url);
-      }
+        (await navigator.clipboard.writeText(T.url), (copied = true));
+      } catch {}
+      uiPrompt({ title: copied ? "Invite link created and copied" : "Invite link created", body: copied ? "It’s on your clipboard — share it with your students." : "Copy it and share it with your students.", value: T.url, readOnly: true, confirm: "Done", cancel: "" });
       await S();
     } catch {
-      alert("Could not create the invite. Please try again.");
+      okModal("Couldn’t create the invite", "Please try again.");
     } finally {
       R.disabled = !1;
     }
@@ -27367,11 +28113,11 @@ ${T.url}`));
         const A = T.querySelector("[data-remove]");
         (A &&
           A.addEventListener("click", async () => {
-            if (confirm(`Remove ${R.email} from ${r.name}?`))
+            if (await uiModal({ title: "Remove this member?", body: `<b>${Jt(R.email)}</b> will lose access to ${Jt(r.name)}.`, actions: [{ label: "Remove member", value: 1, kind: "danger" }, { label: "Cancel", value: null }] }))
               try {
                 (await Ac(`/api/orgs/${encodeURIComponent(r.id)}/members/${encodeURIComponent(R.id)}`), await S());
               } catch {
-                alert("Could not remove that member. Please try again.");
+                okModal("Couldn’t remove that member", "Please try again.");
               }
           }),
           f.appendChild(T));
@@ -27403,7 +28149,7 @@ const Yi = document.getElementById("app");
 th();
 function fx(i) {
   const e = document.createElement("header");
-  ((e.className = "border-b border-ink-700 bg-ink-900/80 backdrop-blur sticky top-0 z-20"),
+  ((e.className = "app-header border-b border-ink-700 bg-ink-900/80 backdrop-blur sticky top-0 z-20"),
     (e.innerHTML = `
     <div class="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between gap-2">
       <a href="#/" class="flex items-center gap-2 shrink-0">
@@ -27420,8 +28166,8 @@ function fx(i) {
       </nav>
       <div class="flex md:hidden items-center gap-1">
         <span id="theme-toggle-slot-mobile"></span>
-        <button id="menu-btn" aria-label="Open menu" class="p-2 rounded-lg text-slate-300 hover:text-white hover:bg-ink-800">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+        <button id="menu-btn" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-menu" class="inline-flex h-11 w-11 items-center justify-center rounded-lg text-slate-300 hover:text-white hover:bg-ink-800">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
         </button>
       </div>
     </div>
@@ -27481,9 +28227,7 @@ function fx(i) {
           });
         } catch {}
         document.querySelectorAll("[data-adm-btn]").forEach((x) => x.__sc && x.__sc());
-        alert(
-          "Switched to " + (nxt === "regular" ? "Regular Mode (DeepSeek-V4-Flash)" : "Premium Mode (DeepSeek-V4-Pro)"),
-        );
+        okModal("Switched to " + (nxt === "regular" ? "Regular Mode (DeepSeek-V4-Flash)" : "Premium Mode (DeepSeek-V4-Pro)"));
       });
       b.setAttribute("data-adm-btn", "1");
       b.__sc = sc;
@@ -27505,11 +28249,13 @@ function fx(i) {
     e.querySelector("#logout-btn-mobile").addEventListener("click", t));
   const n = e.querySelector("#menu-btn"),
     s = e.querySelector("#mobile-menu");
-  (n.addEventListener("click", () => {
-    const a = s.classList.toggle("hidden");
-    n.setAttribute("aria-label", a ? "Open menu" : "Close menu");
-  }),
-    s.querySelectorAll("a").forEach((a) => a.addEventListener("click", () => s.classList.add("hidden"))),
+  const setMenu = (open) => {
+    s.classList.toggle("hidden", !open);
+    n.setAttribute("aria-expanded", String(open));
+    n.setAttribute("aria-label", open ? "Close menu" : "Open menu");
+  };
+  (n.addEventListener("click", () => setMenu(s.classList.contains("hidden"))),
+    s.querySelectorAll("a").forEach((a) => a.addEventListener("click", () => setMenu(!1))),
     (Yi.innerHTML = ""),
     Yi.appendChild(e));
   const r = document.createElement("main");
@@ -27522,16 +28268,16 @@ function Jl(i) {
 }
 function renderGuestNav(child) {
   const e = document.createElement("header");
-  e.className = "border-b border-ink-700 bg-ink-900/80 backdrop-blur sticky top-0 z-20";
+  e.className = "app-header border-b border-ink-700 bg-ink-900/80 backdrop-blur sticky top-0 z-20";
   e.innerHTML = `<div class="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between gap-2">
-    <a href="#/" class="flex items-center gap-2 shrink-0">
+    <a href="#/" class="flex shrink-0 items-center gap-2" aria-label="AdversaryAI home">
       <svg width="28" height="28" viewBox="0 0 512 512" aria-hidden="true" class="shrink-0"><rect width="512" height="512" rx="112" fill="#0d0f14"/><polygon points="256,104 400,392 112,392" fill="none" stroke="#e8392e" stroke-width="34" stroke-linejoin="round"/><g fill="#e8392e"><rect x="165" y="264" width="22" height="44" rx="11"/><rect x="193" y="244" width="22" height="84" rx="11"/><rect x="221" y="226" width="22" height="120" rx="11"/><rect x="249" y="212" width="22" height="148" rx="11"/><rect x="277" y="230" width="22" height="112" rx="11"/><rect x="305" y="248" width="22" height="76" rx="11"/><rect x="333" y="266" width="22" height="40" rx="11"/></g></svg>
       <span class="font-display text-lg tracking-tight">Adversary<span class="text-accent-500">AI</span></span>
     </a>
-    <nav class="flex items-center gap-2 text-sm">
-      <a href="#/arena" class="px-3 py-1.5 rounded-lg text-accent-400 hover:text-accent-300 font-semibold flex items-center gap-1.5"><span class="text-base">🔥</span> Community Arena</a>
-      <a href="#/login" class="px-3 py-1.5 rounded-lg hover:bg-ink-800 text-slate-300 hover:text-white">Log in</a>
-      <a href="#/signup" class="inline-flex items-center justify-center px-3.5 py-2 rounded-lg bg-accent-500 hover:bg-accent-400 text-white font-semibold text-xs leading-none transition-all">Start Free Trial</a>
+    <nav class="flex shrink-0 items-center gap-1 text-sm sm:gap-2">
+      <a href="#/arena" class="hidden items-center gap-1.5 rounded-lg px-3 py-1.5 font-semibold text-accent-400 hover:text-accent-300 sm:flex"><span class="text-base" aria-hidden="true">🔥</span> Community Arena</a>
+      <a href="#/login" class="whitespace-nowrap rounded-lg px-2 py-2.5 text-slate-300 hover:bg-ink-800 hover:text-white sm:px-3">Log in</a>
+      <a href="#/signup" class="btn-primary btn-sm whitespace-nowrap px-3 text-xs sm:text-sm"><span class="min-[360px]:hidden">Try free</span><span class="max-[359px]:hidden">Start Free Trial</span></a>
     </nav>
   </div>`;
   Yi.innerHTML = "";
@@ -27555,10 +28301,15 @@ async function renderPublicWatch(container, debateId) {
       <div class="text-4xl mb-3">🔒</div>
       <h1 class="text-2xl font-bold text-white mb-2">Debate Not Available</h1>
       <p class="text-sm text-slate-400 mb-6">This debate may be private or has been removed by the author.</p>
-      <a href="#/arena" class="px-5 py-2.5 rounded-xl bg-accent-500 hover:bg-accent-400 text-white font-semibold text-sm">Browse Public Arena</a>
+      <a href="#/arena" class="btn-primary text-sm">Browse Public Arena</a>
     </div>`;
     return;
   }
+  let modeMap = new Map();
+  try {
+    modeMap = new Map((await fa()).map((m) => [m.id, m]));
+  } catch {}
+  const modeName = (m) => modeMap.get(m)?.name || (m ? m[0].toUpperCase() + m.slice(1) : "Debate");
 
   const {
     debate,
@@ -27576,6 +28327,7 @@ async function renderPublicWatch(container, debateId) {
 
   const personaName = debate.personaLabel || debate.personality || "AI Sparring Partner";
   const shareUrl = `${location.origin}/debate/${debate.id}`;
+  if (container.isConnected) document.title = `Who won? ${debate.topic || "Arena match"} · AdversaryAI`;
 
   function buildHtml() {
     const totalVotes = currentVotes.total || 0;
@@ -27598,21 +28350,21 @@ async function renderPublicWatch(container, debateId) {
         </a>
         <div class="flex items-center gap-2">
           <span class="text-xs text-slate-500 font-mono">👁️ ${debate.views || 1} views</span>
-          <button type="button" id="copy-watch-btn" class="px-2.5 py-1 rounded-lg border border-ink-700 bg-ink-800 text-slate-300 hover:text-white text-xs font-semibold">Copy Link</button>
+          <button type="button" id="copy-watch-btn" class="btn-ghost btn-sm shrink-0 whitespace-nowrap">Copy Link</button>
         </div>
       </div>
 
       <div class="rounded-3xl border border-ink-700 bg-gradient-to-b from-ink-800/90 to-ink-900/90 p-6 sm:p-8 mb-6 shadow-xl">
         <div class="flex flex-wrap items-center gap-2 mb-3">
           <span class="text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-accent-500/15 text-accent-300 border border-accent-500/30">
-            ${Vi(debate.mode || "Debate")} Arena
+            ${Vi(modeName(debate.mode))}
           </span>
           <span class="text-xs text-slate-500">Match held on ${Vi(Yl(debate.createdAt))}</span>
         </div>
         <h1 class="font-display text-2xl sm:text-3xl text-white font-bold mb-4 leading-tight">${Vi(debate.topic)}</h1>
         <div class="flex items-center gap-3 text-sm text-slate-300">
           <div class="flex items-center gap-2">
-            <span class="w-8 h-8 rounded-full bg-accent-500/20 text-accent-400 font-bold flex items-center justify-center text-xs border border-accent-500/40">YOU</span>
+            <span class="w-8 h-8 rounded-full bg-accent-500/20 text-accent-400 flex items-center justify-center border border-accent-500/40">${Dt('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>', 16)}</span>
             <span class="font-semibold text-white">Human Debater</span>
           </div>
           <span class="text-slate-500 font-bold">VS</span>
@@ -27732,7 +28484,7 @@ async function renderPublicWatch(container, debateId) {
           : ""
       }
 
-      <div class="rounded-2xl border border-ink-700 bg-ink-900 p-6 mb-6">
+      <div class="rounded-2xl border border-ink-700 bg-ink-900 p-4 sm:p-6 mb-6">
         <div class="flex items-center justify-between gap-3 mb-5 pb-4 border-b border-ink-700">
           <div>
             <h2 class="text-white font-semibold text-lg">Full Sparring Replay</h2>
@@ -27745,14 +28497,14 @@ async function renderPublicWatch(container, debateId) {
               const isUser = h.role === "user" || h.role === "you";
               return `
             <div class="flex ${isUser ? "justify-end" : "justify-start"}">
-              <div class="max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${isUser ? "bg-accent-500/15 border border-accent-500/30 text-slate-100 rounded-br-md" : "bg-ink-800 border border-ink-700 text-slate-200 rounded-bl-md"}">
+              <div class="${replayBubbleCls(isUser)}">
                 <div class="flex items-center justify-between gap-3 mb-1.5">
                   <span class="text-[11px] font-semibold uppercase tracking-wide ${isUser ? "text-accent-400" : "text-slate-400"}">
                     ${isUser ? "Human Debater" : Vi(personaName)}
                   </span>
                   ${!isUser ? `<button type="button" data-play-text="${encodeURIComponent(h.text)}" class="speak-turn-btn text-[11px] text-accent-400 hover:text-accent-300 font-semibold flex items-center gap-1 cursor-pointer">🔊 Listen</button>` : ""}
                 </div>
-                <div class="whitespace-pre-wrap">${Vi(h.text)}</div>
+                <div class="whitespace-pre-wrap break-words">${Vi(h.text)}</div>
               </div>
             </div>`;
             })
@@ -27767,10 +28519,10 @@ async function renderPublicWatch(container, debateId) {
           <p class="text-sm text-slate-300 mt-1 max-w-lg">Spar directly against ${Vi(personaName)} or any of our 11 practice modes. Real-time 3D voice lip-sync and instant coaching scores.</p>
         </div>
         <div class="flex flex-col sm:flex-row items-center gap-3 shrink-0 w-full sm:w-auto">
-          <a href="#/setup/${encodeURIComponent(debate.mode || "debate")}" class="inline-flex items-center justify-center w-full sm:w-auto px-6 py-3 rounded-xl bg-accent-500 hover:bg-accent-400 text-white font-bold text-sm shadow-lg shadow-accent-500/20 leading-none transition-all">
+          <a href="#/setup/${encodeURIComponent(debate.mode || "debate")}" class="btn-primary w-full py-3 text-sm sm:w-auto">
             Spar ${Vi(personaName)} Free
           </a>
-          <a href="#/signup" class="w-full sm:w-auto text-center px-5 py-3 rounded-xl border border-ink-700 bg-ink-800 hover:border-slate-500 text-slate-200 text-sm font-semibold">
+          <a href="#/signup" class="btn-ghost w-full py-3 text-sm sm:w-auto">
             Claim 15 Free Rounds
           </a>
         </div>
@@ -27790,7 +28542,7 @@ async function renderPublicWatch(container, debateId) {
           copyBtn.textContent = "Copy Link";
         }, 2000);
       } catch {
-        prompt("Share link:", shareUrl);
+        uiPrompt({ title: "Share this match", value: shareUrl, readOnly: true, confirm: "Done", cancel: "" });
       }
     });
   }
@@ -27813,7 +28565,7 @@ async function renderPublicWatch(container, debateId) {
         };
         window.speechSynthesis.speak(u);
       } else {
-        alert("Speech synthesis is not supported on this browser.");
+        okModal("Can’t read this aloud", "Speech isn’t supported in this browser.");
       }
     });
   });
@@ -27855,7 +28607,7 @@ async function renderPublicWatch(container, debateId) {
             });
           }
         } catch {
-          alert("Could not register vote. Please try again.");
+          okModal("Couldn’t record your vote", "Please try again.");
         } finally {
           voteGrid.querySelectorAll(".vote-action-btn").forEach((b) => {
             b.disabled = false;
@@ -27915,19 +28667,26 @@ async function renderArenaFeed(container) {
     container.innerHTML = `<div class="max-w-xl mx-auto px-4 py-16 text-center">
       <h1 class="text-2xl font-bold text-white mb-2">Couldn't Load Arena</h1>
       <p class="text-sm text-slate-400 mb-6">Check your internet connection and try again.</p>
-      <button onclick="location.reload()" class="inline-flex items-center justify-center px-5 py-2.5 rounded-xl bg-accent-500 hover:bg-accent-400 text-white font-semibold text-sm leading-none transition-all">Reload Arena</button>
+      <button type="button" id="arena-retry" class="btn-primary text-sm">Try again</button>
     </div>`;
+    container.querySelector("#arena-retry").addEventListener("click", () => renderArenaFeed(container));
     return;
   }
+  let modeMap = new Map();
+  try {
+    modeMap = new Map((await fa()).map((m) => [m.id, m]));
+  } catch {}
+  const modeName = (m) => modeMap.get(m)?.name || (m ? m[0].toUpperCase() + m.slice(1) : "Debate");
 
-  function renderGrid(debatesList) {
+  function renderGrid(debatesList, f = "all") {
     if (debatesList.length === 0) {
+      const all = f === "all";
       return `
-      <div class="text-center py-20 rounded-3xl border border-ink-700 bg-ink-900 p-8">
-        <div class="text-4xl mb-3">🏛️</div>
-        <h3 class="text-xl font-bold text-white mb-2">No Public Matches in this Category Yet</h3>
-        <p class="text-sm text-slate-400 mb-6 max-w-md mx-auto">Be the first to step into the arena and publish your sparring session for the community to watch and vote on.</p>
-        <a href="#/" class="inline-flex items-center justify-center px-6 py-3 rounded-xl bg-accent-500 hover:bg-accent-400 text-white font-bold text-sm leading-none transition-all">Start Your Match</a>
+      <div class="card px-6 py-14 text-center sm:py-16">
+        <div class="mb-3 text-4xl" aria-hidden="true">🏛️</div>
+        <h2 class="mb-2 text-xl font-bold text-white">${all ? "The Arena just opened" : "No public matches in this category yet"}</h2>
+        <p class="mx-auto mb-6 max-w-md text-sm leading-relaxed text-slate-400">${all ? "No public matches yet. Finish a practice session, then tap <b class=\"text-slate-200\">Publish to Arena</b> on your scorecard — yours will be the first one the community watches and votes on." : "Try “All matches”, or publish one of your own from your scorecard with <b class=\"text-slate-200\">Publish to Arena</b>."}</p>
+        <a href="#/" class="btn-primary">${all ? "Start a practice session" : "Start your match"}</a>
       </div>`;
     }
 
@@ -27959,7 +28718,7 @@ async function renderArenaFeed(container) {
         <div class="rounded-2xl border border-ink-700 bg-ink-900 p-6 flex flex-col justify-between hover:border-slate-500 transition-all shadow-md">
           <div>
             <div class="flex items-center justify-between gap-2 mb-3">
-              <span class="text-[11px] font-bold uppercase tracking-wider text-accent-400">${Vi(d.mode || "Debate")}</span>
+              <span class="text-[11px] font-bold uppercase tracking-wider text-accent-400">${Vi(modeName(d.mode))}</span>
               ${winnerBadge}
             </div>
             <a href="#/watch/${encodeURIComponent(d.id)}" class="block group">
@@ -27987,11 +28746,11 @@ async function renderArenaFeed(container) {
               </div>
             </div>
 
-            <div class="flex items-center justify-between gap-3 pt-2">
-              <span class="text-xs text-slate-500 font-mono">👁️ ${d.views || 0} views</span>
+            <div class="flex flex-wrap items-center justify-between gap-3 pt-2">
+              <span class="whitespace-nowrap text-xs text-slate-500 font-mono">👁️ ${d.views || 0} views</span>
               <div class="flex items-center gap-2">
-                <a href="#/setup/${encodeURIComponent(d.mode || "debate")}?topic=${encodeURIComponent(d.topic)}" class="inline-flex items-center justify-center px-3 py-2 rounded-lg border border-ink-700 bg-ink-800 hover:border-slate-500 text-xs font-semibold text-slate-300 leading-none transition-all">Spar Topic</a>
-                <a href="#/watch/${encodeURIComponent(d.id)}" class="inline-flex items-center justify-center gap-1 px-3.5 py-2 rounded-lg bg-accent-500 hover:bg-accent-400 text-white text-xs font-bold leading-none shadow-sm transition-all">Watch &amp; Vote &rarr;</a>
+                <a href="#/setup/${encodeURIComponent(d.mode || "debate")}?topic=${encodeURIComponent(d.topic)}" class="btn-ghost btn-sm whitespace-nowrap">Spar Topic</a>
+                <a href="#/watch/${encodeURIComponent(d.id)}" class="btn-primary btn-sm whitespace-nowrap">Watch &amp; Vote &rarr;</a>
               </div>
             </div>
           </div>
@@ -28011,15 +28770,19 @@ async function renderArenaFeed(container) {
           Watch real human debaters spar against relentless AI archetypes, see the AI judge's official scoring, and vote on who made the winning arguments.
         </p>
       </div>
-      <a href="#/" class="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-accent-500 hover:bg-accent-400 text-white font-bold text-sm shrink-0 self-start md:self-auto shadow-lg shadow-accent-500/20 leading-none transition-all">+ Spar a Topic Yourself</a>
+      <a href="#/" class="btn-primary shrink-0 self-start text-sm md:self-auto">+ Spar a Topic Yourself</a>
     </div>
 
-    <div class="flex flex-wrap items-center gap-2 mb-6" id="arena-filter-bar">
-      <button type="button" data-filter="all" class="inline-flex items-center justify-center px-3.5 py-2 rounded-xl text-xs font-bold border border-accent-500 bg-accent-500/10 text-white leading-none">All Matches (${feed.length})</button>
-      <button type="button" data-filter="debate" class="inline-flex items-center justify-center px-3.5 py-2 rounded-xl text-xs font-bold border border-ink-700 bg-ink-900 text-slate-300 hover:border-slate-500 leading-none">Debate & Worldviews</button>
-      <button type="button" data-filter="historical" class="inline-flex items-center justify-center px-3.5 py-2 rounded-xl text-xs font-bold border border-ink-700 bg-ink-900 text-slate-300 hover:border-slate-500 leading-none">Historical Figures</button>
-      <button type="button" data-filter="sales" class="inline-flex items-center justify-center px-3.5 py-2 rounded-xl text-xs font-bold border border-ink-700 bg-ink-900 text-slate-300 hover:border-slate-500 leading-none">Negotiation & Sales</button>
-    </div>
+    ${
+      feed.length
+        ? `<div class="flex flex-wrap items-center gap-2 mb-6" id="arena-filter-bar">
+      <button type="button" data-filter="all" class="pill-chip" aria-pressed="true">All matches (${feed.length})</button>
+      <button type="button" data-filter="debate" class="pill-chip" aria-pressed="false">Debate &amp; Worldviews</button>
+      <button type="button" data-filter="historical" class="pill-chip" aria-pressed="false">Historical Figures</button>
+      <button type="button" data-filter="sales" class="pill-chip" aria-pressed="false">Negotiation &amp; Sales</button>
+    </div>`
+        : ""
+    }
 
     <div id="arena-feed-grid">
       ${renderGrid(feed)}
@@ -28031,16 +28794,11 @@ async function renderArenaFeed(container) {
   if (filterBar && feedGrid) {
     filterBar.querySelectorAll("button").forEach((b) => {
       b.addEventListener("click", () => {
-        filterBar.querySelectorAll("button").forEach((o) => {
-          o.className =
-            "inline-flex items-center justify-center px-3.5 py-2 rounded-xl text-xs font-bold border border-ink-700 bg-ink-900 text-slate-300 hover:border-slate-500 leading-none";
-        });
-        b.className =
-          "inline-flex items-center justify-center px-3.5 py-2 rounded-xl text-xs font-bold border border-accent-500 bg-accent-500/10 text-white leading-none";
+        filterBar.querySelectorAll("button").forEach((o) => o.setAttribute("aria-pressed", String(o === b)));
         const f = b.getAttribute("data-filter");
         const groups = { debate: ["debate", "rapbattle"], historical: ["historical"], sales: ["sales", "negotiation"] };
         const filtered = f === "all" ? feed : feed.filter((d) => (groups[f] || [f]).includes(d.mode));
-        feedGrid.innerHTML = renderGrid(filtered);
+        feedGrid.innerHTML = renderGrid(filtered, f);
       });
     });
   }
@@ -28053,6 +28811,11 @@ async function Yu() {
     e = i.split("?")[0].replace(/\/+$/, "") || "/",
     n = (await da()) !== null,
     s = e.match(/^\/join\/([A-Za-z0-9]+)$/);
+  // Reset every navigation so one route's title never sticks; pages with data (setup, watch) refine it.
+  const pageTitle =
+    { "/login": "Log in", "/signup": "Sign up", "/history": "History", "/account": "Account", "/arena": "Community Arena" }[e] ||
+    [[/^\/setup\//, "Set up a session"], [/^\/session\//, "Session"], [/^\/watch\//, "Arena match"], [/^\/org\//, "School"], [/^\/join\//, "Join a school"]].find(([re]) => re.test(e))?.[1];
+  document.title = pageTitle ? `${pageTitle} · AdversaryAI` : "AdversaryAI — Practice against anyone";
   if (s) {
     const d = document.createElement("div");
     (Jl(d), await hx(d, s[1].toUpperCase()));
@@ -28114,17 +28877,22 @@ async function Yu() {
       const d = a[e];
       d
         ? await d()
-        : (r.innerHTML = `<div class="max-w-2xl mx-auto px-4 py-16 text-center text-slate-400">
+        : ((document.title = "Page not found · AdversaryAI"),
+          (r.innerHTML = `<div class="max-w-2xl mx-auto px-4 py-16 text-center text-slate-400">
           <h1 class="text-3xl font-display text-white mb-3">Page not found</h1>
           <p class="mb-6">That corner of the arena doesn't exist.</p>
-          <a href="#/" class="text-accent-400 hover:underline">Back to practice</a>
-        </div>`);
+          <a href="#/" class="btn-primary">Back to practice</a>
+        </div>`));
     }
   } catch (d) {
-    r.innerHTML = `<div class="max-w-2xl mx-auto px-4 py-16 text-center text-slate-400">
-      <h1 class="text-2xl text-white mb-3">Something went wrong</h1>
-      <p>${d instanceof Error ? d.message : "Unknown error"}</p>
-    </div>`;
+    // Pages handle their own network errors, so this is an unexpected bug: log it, don't show it.
+    console.error("route render failed", d);
+    document.title = "Something went wrong · AdversaryAI";
+    const back = document.createElement("a");
+    back.href = "#/";
+    back.className = "link -mt-8 block pb-10 text-center text-sm";
+    back.textContent = "Back to practice";
+    r.replaceChildren(id("This page hit an unexpected error. Try again, or head back to practice.", () => Yu().catch(() => {})), back);
   }
 }
 window.addEventListener("hashchange", () => {

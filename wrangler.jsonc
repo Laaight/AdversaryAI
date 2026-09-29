@@ -35,5 +35,7 @@
     "AZURE_SPEECH_HD_REGION": "westus2"
   },
   // Keep variables added in the Cloudflare dashboard when deploying from GitHub.
-  "keep_vars": true
+  "keep_vars": true,
+  // Workers Logs. Must live here: a deploy without this key switches logging back off.
+  "observability": { "enabled": true }
 }

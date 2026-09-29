@@ -70,13 +70,37 @@ export class PhotorealAvatar {
     this.video.className = "photoreal-video";
     stage.appendChild(this.video);
     this.idleTimer = setInterval(() => {
-      if (this.ready && !this.talking && voice.state === "idle" && Date.now() - this.lastActivity > IDLE_MS) this.sleep();
+      if (!this.ready || this.talking || voice.state !== "idle") return;
+      // Idle for a while, or close to LiveAvatar's per-session cap: close between replies so
+      // the cap can't cut the video mid-sentence. The next touch() opens a fresh session.
+      if (Date.now() - this.lastActivity > IDLE_MS || this._expiring(90000)) this.sleep();
     }, 10000);
+    // Backgrounded (phone locked, app switched): stop paying for video nobody is watching,
+    // after a grace period so a quick tab switch doesn't tear it down.
+    this.onVis = () => {
+      clearTimeout(this.hiddenT);
+      if (document.visibilityState !== "hidden") return;
+      const check = () => {
+        if (document.visibilityState !== "hidden" || !this.ready) return;
+        if (!this.talking && voice.state === "idle") this.sleep();
+        else this.hiddenT = setTimeout(check, 10000);
+      };
+      this.hiddenT = setTimeout(check, 60000);
+    };
+    document.addEventListener("visibilitychange", this.onVis);
+  }
+
+  // Near the session cap, and a fresh session could actually run longer (when it's the user's
+  // last minutes that set the cap, reopening would only give a shorter one).
+  _expiring(ms) {
+    return !!this.expiresAt && this.expiresAt - Date.now() < ms && (this.remaining ?? 0) > 120;
   }
 
   /** Something is about to happen (user typing/sending) — keep or reopen the stream. */
   touch() {
     this.lastActivity = Date.now();
+    // A reply is coming and this session is about to hit its cap: reopen now, not mid-reply.
+    if (this.ready && this._expiring(60000) && !this.talking && voice.state === "idle") this.sleep();
     if (!this.ready && !this.starting && !this.disposed && !this.exhausted) this.start().catch(() => {});
   }
 
@@ -116,6 +140,12 @@ export class PhotorealAvatar {
 
   async _start() {
     this.onStatus({ state: "connecting" });
+    // One-session plans: let the previous session's stop land before asking for a new one.
+    if (this.stopping) {
+      await Promise.race([this.stopping, new Promise((r) => setTimeout(r, 3000))]);
+      this.stopping = null;
+    }
+    const t0 = Date.now();
     const r = await fetch("/api/avatar/session", {
       method: "POST",
       credentials: "include",
@@ -129,6 +159,8 @@ export class PhotorealAvatar {
     this.sessionId = s.sessionId;
     this.api = s.apiUrl;
     this.remaining = s.remainingSeconds;
+    // LiveAvatar ends the session at maxSeconds (counted from before our request, to be safe).
+    this.expiresAt = s.maxSeconds ? t0 + s.maxSeconds * 1000 - 5000 : 0;
     // The server starts the session (so it can see billing errors); older servers didn't.
     const info = s.start?.livekit_url ? s.start : await this._api("/v1/sessions/start");
     this.remoteStarted = true;
@@ -311,7 +343,9 @@ export class PhotorealAvatar {
       const j = await r.json();
       this.remaining = j.remainingSeconds;
       this.onStatus({ state: "live", remainingSeconds: j.remainingSeconds });
-      if (j.stop) {
+      // This session's full length was charged when it opened, so "no minutes left" can't mean
+      // stop now — only that the next session won't open. Honor it once this one is over.
+      if (j.stop && !(this.expiresAt && Date.now() < this.expiresAt)) {
         this.exhausted = true;
         this.sleep();
         this.onStatus({ state: "error", error: "video_minutes_exhausted" });
@@ -360,16 +394,21 @@ export class PhotorealAvatar {
       this.video.srcObject = null;
     } catch {}
     if (notifyServer && wasLive && this.token) {
-      fetch(`${this.api}/v1/sessions/stop`, { method: "POST", keepalive: true, headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" } }).catch(() => {});
-      fetch("/api/avatar/end", { method: "POST", keepalive: true, credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sessionId: this.sessionId }) }).catch(() => {});
+      this.stopping = Promise.allSettled([
+        fetch(`${this.api}/v1/sessions/stop`, { method: "POST", keepalive: true, headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" } }),
+        fetch("/api/avatar/end", { method: "POST", keepalive: true, credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sessionId: this.sessionId }) }),
+      ]);
     }
     this.token = null;
+    this.expiresAt = 0;
   }
 
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
     clearInterval(this.idleTimer);
+    clearTimeout(this.hiddenT);
+    document.removeEventListener("visibilitychange", this.onVis);
     this._teardown(true);
     this.video.remove();
   }
