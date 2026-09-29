@@ -752,18 +752,57 @@ function buildScene(THREE, createHumanAvatar, GLTFLoader, RoomEnvironment, canva
 
 /* ================= boot ================= */
 /* Champion teaser: stills of the photoreal actors cast for the three demo personas. Each image
-   is served (and edge-cached) by the worker; the strip stays hidden unless at least one loads. */
+   is served (and edge-cached) by the worker; nothing shows unless the photos load. The 3D |
+   Photoreal switch swaps the demo frame to the selected persona's actor. */
+var CAST_LOOK = { prosecutor: 'man-pro', contrarian: 'woman-pro', coach: 'woman-casual' };
 function showPhotorealCast() {
   var box = document.getElementById('photorealCast');
+  var frame = document.getElementById('avatarFrame');
+  var still = document.getElementById('photorealStill');
+  var view = document.getElementById('demoView');
+  var tabs = document.getElementById('demoPersonaTabs');
   if (!box) return;
+  var loaded = {};
+  var photo = false;
+  function paint() {
+    var look = CAST_LOOK[demoPersonaId];
+    var on = photo && !!loaded[look];
+    if (frame) frame.classList.toggle('show-photo', on);
+    if (still && on) {
+      still.src = '/api/public/cast/' + look;
+      still.alt = DEMO_PERSONAS[demoPersonaId].label + ' as a photoreal video opponent';
+    }
+    if (view) view.querySelectorAll('[data-demo-view]').forEach(function (b) {
+      b.setAttribute('aria-pressed', String((b.getAttribute('data-demo-view') === 'photo') === photo));
+    });
+  }
   box.querySelectorAll('img[data-cast]').forEach(function (img) {
     img.hidden = true;
     img.onload = function () {
+      loaded[img.getAttribute('data-cast')] = true;
       img.hidden = false;
       box.hidden = false;
+      if (view) view.hidden = false;
+      paint();
     };
     img.onerror = function () { img.remove(); };
     img.src = '/api/public/cast/' + img.getAttribute('data-cast');
+  });
+  if (view) view.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-demo-view]');
+    if (!b) return;
+    photo = b.getAttribute('data-demo-view') === 'photo';
+    paint();
+  });
+  /* The persona tabs keep working in photo view (their own handlers update demoPersonaId first). */
+  if (tabs) tabs.addEventListener('click', function (e) {
+    if (e.target.closest('[data-demo-persona]')) setTimeout(paint, 0);
+  });
+  box.addEventListener('click', function (e) {
+    e.preventDefault();
+    photo = true;
+    paint();
+    if (frame) frame.scrollIntoView({ behavior: 'smooth', block: 'center' });
   });
 }
 
