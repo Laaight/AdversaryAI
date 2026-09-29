@@ -5484,20 +5484,24 @@ var publicRouter = new Hono2();
 // own avatars). Proxied so expiring catalog URLs don't matter, and edge-cached for a day.
 publicRouter.get("/cast/:look", async (c) => {
   const look = c.req.param("look");
-  const miss = /* @__PURE__ */ __name(() => new Response(null, { status: 404, headers: { "Cache-Control": "public, max-age=600" } }), "miss");
-  if (!AVATAR_VISUAL_KEYS.includes(look) || !c.env.LIVEAVATAR_API_KEY) return miss();
+  // The reason header says which step came up empty (no user data in it).
+  const miss = /* @__PURE__ */ __name((why) => new Response(null, { status: 404, headers: { "Cache-Control": "public, max-age=600", "X-Cast-Miss": why } }), "miss");
+  if (!AVATAR_VISUAL_KEYS.includes(look)) return miss("look");
+  if (!c.env.LIVEAVATAR_API_KEY) return miss("off");
   const cache = typeof caches !== "undefined" ? caches.default : null;
   const key = new Request(new URL(c.req.url).toString());
   const hit = await cache?.match(key).catch(() => null);
   if (hit) return hit;
   const id = avatarIdFor(await getAvatarMap(c.env.DB), look);
-  if (!id) return miss();
+  if (!id) return miss("unmapped");
   const cat = await fetchAvatarCatalog(c.env, c.env.DB).catch(() => []);
   const actor = cat.find((a) => a.id === id);
-  if (!actor || actor.own || !/^https:\/\//.test(actor.image || "")) return miss();
+  if (!actor) return miss(cat.length ? "not-in-catalog" : "no-catalog");
+  if (actor.own) return miss("own");
+  if (!/^https:\/\//.test(actor.image || "")) return miss("no-image");
   const img = await fetch(actor.image).catch(() => null);
   const type = img?.headers.get("content-type") || "";
-  if (!img?.ok || !type.startsWith("image/")) return miss();
+  if (!img?.ok || !type.startsWith("image/")) return miss(`fetch-${img?.status ?? "err"}`);
   const res = new Response(img.body, { headers: { "Content-Type": type, "Cache-Control": "public, max-age=86400" } });
   if (cache) {
     const put = cache.put(key, res.clone()).catch(() => {});
