@@ -23,3 +23,9 @@ Desktop.ini
 
 # local transfer artifacts
 *.bundle
+
+# Build output copied from node_modules by scripts/build.mjs
+frontend/dist/app/vendor/
+
+# Local Claude Code config
+.claude/
