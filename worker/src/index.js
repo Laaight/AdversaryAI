@@ -3845,6 +3845,11 @@ var INTERVIEW_LEVEL_GUIDE = {
   mid: "This is a mid-level professional role. Ask about real past work, decisions, results and how they work with others. Expect specific examples, and follow up when they stay vague.",
   senior: "This is a senior or leadership role. Be rigorous: probe judgment, scope, tradeoffs, results with numbers, and how they lead. Push back on vague or inflated answers."
 };
+var INTERVIEW_TYPE_GUIDE = {
+  behavioral: "INTERVIEW TYPE: behavioral. After a short opener (tell me about yourself and why this role), draw your questions from what real interviewers ask: a time they handled a difficult customer or coworker, a time they made a mistake and what they did, a time they worked under pressure or a tight deadline, a time they learned something quickly, a time they went beyond what was asked, and why they want this job and what they are looking for. Adapt each to the role.",
+  technical: "INTERVIEW TYPE: technical or case-based. After a short opener, ask realistic problems and scenarios for this role (a practical task they would do on the job, a situation to reason through out loud, how they would approach an unfamiliar problem), and ask how they think and check their work, not for trivia.",
+  panel: "INTERVIEW TYPE: panel. You are one of several interviewers; you may briefly say which colleague is asking, and vary the angle between questions: the hiring manager on results and fit, a peer on how they work with others, and someone from another team on communication. Still ask one question per message."
+};
 var INTERVIEW_LEVEL_SCORING = {
   entry: "This is an entry-level or hourly role, so judge the candidate by what matters for it: reliability, honesty, communication and willingness to learn. Do not penalize a lack of corporate polish or technical depth the job does not need.",
   mid: "This is a mid-level professional role, so expect concrete examples and solid structure.",
@@ -3971,8 +3976,12 @@ var MODES = {
 
 ${INTERVIEW_LEVEL_GUIDE[interviewLevel(setup)]}
 
-Your real job is to decide whether to hire this person. Listen for evidence, follow up when an answer is vague, but move on once you have what you need instead of grinding on one topic. When the interview is over you will be told, and you must then state your decision plainly: either an offer or that you are not moving forward, with the main reason. Never leave the candidate without a decision.`, "systemPrompt"),
-    scoringPrompt: /* @__PURE__ */ __name((setup = {}) => `You are a hiring manager reviewing a mock interview transcript for the role of ${setup.jobTitle || "the position"}. ${INTERVIEW_LEVEL_SCORING[interviewLevel(setup)]} Score the candidate 1-10 on clarity, relevance, confidence, and structure. The score must agree with how the interview ended: if the interviewer offered the job, the overall score should normally be 6 or higher; if the interviewer declined, normally 5 or lower; if no decision was reached, judge the answers alone. Return strict JSON {"dimensions": {"Clarity": <1-10>, "Relevance": <1-10>, "Confidence": <1-10>, "Structure": <1-10>}, "overall": <1-10>, "notes": "<start with Verdict: Offered the job. or Verdict: Not offered the job. or Verdict: No decision reached. and then 2-3 sentences of feedback>"}`, "scoringPrompt"),
+${INTERVIEW_TYPE_GUIDE[setup.interviewType] || INTERVIEW_TYPE_GUIDE.behavioral}
+
+HOW TO USE THE TIME: every question the candidate answers is a paid practice round, so each one must be a question a real interviewer for this role would actually ask, and each must be different from the last. Never repeat a topic, never ask trivia, and ask at most one follow-up on any topic before moving on. Follow the natural arc of a real interview: a short opener, then the core questions, then you invite the candidate's own questions, then you decide. You will be told when to invite their questions and when the interview is over.
+
+Your real job is to decide whether to hire this person. Listen for evidence, and when the interview is over state your decision plainly: either an offer or that you are not moving forward, with the main reason. Never leave the candidate without a decision.`, "systemPrompt"),
+    scoringPrompt: /* @__PURE__ */ __name((setup = {}) => `You are a hiring manager reviewing a mock interview transcript for the role of ${setup.jobTitle || "the position"}. ${INTERVIEW_LEVEL_SCORING[interviewLevel(setup)]} Score the candidate 1-10 on clarity, relevance, confidence, and structure. The score must agree with how the interview ended: if the interviewer offered the job, the overall score should normally be 6 or higher; if the interviewer declined, normally 5 or lower; if no decision was reached, judge the answers alone. If the interviewer invited the candidate's questions, judge those as well: specific, thoughtful questions about the role, the team or how success is measured raise the score, while no questions, generic ones, or only questions about pay and time off lower it. Mention this in the notes. Return strict JSON {"dimensions": {"Clarity": <1-10>, "Relevance": <1-10>, "Confidence": <1-10>, "Structure": <1-10>}, "overall": <1-10>, "notes": "<start with Verdict: Offered the job. or Verdict: Not offered the job. or Verdict: No decision reached. and then 2-3 sentences of feedback>"}`, "scoringPrompt"),
     scoringDimensions: ["Clarity", "Relevance", "Confidence", "Structure"],
     introCopy: "Tell me the role and interview type. I\u2019ll ask the questions \u2014 you bring the answers."
   },
@@ -4710,11 +4719,16 @@ function buildTurnPrompt(debate, mode, setup, transcript, isOpening, curRound, t
   const finalTurn = forceClosing || (targetRounds > 0 && curRound >= targetRounds);
   if (isOpening) return buildDebateTurnPrompt(debate, mode, setup, transcript, true, curRound, targetRounds, false, debateStyle);
   if (debate.mode === "interview") {
+    // A round is one answer. On a 5+ round interview the second-to-last question hands the floor to
+    // the candidate, as real interviews do; the last reply answers them and decides.
+    const inviteQuestions = targetRounds >= 5 && curRound === targetRounds - 1;
     const nowPart = finalTurn
-      ? `\n\nTHE INTERVIEW IS OVER (question ${curRound} of ${targetRounds || curRound}). Respond briefly to their last answer, then give your hiring decision plainly in one or two sentences: either that you are offering them the job, or that you are not moving forward, with the main reason tied to what they said and to the level of the role. Then say a short goodbye. Do not ask another question and do not discuss pay, schedule or other logistics.`
-      : targetRounds > 0
-        ? `\n\n(Question ${curRound} of ${targetRounds}. Keep track of whether you would hire them, but do not announce a decision yet.)`
-        : "";
+      ? `\n\nTHE INTERVIEW IS OVER (question ${curRound} of ${targetRounds || curRound}). If their last message asked you questions, answer them briefly and honestly first, the way a hiring manager would; otherwise respond briefly to their last answer. Then give your hiring decision plainly in one or two sentences: either that you are offering them the job, or that you are not moving forward, with the main reason tied to what they said and to the level of the role. Let the quality of their questions count too. Then say a short goodbye. Do not ask another question and do not discuss pay, schedule or other logistics unless they asked.`
+      : inviteQuestions
+        ? `\n\n(Question ${curRound} of ${targetRounds}.) Respond very briefly to their last answer, then, as a real interviewer does near the end, ask whether they have any questions for you about the role, the team or the company. Ask only that. Do not announce a decision yet.`
+        : targetRounds > 0
+          ? `\n\n(Question ${curRound} of ${targetRounds}. Ask your next question, a different one from any before. Keep track of whether you would hire them, but do not announce a decision yet.)`
+          : "";
     const ri = turnRoles(debate, mode, setup);
     return `Session transcript:\n\n${transcript}\n\nRespond to the user's latest message in character as ${ri.ai} (the user is ${ri.human}). Write only ${ri.ai}'s next line.${nowPart}`;
   }
@@ -4746,7 +4760,7 @@ State your opening position clearly, provocatively, and concisely under 100 word
 State your side's resolution with confidence, lay out 2-3 foundational pillars supported by reasoning, and set the terms of the debate. Keep under 140 words, articulate and intellectually formidable.`;
       }
     } else if (debate.mode === "interview") {
-      return `You are the hiring manager conducting an interview for ${setup.jobTitle || "the position"}${setup.company ? ` at ${setup.company}` : ""}. Welcome the candidate and deliver your opening question. Keep under 80 words.`;
+      return `You are the hiring manager conducting an interview for ${setup.jobTitle || "the position"}${setup.company ? ` at ${setup.company}` : ""}. Welcome the candidate warmly in a sentence, then ask a realistic opening question such as asking them to tell you a little about themselves and what drew them to this role. Keep under 80 words.`;
     } else if (debate.mode === "thesis") {
       return `The thesis defense is convened on: "${setup.thesisStatement}". As committee chair, welcome the candidate and deliver the committee's opening challenge/question. Keep under 80 words.`;
     } else if (debate.mode === "expert") {
