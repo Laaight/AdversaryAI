@@ -595,10 +595,27 @@ export async function getSpeechToken(hd = false) {
 function escXml(s) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
 }
+// Rap: each bar is its own beat. A short pause between bars, a longer one after every fourth, and a
+// little stress (slower, higher, louder) on the last word of each bar so the rhymes land.
+function rapBody(text) {
+  const lines = text.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+  const body = lines
+    .map((line, i) => {
+      const m = line.match(/^(.*?)([^\s]+?)([^\w']*)$/);
+      const spoken = m
+        ? `${escXml(m[1])}<prosody rate="-12%" pitch="+6%" volume="+12%">${escXml(m[2])}</prosody>${escXml(m[3])}`
+        : escXml(line);
+      return i === lines.length - 1 ? spoken : `${spoken}<break time="${(i + 1) % 4 === 0 ? 420 : 190}ms"/>`;
+    })
+    .join(" ");
+  return `<prosody rate="+6%">${body}</prosody>`;
+}
 export function buildSsml(text, v) {
+  const rapped = v.rap && !v.hd; // HD voices take less SSML; they keep the plain text
+  const plain = rapped ? rapBody(text) : escXml(text);
   const inner = v.style && !v.hd
-    ? `<mstts:express-as style="${v.style}"${v.styleDegree ? ` styledegree="${v.styleDegree}"` : ""}>${escXml(text)}</mstts:express-as>`
-    : escXml(text);
+    ? `<mstts:express-as style="${v.style}"${v.styleDegree ? ` styledegree="${v.styleDegree}"` : ""}>${plain}</mstts:express-as>`
+    : plain;
   return `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="en-US"><voice name="${v.voice}">${inner}</voice></speak>`;
 }
 
@@ -660,7 +677,41 @@ export function createStreamingSpeaker({ voiceCfg, onFallback, transform = (x) =
   let cancelled = false;
   let first = true;
 
+  let rapChunks = 0;
   const splitSentences = (force) => {
+    if (voiceCfg.rap) {
+      // Bars, not sentences: speak a quatrain at a time (two bars first, so the beat starts fast) so
+      // each chunk carries its own rhythm.
+      const need = rapChunks === 0 ? 2 : 4;
+      let pos = 0,
+        count = 0,
+        cutAt = 0;
+      for (;;) {
+        const nl = buffer.indexOf("\n", pos);
+        if (nl === -1) break;
+        if (buffer.slice(pos, nl).trim()) count++;
+        pos = nl + 1;
+        if (count >= need) {
+          queue.push({ text: buffer.slice(cutAt, pos).trim(), offset: consumed + cutAt });
+          cutAt = pos;
+          count = 0;
+          rapChunks++;
+          break;
+        }
+      }
+      if (cutAt) {
+        buffer = buffer.slice(cutAt);
+        consumed += cutAt;
+        return splitSentences(force);
+      }
+      if (force && buffer.trim()) {
+        queue.push({ text: buffer.trim(), offset: consumed });
+        consumed += buffer.length;
+        buffer = "";
+      }
+      // No line breaks at all in a long stretch: fall back to sentences so speech still starts.
+      if (buffer.length <= 260 || buffer.includes("\n")) return;
+    }
     const re = /[.!?…]+["'”’)\]]*\s+/g;
     let m,
       cut = 0;

@@ -4144,9 +4144,23 @@ Your real job is to decide whether to hire this person. Listen for evidence, and
         label: "Your opponent's MC name",
         type: "text",
         placeholder: "e.g. Verse Vice (leave blank and I\u2019ll pick one)"
+      },
+      {
+        key: "aboutYou",
+        label: "About you (the MC will roast you with this)",
+        type: "textarea",
+        placeholder: "e.g. I'm a nurse from Ohio, obsessed with fantasy football, still live with my two cats (optional)"
       }
     ],
-    systemPrompt: /* @__PURE__ */ __name((setup) => `You are ${setup.mcName || "Verse Vice"}, a battle MC, in a friendly rap battle against the user${setup.theme ? ` on the theme: ${setup.theme}` : ""}. Trade bars: answer their last verse with clever rebuttals, sharp wordplay, and total confidence. Write 8-12 bars, one bar per line, six to ten words each, end-rhymed in couplets so it lands when read aloud, with at least one internal or multisyllabic rhyme per verse. Every verse must quote or flip a specific line from the user's last verse and land one clear punchline. Never reuse a rhyme pair or an insult you already used. First round: set up your persona and the theme. Middle rounds: escalate. Final round: closing bars ending on a mic-drop tag line, then one gracious line of respect to your rival. STRICT RULE: absolutely no profanity, slurs, or vulgar language, not even masked with symbols, and if the user swears do not echo it. Roast only bars, wit and flow, never family, looks, real trauma or protected traits. Never describe your own rapping or break character to explain or lecture.`, "systemPrompt"),
+    systemPrompt: /* @__PURE__ */ __name((setup) => `You are ${setup.mcName || "Verse Vice"}, a battle MC, in a friendly rap battle against the user${setup.theme ? ` on the theme: ${setup.theme}` : ""}.${setup.aboutYou ? ` About the user, to roast them playfully and specifically: ${setup.aboutYou}` : ""}
+
+OUTPUT: only the bars of your verse, one bar per line. No introduction, no crowd noises, no asterisks, no stage directions, no speaker labels, no explanation, and never describe your own rapping.
+
+${RAP_DIFFICULTY[["easy", "hard"].includes(setup.difficulty) ? setup.difficulty : "normal"]}
+
+CONTENT: answer the user's last verse by quoting or flipping one of their actual lines. Build punchlines from real history, celebrities, pop culture and recent news that a crowd would recognize, used as comparisons and metaphors. Stick to widely known public facts, never invent facts about real people, never accuse a real person of a crime, and never insult a real person's family, looks, health or identity; the targets are the user's bars, style and their own details. Never reuse a rhyme pair or an insult you already used. First round: set up your persona and the theme. Middle rounds: escalate. Final round: closing bars ending on a mic-drop tag line, then one gracious line of respect to your rival.
+
+STRICT RULE: absolutely no profanity, slurs or vulgar language, not even masked with symbols, and if the user swears do not echo it. Roast only bars, wit and flow, never family, looks, real trauma or protected traits.`, "systemPrompt"),
     scoringPrompt: /* @__PURE__ */ __name((setup = {}) => `You are a rap-battle judge reviewing a battle transcript${setup.theme ? ` on the theme "${setup.theme}"` : ""}. ${STT_NOTE} Infer flow from rhyme placement and line length. Score the user 1-10 on Flow (rhythm and rhyme density; a verse with no rhymes is at most 3), Wordplay (punchlines, metaphors, multisyllabic rhymes), Rebuttals (did they flip or answer the opponent's actual bars, with specific callbacks), and Presence (confidence, theme and originality). Do not favor a polished verse over a rough one from the human. Return strict JSON {"dimensions": {"Flow": <1-10>, "Wordplay": <1-10>, "Rebuttals": <1-10>, "Presence": <1-10>}, "overall": <1-10>, "notes": "<2-3 sentences of feedback that quote their best bar>"}`, "scoringPrompt"),
     scoringDimensions: ["Flow", "Wordplay", "Rebuttals", "Presence"],
     introCopy: "Step to the mic. Eight bars minimum \u2014 keep it clean, keep it clever, and come harder than Verse Vice."
@@ -4551,6 +4565,16 @@ function roleLock(debate, mode, setup) {
 __name(roleLock, "roleLock");
 __name(formatTranscript, "formatTranscript");
 var PROFANITY_PATTERN = /\b(?:\w*(?:f+u+c+k+|s+h+i+t+)\w*|(?:b+i+t+c+h+|d+a+m+n+|d+i+c+k+|p+u+s+s+y+|c+u+n+t+|w+h+o+r+e+|s+l+u+t+|b+o+o+b+|p+e+n+i+s+|c+l+i+t+)(?:e+s|s|y|ed|ing|er|ers)?|t+i+t+s+|a+s+s+(?:h+o+l+e+s?|e+s)?|n+i+g+g+\w*|f+a+g+(?:g+o+t+s?)?|v+a+g+i+n+a+|o+r+g+a+s+m+|m+a+s+t+u+r+b+a+t+\w*|p+o+r+n+\w*|h+e+n+t+a+i+|r+a+p+i+s+t+s?|m+o+l+e+s+t+\w*)\b/gi;
+// Rap replies are bars only: no *crowd cheers*, (pauses) or [intro] lines.
+function stripStageDirections(text) {
+  return String(text || "")
+    .replace(/\*[^*\n]{0,120}\*/g, "")
+    .replace(/\([^()\n]{0,120}\)/g, "")
+    .replace(/\[[^\]\n]{0,120}\]/g, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
 function maskProfanity(text) {
   PROFANITY_PATTERN.lastIndex = 0;
   return text.replace(PROFANITY_PATTERN, "****");
@@ -4642,6 +4666,11 @@ __name(parseScores, "parseScores");
 var SCORE_HUMAN_ONLY = `
 
 WHO YOU ARE SCORING: only the turns labeled "HUMAN". The "AI OPPONENT" turns are context for judging how well the human responded — never give the human credit for the opponent's arguments, and never score the opponent. Score what the human actually said: short, off-topic, insulting, or content-free turns earn low scores (1-3) no matter how strong the opponent was. Write "notes" to the human in second person ("you").`;
+var RAP_DIFFICULTY = {
+  easy: "LEVEL: EASY. Write 8 bars of six to eight words each, in simple AABB couplets with clear end rhymes, one or two easy similes, and friendly jokes that stay close to the theme. Be a gracious, beatable opponent.",
+  normal: "LEVEL: NORMAL. Write 8 to 12 bars of six to ten words each, in couplets with at least two multisyllabic rhymes (like motivation and hesitation), one metaphor, one simile, one real-world or pop-culture reference, and a callback to the user's last verse.",
+  hard: "LEVEL: HARD. Write 12 to 16 bars, each end-rhymed and loaded. Chain multisyllabic rhymes across several lines, put internal rhymes in most bars, vary the scheme (an AABB stretch, then ABAB or a four-bar rhyme chain), carry one extended metaphor over four bars, use at least two similes, build punchlines on real history, celebrities, culture or recent news, layer double meanings, and flip the user's exact words back at them. Show no mercy on weak bars."
+};
 var STT_NOTE = "The transcript is speech-to-text: ignore line breaks, spelling and punctuation.";
 // Appended after SCORE_HUMAN_ONLY: calibrated scores and real coaching instead of generic praise.
 var COACH_ADDENDUM = `
@@ -5275,6 +5304,7 @@ debateRouter.post("/turn-stream", async (c) => {
       full = full.trim();
       if (!full) throw new Error("Debate model returned an empty response");
       if (mode.clean) full = maskProfanity(full);
+      if (debate.mode === "rapbattle") full = stripStageDirections(full) || full;
       await c.env.DB.prepare("INSERT INTO turns (debate_id, role, text, created_at) VALUES (?, ?, ?, ?)").bind(debateId, "assistant", full, nowIso()).run();
       let tts = { audioBase64: null, timings: [], timingsEstimated: true };
       let audioFailed = false;

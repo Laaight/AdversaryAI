@@ -25690,7 +25690,9 @@ function ix(root, debateId, t, data) {
   // Same pattern the worker uses (maskProfanity). Applied to whole sentences before
   // synthesis so words split across stream tokens are still caught.
   const PROFANITY = /\b(?:\w*(?:f+u+c+k+|s+h+i+t+)\w*|(?:b+i+t+c+h+|d+a+m+n+|d+i+c+k+|p+u+s+s+y+|c+u+n+t+|w+h+o+r+e+|s+l+u+t+|b+o+o+b+|p+e+n+i+s+|c+l+i+t+)(?:e+s|s|y|ed|ing|er|ers)?|t+i+t+s+|a+s+s+(?:h+o+l+e+s?|e+s)?|n+i+g+g+\w*|f+a+g+(?:g+o+t+s?)?|v+a+g+i+n+a+|o+r+g+a+s+m+|m+a+s+t+u+r+b+a+t+\w*|p+o+r+n+\w*|h+e+n+t+a+i+|r+a+p+i+s+t+s?|m+o+l+e+s+t+\w*)\b/gi;
-  const maskRap = (x) => (t.modeId === "rapbattle" ? x.replace(PROFANITY, "****") : x);
+  // Rap is bars only: drop *crowd cheers*, (pauses) and [intro] lines, and mask any profanity.
+  const stripStage = (x) => x.replace(/\*[^*\n]{0,120}\*/g, "").replace(/\([^()\n]{0,120}\)/g, "").replace(/\[[^\]\n]{0,120}\]/g, "");
+  const maskRap = (x) => (t.modeId === "rapbattle" ? stripStage(x).replace(PROFANITY, "****") : x);
   // Acting "Run my script": the user's lines, for the "Line?" prompt and the accuracy check.
   const scriptLines = t.actingScript ? scriptUserLines(parseScript(t.actingScript.script), t.actingScript.role) : null;
   const cueBox = () => root.querySelector("#cue-box");
@@ -26139,8 +26141,9 @@ function ix(root, debateId, t, data) {
         opp = bubble("opp", "");
       }
       if (force || now - lastPaint > 50) {
-        opp.textEl.textContent = full;
-        opp.entry.text = full;
+        const shown = t.modeId === "rapbattle" ? stripStage(full) : full;
+        opp.textEl.textContent = shown;
+        opp.entry.text = shown;
         lastPaint = now;
         scrollToEnd(false);
       }
@@ -26157,7 +26160,7 @@ function ix(root, debateId, t, data) {
       if (ev.t === "hello") {
         if (clientTts && ev.ttsVoice && silencedGen !== gen) {
           speaker = createStreamingSpeaker({
-            voiceCfg: { voice: ev.ttsVoice, hd: !!ev.ttsHd, style: ev.ttsStyle, styleDegree: ev.ttsStyleDegree },
+            voiceCfg: { voice: ev.ttsVoice, hd: !!ev.ttsHd, style: ev.ttsStyle, styleDegree: ev.ttsStyleDegree, rap: t.modeId === "rapbattle" },
             transform: t.actingScript ? (x) => maskRap(x).replace(/(^|\n)\s*[\p{Lu}][\p{Lu} .'\-]{0,30}:\s*/gu, "$1") : maskRap,
             onFallback: (offset, utter, anchor) => {
               fallback = { offset, utter, anchor };
