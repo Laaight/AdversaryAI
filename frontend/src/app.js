@@ -22782,8 +22782,11 @@ async function h0(i, e, t, n = {}) {
   let nextGaze = 2;
   let jawTarget = 0;
   let speakLevel = 0;
+  const X = {};
+  const XN = { mouthFunnel: 1, mouthPucker: 1, mouthClose: 1, mouthPressLeft: 1, mouthPressRight: 1, mouthRollLower: 1, browInnerUp: 1, browOuterUpLeft: 1, browOuterUpRight: 1, cheekSquintLeft: 1, cheekSquintRight: 1 };
   function driveMouth() {
     for (const k of $n) S[k] = 0;
+    for (const k in X) X[k] = 0;
     jawTarget = 0;
     const fr = voice.frame();
     speakLevel = fr.speaking ? fr.level : 0;
@@ -22797,6 +22800,18 @@ async function h0(i, e, t, n = {}) {
     };
     add(fr.viseme.name, fr.viseme.weight);
     if (fr.prev) add(fr.prev.name, fr.prev.weight * 0.85);
+    if (fr.next) add(fr.next.name, fr.next.weight * 0.5);
+    // Extra face channels on full ARKit rigs: lips round and pucker on O/U, and press on P/B/M.
+    const ex = (name, v) => (X[name] = Math.max(X[name] || 0, v));
+    const top = fr.viseme.name;
+    if (top === "viseme_O") ex("mouthFunnel", 0.55 * fr.viseme.weight);
+    if (top === "viseme_U") ex("mouthPucker", 0.6 * fr.viseme.weight);
+    if (top === "viseme_PP") ex("mouthClose", 0.5 * fr.viseme.weight), ex("mouthPressLeft", 0.35), ex("mouthPressRight", 0.35);
+    if (top === "viseme_FF") ex("mouthRollLower", 0.35 * fr.viseme.weight);
+    // Emphasis: brows lift on the loud syllables, so speech reads as more than a moving mouth.
+    const lift = Math.max(0, fr.level - 0.45) * 0.7;
+    ex("browInnerUp", lift), ex("browOuterUpLeft", lift * 0.8), ex("browOuterUpRight", lift * 0.8);
+    ex("cheekSquintLeft", jawTarget * 0.25), ex("cheekSquintRight", jawTarget * 0.25);
   }
   function B(se, W) {
     driveMouth();
@@ -22813,6 +22828,12 @@ async function h0(i, e, t, n = {}) {
       }
       const jw = we.jawOpen;
       jw !== void 0 && (ze[jw] += (jawTarget - ze[jw]) * (jawTarget > ze[jw] ? attack : release));
+      for (const name in XN) {
+        const D = we[name];
+        if (D === void 0) continue;
+        const tgt = X[name] || 0;
+        ze[D] += (tgt - ze[D]) * (tgt > ze[D] ? attack * 0.7 : release * 0.7);
+      }
     }
     // blinks
     if (blinkT < 0 && W > nextBlink) blinkT = 0;

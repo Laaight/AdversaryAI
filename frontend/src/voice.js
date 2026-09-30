@@ -367,7 +367,7 @@ class VoiceEngine {
    * { speaking, level (0..1), viseme: {name, weight}, prev: {name, weight}, freq }
    */
   frame() {
-    const out = { speaking: false, level: 0, viseme: null, prev: null, freq: null };
+    const out = { speaking: false, level: 0, viseme: null, prev: null, next: null, freq: null };
     const ctx = this.ctx;
     if (!ctx || !this.speakingUntil) return out;
     const heard = this.heardTime();
@@ -389,7 +389,7 @@ class VoiceEngine {
     const seg = this.segs.find((g) => heard >= g.start - 0.02 && heard < g.end + 0.02);
     if (seg && seg.hasVis && this.track.length) {
       // look slightly ahead: lips form a shape just before the sound comes out
-      const t = heard + 0.035;
+      const t = heard + 0.05;
       let i = this._findIdx(t);
       if (i < 0) return out;
       const cur = this.track[i];
@@ -399,6 +399,9 @@ class VoiceEngine {
       const into = Math.min(1, (t - cur.t) / Math.min(0.07, span));
       out.viseme = { name: cur.name, weight: into };
       out.prev = prev && heard - cur.t < 0.07 ? { name: prev.name, weight: 1 - into } : null;
+      // Anticipation: start easing into the next shape a little before it lands (coarticulation).
+      const lead = next ? next.t - t : Infinity;
+      out.next = next && lead < 0.07 ? { name: next.name, weight: 1 - lead / 0.07 } : null;
       return out;
     }
     // Fallback (no viseme data): classify mouth shape from the spectrum
