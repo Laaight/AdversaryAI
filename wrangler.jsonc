@@ -24,7 +24,7 @@
   ],
   "vars": {
     "APP_URL": "https://getadversaryai.com",
-    "AZURE_SPEECH_REGION": "westus3",
+    "AZURE_SPEECH_REGION": "westus2",
     "DEEPSEEK_BASE_MODEL": "DeepSeek-V4-Flash",
     "DEEPSEEK_BASE_URL": "https://adversaryai-resource.services.ai.azure.com/openai/v1/chat/completions",
     "DEEPSEEK_PRO_MODEL": "DeepSeek-V4-Pro",
