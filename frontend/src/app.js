@@ -679,7 +679,7 @@ const MODE_UI = {
   debate: { unit: "round", def: 6, first: [COIN, { v: "user", t: "You open", s: "Opening statement" }, { v: "opponent", t: "Opponent opens", s: "They take the floor" }], defFirst: "cointoss", styles: true, side: true, judge: true },
   historical: { unit: "round", def: 6, first: [COIN, { v: "user", t: "You open", s: "Opening statement" }, { v: "opponent", t: "They open", s: "History speaks first" }], defFirst: "cointoss", styles: true, side: true, judge: true },
   thesis: { unit: "question", def: 6, fixedFirst: "opponent", fixedNote: "The committee opens with the first question." },
-  interview: { unit: "question", def: 6, fixedFirst: "opponent", fixedNote: "The interviewer greets you and asks the first question." },
+  interview: { unit: "question", def: 6, open: { t: "Interviewer decides", s: "Ends with a hiring decision" }, fixedFirst: "opponent", fixedNote: "The interviewer greets you and asks the first question." },
   expert: { unit: "question", def: 6, fixedFirst: "opponent", fixedNote: "They open with the first question for you, the expert." },
   negotiation: { unit: "exchange", def: 8, first: [{ v: "user", t: "You open", s: "Make the first move" }, { v: "opponent", t: "They open", s: "Counterpart anchors first" }], defFirst: "opponent", judge: true },
   sales: { unit: "exchange", def: 8, first: [{ v: "user", t: "You open the call", s: "Lead the pitch" }, { v: "opponent", t: "Buyer speaks first", s: "Cold, skeptical start" }], defFirst: "user", judge: true },
@@ -942,7 +942,7 @@ async function Mh(i, e) {
       required: true,
     });
   const prefill = new URLSearchParams(location.hash.split("?")[1] || "").get("topic");
-  const lenOpts = LEN_PRESETS[ui.unit];
+  const lenOpts = ui.open ? LEN_PRESETS[ui.unit].map((o) => (o.v === 0 ? { ...o, ...ui.open } : o)) : LEN_PRESETS[ui.unit];
   t.innerHTML = `
     <a href="#/" class="-my-2 inline-flex items-center gap-1 py-3 text-sm text-slate-500 hover:text-slate-300">← All modes</a>
     <div class="mb-2 mt-4 flex items-center gap-4">

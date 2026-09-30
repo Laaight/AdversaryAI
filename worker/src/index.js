@@ -3839,6 +3839,28 @@ ${bullets}
 You are their debate opponent, never a helper: do not offer practical advice, instructions, or troubleshooting \u2014 argue their positions against the user's claims on the topic above.`;
 }
 __name(historicalSystemPrompt, "historicalSystemPrompt");
+// ---- Interview mode: calibrate the interviewer and the judge to the level of the role.
+var INTERVIEW_LEVEL_GUIDE = {
+  entry: "This is an entry-level or hourly role. Be warm and practical: ask about reliability, showing up, working with others, handling a busy shift, and willingness to learn. Use plain, simple questions. Do not quiz them on technical or regulatory detail, or demand metrics, and accept short honest answers. Do not treat one rough answer as disqualifying.",
+  mid: "This is a mid-level professional role. Ask about real past work, decisions, results and how they work with others. Expect specific examples, and follow up when they stay vague.",
+  senior: "This is a senior or leadership role. Be rigorous: probe judgment, scope, tradeoffs, results with numbers, and how they lead. Push back on vague or inflated answers."
+};
+var INTERVIEW_LEVEL_SCORING = {
+  entry: "This is an entry-level or hourly role, so judge the candidate by what matters for it: reliability, honesty, communication and willingness to learn. Do not penalize a lack of corporate polish or technical depth the job does not need.",
+  mid: "This is a mid-level professional role, so expect concrete examples and solid structure.",
+  senior: "This is a senior or leadership role, so hold the candidate to a high standard on judgment, scope and results."
+};
+function interviewLevel(setup) {
+  const v = String(setup.seniority || "").toLowerCase();
+  if (v === "entry" || v === "mid" || v === "senior") return v;
+  const t = String(setup.jobTitle || "").toLowerCase();
+  if (/\b(senior|sr\.?|lead|principal|staff|director|vp|vice president|head of|chief|cto|ceo|cfo|coo|partner)\b/.test(t)) return "senior";
+  if (/\b(dish\s?washer|cashier|clerk|stocker|barista|server|waiter|waitress|busser|cook|line cook|janitor|custodian|cleaner|driver|delivery|warehouse|laborer|crew|associate|attendant|host|hostess|bagger|cart|intern|trainee|assistant|helper|receptionist|retail)\b/.test(t)) return "entry";
+  return "mid";
+}
+__name(interviewLevel, "interviewLevel");
+// When "Interviewer decides" is picked (open-ended), the interview still has a set length by level.
+var INTERVIEW_AUTO_ROUNDS = { entry: 6, mid: 8, senior: 10 };
 var MODES = {
   debate: {
     id: "debate",
@@ -3917,6 +3939,17 @@ var MODES = {
         required: true
       },
       {
+        key: "seniority",
+        label: "Level of the role",
+        type: "select",
+        options: [
+          { value: "auto", label: "Not sure \u2014 judge it from the job title" },
+          { value: "entry", label: "Entry-level or hourly" },
+          { value: "mid", label: "Mid-level / professional" },
+          { value: "senior", label: "Senior / leadership" }
+        ]
+      },
+      {
         key: "company",
         label: "Company",
         type: "text",
@@ -3934,8 +3967,12 @@ var MODES = {
         required: true
       }
     ],
-    systemPrompt: /* @__PURE__ */ __name((setup) => `You are a tough but fair hiring manager conducting a ${setup.interviewType || "behavioral"} interview for the role of ${setup.jobTitle || "the position"}${setup.company ? ` at ${setup.company}` : ""}. Ask one question at a time, follow up on weak or vague answers, and probe for specifics, metrics, and real examples. Keep each message under 120 words. Begin with a brief greeting and your first question.`, "systemPrompt"),
-    scoringPrompt: /* @__PURE__ */ __name(() => 'You are a hiring manager reviewing a mock interview transcript. Score the candidate 1-10 on clarity, relevance, confidence, and structure; return strict JSON {"dimensions": {"Clarity": <1-10>, "Relevance": <1-10>, "Confidence": <1-10>, "Structure": <1-10>}, "overall": <1-10>, "notes": "<2-3 sentences of feedback>"}', "scoringPrompt"),
+    systemPrompt: /* @__PURE__ */ __name((setup) => `You are a hiring manager conducting a ${setup.interviewType || "behavioral"} interview for the role of ${setup.jobTitle || "the position"}${setup.company ? ` at ${setup.company}` : ""}. Ask one question at a time and keep each message under 100 words. Begin with a brief greeting and your first question.
+
+${INTERVIEW_LEVEL_GUIDE[interviewLevel(setup)]}
+
+Your real job is to decide whether to hire this person. Listen for evidence, follow up when an answer is vague, but move on once you have what you need instead of grinding on one topic. When the interview is over you will be told, and you must then state your decision plainly: either an offer or that you are not moving forward, with the main reason. Never leave the candidate without a decision.`, "systemPrompt"),
+    scoringPrompt: /* @__PURE__ */ __name((setup = {}) => `You are a hiring manager reviewing a mock interview transcript for the role of ${setup.jobTitle || "the position"}. ${INTERVIEW_LEVEL_SCORING[interviewLevel(setup)]} Score the candidate 1-10 on clarity, relevance, confidence, and structure. The score must agree with how the interview ended: if the interviewer offered the job, the overall score should normally be 6 or higher; if the interviewer declined, normally 5 or lower; if no decision was reached, judge the answers alone. Return strict JSON {"dimensions": {"Clarity": <1-10>, "Relevance": <1-10>, "Confidence": <1-10>, "Structure": <1-10>}, "overall": <1-10>, "notes": "<start with Verdict: Offered the job. or Verdict: Not offered the job. or Verdict: No decision reached. and then 2-3 sentences of feedback>"}`, "scoringPrompt"),
     scoringDimensions: ["Clarity", "Relevance", "Confidence", "Structure"],
     introCopy: "Tell me the role and interview type. I\u2019ll ask the questions \u2014 you bring the answers."
   },
@@ -4672,6 +4709,15 @@ function buildTurnPrompt(debate, mode, setup, transcript, isOpening, curRound, t
   if (isDebateMode) return buildDebateTurnPrompt(debate, mode, setup, transcript, isOpening, curRound, targetRounds, forceClosing, debateStyle) + sideInstruction(debate, setup);
   const finalTurn = forceClosing || (targetRounds > 0 && curRound >= targetRounds);
   if (isOpening) return buildDebateTurnPrompt(debate, mode, setup, transcript, true, curRound, targetRounds, false, debateStyle);
+  if (debate.mode === "interview") {
+    const nowPart = finalTurn
+      ? `\n\nTHE INTERVIEW IS OVER (question ${curRound} of ${targetRounds || curRound}). Respond briefly to their last answer, then give your hiring decision plainly in one or two sentences: either that you are offering them the job, or that you are not moving forward, with the main reason tied to what they said and to the level of the role. Then say a short goodbye. Do not ask another question and do not discuss pay, schedule or other logistics.`
+      : targetRounds > 0
+        ? `\n\n(Question ${curRound} of ${targetRounds}. Keep track of whether you would hire them, but do not announce a decision yet.)`
+        : "";
+    const ri = turnRoles(debate, mode, setup);
+    return `Session transcript:\n\n${transcript}\n\nRespond to the user's latest message in character as ${ri.ai} (the user is ${ri.human}). Write only ${ri.ai}'s next line.${nowPart}`;
+  }
   const ending = finalTurn
     ? `\n\nThis is the FINAL exchange of the session (${curRound} of ${targetRounds || curRound}). Respond in character, then bring the conversation to a natural close (e.g. wrap up the interview, state your final position in the negotiation, deliver your closing bars). Do not ask a new question.`
     : targetRounds > 0
@@ -4867,7 +4913,13 @@ debateRouter.post("/start", async (c) => {
   }
   const availability = await checkRoundsAvailable(c, user.id, user.email);
   if (!availability.ok) return c.json({ error: "quota_exhausted", message: "You have no rounds remaining in your wallet. Please select a plan or top-up pack to continue." }, 402);
-  const targetRounds = scriptTarget ?? Math.max(0, Math.min(100, Math.floor(Number(body.targetRounds ?? rawSetup.targetRounds ?? 0)) || 0));
+  let targetRounds = scriptTarget ?? Math.max(0, Math.min(100, Math.floor(Number(body.targetRounds ?? rawSetup.targetRounds ?? 0)) || 0));
+  if (mode.id === "interview" && targetRounds === 0) {
+    // "Interviewer decides": no endless interviews. The length follows the level of the role, and
+    // the interviewer ends with an offer or a rejection on the last question.
+    targetRounds = INTERVIEW_AUTO_ROUNDS[interviewLevel(setup)];
+    setup.autoLength = "1";
+  }
   setup.targetRounds = String(targetRounds);
 
   let reqFirstSpeaker = String(body.firstSpeaker ?? rawSetup.firstSpeaker ?? "").toLowerCase();
@@ -5158,7 +5210,7 @@ debateRouter.post("/end", async (c) => {
       for (let attempt = 1; attempt <= 2; attempt++) {
         const raw2 = await modelText(
           c.env,
-          mode.scoringPrompt() + SCORE_HUMAN_ONLY + (scriptMode ? `\n\nThis was a scripted scene: the HUMAN performed written lines as the character ${endSetup.scriptRole} and the AI OPPONENT read the other parts verbatim. Judge delivery, interpretation and pacing as shown in the text, not the writing itself. ${accuracyNote}` : ""),
+          mode.scoringPrompt(endSetup) + SCORE_HUMAN_ONLY + (scriptMode ? `\n\nThis was a scripted scene: the HUMAN performed written lines as the character ${endSetup.scriptRole} and the AI OPPONENT read the other parts verbatim. Judge delivery, interpretation and pacing as shown in the text, not the writing itself. ${accuracyNote}` : ""),
           `Session topic: ${debate.topic}
 
 ${transcript}`,
