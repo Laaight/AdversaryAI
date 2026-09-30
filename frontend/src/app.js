@@ -213,22 +213,24 @@ function id(i, e) {
     t
   );
 }
-function sd() {
+function sd(inSession) {
   const i = document.createElement("div");
+  const copy = inSession
+    ? { title: "That’s your rounds used up — nicely fought", body: "Your scorecard is ready when you are: where you were strong, where you slipped, and what to say instead. Keep sparring from $12 a month, or grab a $9 pack that never expires." }
+    : { title: "You’re out of rounds", body: "You’ve used all the rounds in your wallet for now. Pick a plan or grab a one-time pack to keep practicing — pack credits never expire, and unused plan rounds roll over." };
   return (
     (i.className = "quota-card card max-w-md mx-auto my-12 p-8 text-center animate-pop-in shadow-glow border-accent-600/50"),
     i.setAttribute("role", "alert"),
     (i.innerHTML = `
     <div class="quota-icon mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-500/15 border border-accent-600/40 text-accent-400" aria-hidden="true">${td}</div>
-    <h2 class="quota-title text-display-md text-white mb-2">You're out of rounds</h2>
-    <p class="quota-body text-body-sm text-slate-400 mb-7">
-      You've used all the rounds in your wallet for now. Pick a plan or grab a one-time pack
-      to keep practicing — pack credits never expire, and unused plan rounds roll over.
-    </p>
+    <h2 class="quota-title text-display-md text-white mb-2">${copy.title}</h2>
+    <p class="quota-body text-body-sm text-slate-400 mb-7">${copy.body}</p>
     <div class="quota-actions flex flex-col sm:flex-row gap-3 justify-center">
-      <a href="#/account?plans=1" class="btn-primary">View plans</a>
-      <a href="#/account?plans=1&packs=1" class="btn-ghost">Buy a pack</a>
-    </div>`),
+      ${inSession ? `<button type="button" data-get-score class="btn-primary">See my scorecard</button>
+      <a href="#/account?plans=1" class="btn-ghost">Keep sparring — plans</a>` : `<a href="#/account?plans=1" class="btn-primary">View plans</a>
+      <a href="#/account?plans=1&packs=1" class="btn-ghost">Buy a pack</a>`}
+    </div>
+    ${inSession ? `<p class="mt-4 text-xs text-slate-500"><a href="#/account?plans=1&packs=1" class="link">Or buy a round pack</a></p>` : ""}`),
     i
   );
 }
@@ -292,7 +294,7 @@ async function od(i, e, t) {
   const n = i.querySelector("#auth-email").value.trim(),
     s = i.querySelector("#auth-password").value,
     r = i.querySelector('button[type="submit"]'),
-    a = t === "/api/auth/signup" ? "Sign up" : "Log in";
+    a = t === "/api/auth/signup" ? "Start your 15 free rounds" : "Log in";
   if ((e.classList.add("hidden"), e.removeAttribute("role"), !n || !s)) {
     os(e, "Enter your email and password.");
     return;
@@ -340,7 +342,7 @@ function oh(i) {
     el: e,
     form: t,
     errorBox: n,
-  } = rd("Sign up", "Create your account and start practicing in minutes.", "/login", "Already have an account?");
+  } = rd("Start your 15 free rounds", "No credit card. Your first scorecard is about five minutes away.", "/login", "Already have an account?");
   (i.appendChild(ad()),
     t.addEventListener("submit", (s) => {
       (s.preventDefault(), od(t, n, "/api/auth/signup"));
@@ -25337,7 +25339,7 @@ function ix(root, debateId, t, data) {
           <button id="size-btn" type="button" class="btn-ghost btn-sm h-11 w-11 px-0 lg:hidden" aria-pressed="false" aria-label="Show more of ${xt(t.personaLabel)}" title="Bigger / smaller"></button>
           ${t.actingScript ? `<button id="cue-btn" type="button" class="btn-ghost btn-sm h-11 whitespace-nowrap lg:h-auto" title="Show your next line" aria-label="Show your next line">Line?</button>` : ""}
           <button id="view-btn" type="button" class="btn-ghost btn-sm hidden h-11 whitespace-nowrap lg:h-auto" title="Owner: switch between video and 3D"></button>
-          <button id="end-btn" type="button" class="btn-danger btn-sm ml-auto h-11 shrink-0 whitespace-nowrap lg:h-auto">End &amp; grade</button>
+          <button id="end-btn" type="button" class="btn-primary btn-sm ml-auto h-11 shrink-0 whitespace-nowrap lg:h-auto">Get my scorecard</button>
         </div>
         <div id="upsell-slot" class="hidden"></div>
         <div id="photo-debug" class="mt-2.5 hidden items-start gap-2 rounded-lg border border-amber-400/20 bg-amber-400/5 px-3 py-2 text-xs leading-relaxed text-amber-200 break-words"><span class="min-w-0 flex-1"></span><button type="button" class="-my-1 -mr-1 shrink-0 rounded px-1.5 py-1 text-amber-200/80 hover:text-amber-100" aria-label="Hide this message">✕</button></div>
@@ -25891,7 +25893,7 @@ function ix(root, debateId, t, data) {
       ph = p === "Opening" ? "Your opening statement…" : p === "Closing" ? "Your closing argument…" : "Your rebuttal…";
     } else if (t.modeId === "interview" || t.modeId === "thesis" || t.modeId === "expert") ph = "Your answer…";
     else if (t.modeId === "rapbattle") ph = "Drop your bars…";
-    else if (t.actingScript) ph = scriptLines && userTurns >= scriptLines.length ? "End of scene — tap End & grade" : "Your line…";
+    else if (t.actingScript) ph = scriptLines && userTurns >= scriptLines.length ? "End of scene — tap Get my scorecard" : "Your line…";
     else ph = turns.length ? "Your reply…" : "Say something to begin…";
     input.placeholder = ph;
   }
@@ -25962,7 +25964,14 @@ function ix(root, debateId, t, data) {
     const w = $("#wallet-badge");
     if (typeof rem === "number" && rem >= 0 && rem <= 25) {
       w.classList.remove("hidden");
-      w.textContent = `${rem} credit${rem === 1 ? "" : "s"} left`;
+      w.textContent = `${rem} round${rem === 1 ? "" : "s"} left`;
+      const low = rem <= 3;
+      w.classList.toggle("border-red-500/40", low);
+      w.classList.toggle("bg-red-500/10", low);
+      w.classList.toggle("text-red-300", low);
+      w.classList.toggle("border-amber-500/30", !low);
+      w.classList.toggle("bg-amber-500/10", !low);
+      w.classList.toggle("text-amber-300", !low);
     } else w.classList.add("hidden");
   }
 
@@ -26326,11 +26335,12 @@ function ix(root, debateId, t, data) {
           // Out of rounds: no more turns, but the session can still be graded.
           quotaOut = true;
           awaitingOpen = false;
-          quotaSlot.replaceChildren(sd());
+          quotaSlot.replaceChildren(sd(true));
+          quotaSlot.querySelector("[data-get-score]")?.addEventListener("click", () => endBtn.click());
           input.disabled = true;
           micBtn.disabled = true;
           clearTimeout(autoListenT);
-          note("You’re out of rounds — tap End & grade to get your scorecard for this session.");
+          note("You’re out of rounds — tap Get my scorecard to see how you did.");
         } else if (j.error === "debate_ended") {
           ended = true;
           note("This session has already been scored.");
@@ -26479,7 +26489,7 @@ function ix(root, debateId, t, data) {
       if (!alive) return;
       bs && (bs.disabled = false);
       endBtn.disabled = false;
-      endBtn.textContent = "End & grade";
+      endBtn.textContent = "Get my scorecard";
       errNote(e?.body?.message || "Couldn’t fetch your scores. Try again in a moment.");
       refreshStatus();
     }
@@ -26669,7 +26679,7 @@ function ix(root, debateId, t, data) {
         c === "not-allowed" || c === "service-not-allowed"
           ? auto
             ? "Tap the mic to talk — your browser needs a tap before it can listen."
-            : "Microphone blocked — allow mic access for this site, then try again."
+            : "Mic is blocked. Tap the lock icon in the address bar, set Microphone to Allow, then tap the mic again."
           : c === "audio-capture"
             ? "No microphone found on this device."
             : c === "no-speech"
@@ -26742,6 +26752,10 @@ function ix(root, debateId, t, data) {
       } catch {}
       startListening(false);
     });
+  } else {
+    // Firefox and some in-app browsers have no speech input: say so instead of silently hiding the mic.
+    micHint.textContent = "Voice input isn’t supported in this browser. Chrome, Edge or Safari let you speak your replies — or just type.";
+    micHint.className = "mt-2 text-xs text-slate-400";
   }
 
   // ---------------------------------------------------------------- restore
@@ -26765,7 +26779,8 @@ function ix(root, debateId, t, data) {
     setWallet(data?.remainingRounds);
     if (data?.remainingRounds === 0) {
       quotaOut = true;
-      quotaSlot.replaceChildren(sd());
+      quotaSlot.replaceChildren(sd(true));
+      quotaSlot.querySelector("[data-get-score]")?.addEventListener("click", () => endBtn.click());
       input.disabled = true;
       micBtn.disabled = true;
     }
