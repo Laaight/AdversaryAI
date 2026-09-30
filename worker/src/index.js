@@ -2922,7 +2922,10 @@ async function hashPasswordLegacy(password, saltHex) {
   return sha256Hex(`${saltHex}:${password}`);
 }
 __name(hashPasswordLegacy, "hashPasswordLegacy");
-var PBKDF2_ITER = 21e4;
+// Workers' WebCrypto rejects PBKDF2 above 100,000 iterations ("iteration counts above 100000 are not
+// supported"), which made every sign-up fail. Stored "pbkdf2$" hashes use this count; changing it
+// would invalidate them.
+var PBKDF2_ITER = 1e5;
 async function hashPassword(password, saltHex) {
   const enc = new TextEncoder();
   const key = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveBits"]);
