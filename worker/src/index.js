@@ -4996,6 +4996,37 @@ async function getScorecard(db, debateId) {
   }
 }
 __name(getScorecard, "getScorecard");
+// Free users see the score, the bars, the headline, the #1 priority and ONE missed moment; a plan or
+// any round pack unlocks the rest. The full card is always stored, so upgrading unlocks it at once.
+async function hasPaid(c, userId, email) {
+  if (isOwnerEmail(email, c.env)) {
+    const adminMode = (getCookie(c, "adversaryai_admin_mode") || c.req.header("x-adversary-mode") || "").toLowerCase();
+    if (adminMode !== "regular") return true;
+  }
+  const sub = await getSubscription(c.env.DB, userId);
+  if (sub && isSubscriptionActive(sub)) return true;
+  try {
+    const row = await c.env.DB.prepare("SELECT 1 AS x FROM credit_ledger WHERE user_id = ? AND reason = 'pack_purchase' LIMIT 1").bind(userId).first();
+    return !!row;
+  } catch {
+    return false;
+  }
+}
+__name(hasPaid, "hasPaid");
+function gateCoaching(scores, paid) {
+  if (paid || !scores || typeof scores !== "object") return scores;
+  const out = { ...scores };
+  const moments = Array.isArray(scores.moments) ? scores.moments : [];
+  const keep = moments.find((m) => m.type === "miss") || moments[0];
+  const hidden = Math.max(0, moments.length - (keep ? 1 : 0));
+  if (keep) out.moments = [keep];
+  else delete out.moments;
+  const drill = !!scores.nextDrill;
+  delete out.nextDrill;
+  if (hidden || drill) out.locked = { moments: hidden, drill };
+  return out;
+}
+__name(gateCoaching, "gateCoaching");
 async function countUserTurns(db, debateId) {
   const r = await db.prepare("SELECT COUNT(*) AS n FROM turns WHERE debate_id = ? AND role = 'user'").bind(debateId).first();
   return Number(r?.n ?? 0);
@@ -5360,7 +5391,7 @@ debateRouter.post("/end", async (c) => {
   if (!debate) return c.json({ error: "debate_not_found" }, 404);
   if (debate.ended_at) {
     const stored = await getScorecard(c.env.DB, debateId);
-    if (stored) return c.json({ scores: stored, cached: true });
+    if (stored) return c.json({ scores: gateCoaching(stored, await hasPaid(c, user.id, user.email)), cached: true });
     return c.json({ error: "debate_already_ended" }, 400);
   }
   const mode = getMode(debate.mode);
@@ -5424,9 +5455,9 @@ ${transcript}`,
   ]);
   if (!upd?.meta?.changes) {
     const stored = await getScorecard(c.env.DB, debateId);
-    if (stored) return c.json({ scores: stored, cached: true });
+    if (stored) return c.json({ scores: gateCoaching(stored, await hasPaid(c, user.id, user.email)), cached: true });
   }
-  return c.json({ scores });
+  return c.json({ scores: gateCoaching(scores, await hasPaid(c, user.id, user.email)) });
 });
 var JUDGE_COMPETITIVE_MODES = /* @__PURE__ */ new Set(["debate", "historical", "negotiation", "sales", "thesis", "rapbattle"]);
 var JUDGE_CRITERIA = ["argumentation", "evidence", "rebuttal", "composure"];
@@ -5644,6 +5675,57 @@ debatesRouter.get("/", async (c) => {
   });
   return c.json({ debates });
 });
+debatesRouter.get("/progress", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  const modeId = String(c.req.query("mode") || "");
+  await ensureScorecardTable(c.env.DB);
+  const rows = (await c.env.DB.prepare(
+    "SELECT d.mode AS mode, sc.overall AS overall, sc.scores_json AS scores_json, sc.created_at AS at FROM scorecards sc JOIN debates d ON d.id = sc.debate_id WHERE d.user_id = ? AND sc.overall IS NOT NULL ORDER BY sc.created_at DESC LIMIT 300"
+  ).bind(user.id).all())?.results ?? [];
+  // Streak: consecutive days (UTC) with at least one graded session, counting back from today or yesterday.
+  const days = new Set(rows.map((r) => String(r.at).slice(0, 10)));
+  const dayStr = (t) => new Date(t).toISOString().slice(0, 10);
+  let cursor = Date.now();
+  if (!days.has(dayStr(cursor))) cursor -= 864e5;
+  let streak = 0;
+  while (days.has(dayStr(cursor))) {
+    streak++;
+    cursor -= 864e5;
+  }
+  const inMode = modeId ? rows.filter((r) => r.mode === modeId) : rows;
+  const newest = inMode.slice(0, 10).reverse();
+  const overall = newest.map((r) => Number(r.overall));
+  const latest = inMode[0] ? Number(inMode[0].overall) : null;
+  const before = inMode.slice(1, 4).map((r) => Number(r.overall));
+  const prevAvg = before.length ? before.reduce((a, b) => a + b, 0) / before.length : null;
+  // Per-skill change: the latest session against the average of the three before it.
+  const dimsOf = (r) => {
+    try {
+      return (JSON.parse(r.scores_json)?.dimensions || []).filter((d) => d.score != null);
+    } catch {
+      return [];
+    }
+  };
+  const latestDims = inMode[0] ? dimsOf(inMode[0]) : [];
+  const dims = latestDims.map((d) => {
+    const prior = inMode.slice(1, 4).map((r) => dimsOf(r).find((x) => x.label === d.label)?.score).filter((v) => v != null);
+    const avg = prior.length ? prior.reduce((a, b) => a + b, 0) / prior.length : null;
+    return { label: d.label, score: d.score, delta: avg == null ? null : Math.round((d.score - avg) * 10) / 10 };
+  });
+  return c.json({
+    mode: modeId || null,
+    sessions: inMode.length,
+    totalSessions: rows.length,
+    overall,
+    latest,
+    best: inMode.length ? Math.max(...inMode.map((r) => Number(r.overall))) : null,
+    isBest: latest != null && inMode.length > 1 && latest >= Math.max(...inMode.map((r) => Number(r.overall))),
+    deltaOverall: prevAvg == null || latest == null ? null : Math.round((latest - prevAvg) * 10) / 10,
+    dims,
+    streakDays: streak
+  });
+});
 debatesRouter.get("/:id", async (c) => {
   const user = await getSessionUser(c);
   if (!user) return c.json({ error: "unauthorized" }, 401);
@@ -5686,7 +5768,7 @@ debatesRouter.get("/:id", async (c) => {
     if (fig) personaLabel = fig.name;
   }
   if (!personaLabel) personaLabel = opponentLabel(debate, getMode(debate.mode));
-  const scorecard = debate.ended_at ? await getScorecard(c.env.DB, debate.id) : null;
+  const scorecard = debate.ended_at ? gateCoaching(await getScorecard(c.env.DB, debate.id), await hasPaid(c, user.id, user.email)) : null;
   const availability = await checkRoundsAvailable(c, user.id, user.email);
   return c.json({
     scorecard,

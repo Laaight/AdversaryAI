@@ -26883,6 +26883,130 @@ function $u(i, e, t = 10) {
       </div>
     </div>`;
 }
+/** "Are you improving?": streak, personal best, change vs your last sessions, and a small trend line. */
+async function progressStrip(root, t) {
+  const slot = root.querySelector("#progress-slot");
+  if (!slot) return;
+  let g;
+  try {
+    g = await Ut(`/api/debates/progress?mode=${encodeURIComponent(t?.modeId || "")}`);
+  } catch {
+    return;
+  }
+  if (!g || !g.sessions) return;
+  const chips = [];
+  if (g.sessions === 1) chips.push("Your first session in this mode");
+  else chips.push(`Session ${g.sessions} in this mode`);
+  if (g.isBest) chips.push("New personal best");
+  else if (g.best != null) chips.push(`Best: ${g.best}/10`);
+  if (g.deltaOverall != null && g.deltaOverall !== 0) chips.push(`${g.deltaOverall > 0 ? "+" : ""}${g.deltaOverall} vs your last sessions`);
+  if (g.streakDays >= 2) chips.push(`${g.streakDays}-day streak`);
+  const pts = g.overall || [];
+  let spark = "";
+  if (pts.length >= 2) {
+    const w = 220,
+      h = 44,
+      step = w / (pts.length - 1),
+      lo = Math.min(...pts) - 0.5,
+      hi = Math.max(lo + 3, Math.max(...pts) + 0.5),
+      y = (v) => h - 4 - ((v - lo) / (hi - lo)) * (h - 8);
+    const path = pts.map((v, k) => `${k ? "L" : "M"}${(k * step).toFixed(1)} ${y(v).toFixed(1)}`).join(" ");
+    const last = pts.length - 1;
+    spark = `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" class="shrink-0 text-accent-400" role="img" aria-label="Your last ${pts.length} scores"><path d="${path}" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><circle cx="${(last * step).toFixed(1)}" cy="${y(pts[last]).toFixed(1)}" r="3.5" fill="currentColor"/></svg>`;
+  }
+  const moved = (g.dims || []).filter((d) => d.delta != null && d.delta !== 0);
+  slot.innerHTML = `<div class="card mb-4 p-5 sm:p-6"><div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><div class="eyebrow mb-2 !text-accent-400">Your progress</div><div class="flex flex-wrap gap-2">${chips.map((c) => `<span class="badge border-ink-700 bg-ink-800 text-slate-200">${xt(c)}</span>`).join("")}</div></div>${spark}</div>${moved.length ? `<div class="mt-4 flex flex-wrap gap-x-5 gap-y-1 border-t border-ink-700 pt-3 text-sm text-slate-300">${moved.map((d) => `<span>${xt(d.label)} <b class="${d.delta > 0 ? "text-emerald-300" : "text-amber-300"}">${d.delta > 0 ? "+" : ""}${d.delta}</b></span>`).join("")}</div>` : ""}</div>`;
+}
+/** A 1080x1350 score card drawn in the browser, shared with the native share sheet or downloaded. */
+async function shareScore(r, t, dims) {
+  const W = 1080,
+    H = 1350;
+  const cv = document.createElement("canvas");
+  cv.width = W;
+  cv.height = H;
+  const x = cv.getContext("2d");
+  const grad = x.createLinearGradient(0, 0, W, H);
+  grad.addColorStop(0, "#0d0f14");
+  grad.addColorStop(1, "#1a0c10");
+  x.fillStyle = grad;
+  x.fillRect(0, 0, W, H);
+  x.fillStyle = "rgba(232,57,46,0.10)";
+  x.beginPath();
+  x.arc(W - 120, 140, 420, 0, Math.PI * 2);
+  x.fill();
+  const font = (px, wt = 700) => `${wt} ${px}px Inter, system-ui, -apple-system, Segoe UI, sans-serif`;
+  const wrap = (text, maxW, lineH, startY, maxLines = 3) => {
+    const words = String(text || "").split(/\s+/);
+    let line = "",
+      yy = startY,
+      n = 0;
+    for (const wd of words) {
+      const test = line ? `${line} ${wd}` : wd;
+      if (x.measureText(test).width > maxW && line) {
+        x.fillText(n === maxLines - 1 ? `${line}…` : line, 90, yy);
+        line = wd;
+        yy += lineH;
+        if (++n >= maxLines) return yy;
+      } else line = test;
+    }
+    if (line && n < maxLines) {
+      x.fillText(line, 90, yy);
+      yy += lineH;
+    }
+    return yy;
+  };
+  x.strokeStyle = "#e8392e";
+  x.lineWidth = 12;
+  x.lineJoin = "round";
+  x.beginPath();
+  x.moveTo(126, 96);
+  x.lineTo(190, 224);
+  x.lineTo(62, 224);
+  x.closePath();
+  x.stroke();
+  x.fillStyle = "#ffffff";
+  x.font = font(46);
+  x.fillText("AdversaryAI", 220, 190);
+  x.fillStyle = "#94a3b8";
+  x.font = font(40, 600);
+  x.fillText(`${t?.modeName || "Practice session"}`.slice(0, 40), 90, 360);
+  x.fillStyle = "#e8392e";
+  x.font = font(400, 800);
+  x.fillText(String(r?.overall ?? "–"), 90, 760);
+  const sw = x.measureText(String(r?.overall ?? "–")).width;
+  x.fillStyle = "#64748b";
+  x.font = font(120, 700);
+  x.fillText("/ 10", 90 + sw + 20, 760);
+  x.fillStyle = "#ffffff";
+  x.font = font(64, 800);
+  let yy = wrap(r?.headline || "Scored by an AI coach", W - 180, 78, 880, 3);
+  const scored = (dims || []).filter((d) => d.score != null).sort((a, b) => b.score - a.score);
+  if (scored.length) {
+    x.fillStyle = "#94a3b8";
+    x.font = font(40, 600);
+    x.fillText(`Strongest: ${scored[0].label} ${scored[0].score}/10`, 90, Math.max(yy + 30, 1050));
+  }
+  x.fillStyle = "#cbd5e1";
+  x.font = font(44, 600);
+  x.fillText("Think you can beat it?", 90, 1200);
+  x.fillStyle = "#e8392e";
+  x.font = font(52, 800);
+  x.fillText("getadversaryai.com", 90, 1270);
+  const blob = await new Promise((res) => cv.toBlob(res, "image/png"));
+  if (!blob) return;
+  const file = new File([blob], "my-adversaryai-score.png", { type: "image/png" });
+  const text = `I scored ${r?.overall ?? "?"}/10 in ${t?.modeName || "an AI practice session"} on AdversaryAI. Think you can beat it? https://getadversaryai.com`;
+  try {
+    if (navigator.canShare?.({ files: [file] })) return void (await navigator.share({ files: [file], text }));
+  } catch (e) {
+    if (e?.name === "AbortError") return;
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = file.name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
 /** Coaching cards: the #1 priority, real moments quoted from the session, and a drill for next time. */
 function coachCards(r, t) {
   const cards = [];
@@ -26897,6 +27021,10 @@ function coachCards(r, t) {
         return `<div class="rounded-xl border ${good ? "border-emerald-500/30 bg-emerald-500/5" : "border-amber-500/30 bg-amber-500/5"} p-4"><div class="mb-1 text-xs font-bold uppercase tracking-wide ${good ? "text-emerald-300" : "text-amber-300"}">${good ? "Keep doing this" : "Missed moment"}</div><blockquote class="border-l-2 ${good ? "border-emerald-500/60" : "border-amber-500/60"} pl-3 text-sm italic text-slate-200">“${xt(m.quote)}”</blockquote><p class="mt-2 text-sm leading-relaxed text-slate-300">${xt(m.what)}</p>${m.insteadSay ? `<p class="mt-2 text-sm leading-relaxed text-white"><span class="font-semibold text-accent-400">Try instead:</span> “${xt(m.insteadSay)}”</p>` : ""}</div>`;
       })
       .join("")}</div></div>`);
+  }
+  if (r?.locked) {
+    const n = r.locked.moments || 0;
+    cards.push(`<div class="card mb-4 border-accent-500/30 p-5 sm:p-6"><div class="eyebrow mb-1 !text-accent-400">Your full coaching plan</div><p class="text-sm leading-relaxed text-slate-200">${n ? `${n} more moment${n === 1 ? "" : "s"} from your session` : "More from your session"}${r.locked.drill ? " and your personal next drill" : ""} ${n || r.locked.drill ? "are" : "is"} ready.</p><div class="mt-3 space-y-2 select-none" aria-hidden="true" style="filter:blur(5px)"><div class="h-3 w-11/12 rounded bg-ink-600"></div><div class="h-3 w-9/12 rounded bg-ink-600"></div><div class="h-3 w-10/12 rounded bg-ink-600"></div></div><a href="#/account?plans=1" class="btn-primary mt-4 inline-flex px-5 py-2.5 text-sm">Unlock with any plan or pack</a><p class="mt-2 text-xs text-slate-500">Unlocks instantly, including this session.</p></div>`);
   }
   if (r?.nextDrill) {
     cards.push(`<div class="card mb-4 p-5 sm:p-6"><div class="eyebrow mb-1 !text-accent-400">Your next drill</div><p class="text-sm leading-relaxed text-slate-200">${xt(r.nextDrill)}</p>${t?.modeId ? `<a href="#/setup/${encodeURIComponent(t.modeId)}" class="btn-primary mt-4 inline-flex px-5 py-2.5 text-sm">Start this drill</a>` : ""}</div>`);
@@ -26936,6 +27064,7 @@ function sx(i, e, t, n, s, r) {
         </div>
         ${scored.length ? `<div class="mt-6 grid gap-x-8 gap-y-4 border-t border-ink-700 pt-6 sm:grid-cols-2">${a.map((o) => $u(o.label, o.score)).join("")}</div>` : ""}
       </div>
+      <div id="progress-slot"></div>
       ${t.judgeEnabled ? `<div class="card mb-4 p-5 sm:p-7" id="verdict-card"><div class="mb-4 flex items-center gap-3"><span class="text-accent-400 [&>svg]:h-5 [&>svg]:w-5">${it.scale}</span><div><div class="font-semibold text-white">Head-to-head</div><p class="text-xs text-slate-500">An impartial judge scored both sides on the same rubric.</p></div></div><div id="verdict-body"><div class="flex items-center justify-center gap-2 py-6 text-sm text-slate-400"><span class="spinner"></span>The judge is deliberating…</div></div></div>` : ""}
       ${coachCards(r, t)}
       <div class="card mb-4 p-5 sm:p-7">
@@ -26955,9 +27084,12 @@ function sx(i, e, t, n, s, r) {
       </div>
       <div class="flex flex-col gap-3 sm:flex-row">
         <a href="#/setup/${encodeURIComponent(t.modeId)}" class="btn-primary flex-1 py-3">Practice again</a>
+        <button type="button" id="share-score-btn" class="btn-ghost flex-1 py-3">Share my score</button>
         <a href="#/history" class="btn-ghost flex-1 py-3">All sessions</a>
       </div>`;
   ax(i, n, t);
+  progressStrip(i, t);
+  i.querySelector("#share-score-btn")?.addEventListener("click", () => shareScore(r, t, a));
   requestAnimationFrame(() =>
     requestAnimationFrame(() => {
       i.querySelectorAll("[data-w]").forEach((o) => (o.style.width = `${o.dataset.w}%`));
