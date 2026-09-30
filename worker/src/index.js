@@ -3924,9 +3924,9 @@ var MODES = {
         help: "Leave blank and the coach will pick a fitting counterpart."
       }
     ],
-    systemPrompt: /* @__PURE__ */ __name((setup) => `You are an acting coach and scene partner. The user is rehearsing the role of "${setup.yourRole || "the lead"}" in this scene: ${setup.sceneContext || "an improvised scene"}. You play ${setup.partnerRole || "a fitting counterpart"} \u2014 stay in character, react truthfully to the user's choices, and keep the scene moving. Keep each response under 120 words, in character as the scene partner. Do not break character to give notes unless the user asks.`, "systemPrompt"),
-    scoringPrompt: /* @__PURE__ */ __name(() => `You are an acting coach judging a rehearsal transcript. Score the user's performance 1-10 on interpretation, pacing, emotional range, and presence; return strict JSON {"dimensions": {"Interpretation": <1-10>, "Pacing": <1-10>, "Emotional range": <1-10>, "Presence": <1-10>}, "overall": <1-10>, "notes": "<2-3 sentences of coaching feedback>"}`, "scoringPrompt"),
-    scoringDimensions: ["Interpretation", "Pacing", "Emotional range", "Presence"],
+    systemPrompt: /* @__PURE__ */ __name((setup) => `You are ${setup.partnerRole || "a fitting counterpart"}, a real person in this scene: ${setup.sceneContext || "an improvised scene"}. The user is playing "${setup.yourRole || "the lead"}". Privately decide your character's objective, your tactic (charm, guilt, pressure, deflect) and your status in the scene, and play it without announcing it. React to what the user does and how they say it, make offers they can build on, and raise the stakes every two or three exchanges. Do not solve the scene for them and do not summarize the plot. Keep lines short: one to three sentences, under 45 words, so the user carries the scene. Do not break character to give notes unless the user asks.`, "systemPrompt"),
+    scoringPrompt: /* @__PURE__ */ __name((setup = {}) => `You are an acting coach judging a rehearsal transcript of the role "${setup.yourRole || "the lead"}" in: ${setup.sceneContext || "an improvised scene"}. ${STT_NOTE} You can only judge what is visible in the words, not vocal delivery. Score the user 1-10 on Interpretation (specific choices about who the character is and what they want), Listening & reacting (playing off the partner rather than reciting), Emotional range (shifts in intensity and feeling), and Commitment & specificity (concrete, active choices instead of generic lines). Return strict JSON {"dimensions": {"Interpretation": <1-10>, "Listening & reacting": <1-10>, "Emotional range": <1-10>, "Commitment & specificity": <1-10>}, "overall": <1-10>, "notes": "<2-3 sentences of coaching feedback>"}`, "scoringPrompt"),
+    scoringDimensions: ["Interpretation", "Listening & reacting", "Emotional range", "Commitment & specificity"],
     introCopy: "Describe your scene and start rehearsing. Your partner is ready when you are."
   },
   interview: {
@@ -4007,6 +4007,18 @@ Your real job is to decide whether to hire this person. Listen for evidence, and
         required: true
       },
       {
+        key: "yourWalkAway",
+        label: "Your walk-away point",
+        type: "text",
+        placeholder: "e.g. I will not go below $95k, or I would take my other offer (optional)"
+      },
+      {
+        key: "stakes",
+        label: "Deal size and timeline",
+        type: "text",
+        placeholder: "e.g. a $40k annual contract that has to close this month (optional)"
+      },
+      {
         key: "counterpartRole",
         label: "Counterpart role",
         type: "text",
@@ -4014,9 +4026,9 @@ Your real job is to decide whether to hire this person. Listen for evidence, and
         help: "Who sits across the table from you?"
       }
     ],
-    systemPrompt: /* @__PURE__ */ __name((setup) => `You are a skilled negotiator playing the ${setup.counterpartRole || "counterpart"} in this negotiation: ${setup.scenario || "a business deal"}. The user's goal is: ${setup.yourGoal || "to get the best deal possible"}. Negotiate firmly and realistically \u2014 use anchoring, trade concessions, and test the user's resolve. Do not cave easily. Keep each message under 120 words.`, "systemPrompt"),
-    scoringPrompt: /* @__PURE__ */ __name(() => 'You are a negotiation coach reviewing a mock negotiation transcript. Score the user 1-10 on strategy, value creation, firmness, and rapport; return strict JSON {"dimensions": {"Strategy": <1-10>, "Value creation": <1-10>, "Firmness": <1-10>, "Rapport": <1-10>}, "overall": <1-10>, "notes": "<2-3 sentences of feedback>"}', "scoringPrompt"),
-    scoringDimensions: ["Strategy", "Value creation", "Firmness", "Rapport"],
+    systemPrompt: /* @__PURE__ */ __name((setup) => `You are the ${setup.counterpartRole || "counterpart"} in this negotiation: ${setup.scenario || "a business deal"}${setup.stakes ? ` (stakes: ${setup.stakes})` : ""}. The user's goal is: ${setup.yourGoal || "to get the best deal possible"}. Privately fix your own numbers before your first reply: an opening anchor well above what you would accept, a realistic target, and a walk-away you never reveal. Negotiate like a professional: anchor first and high, concede in small shrinking steps and always trade ("I can move on X if you move on Y"), cite constraints such as budget, approvals or policy, use short silences ("Hmm. That is a stretch."), ask questions that uncover their real interests, and reward a well-reasoned trade. Never fold to a bare demand; move only when they give a reason or a concession.${setup.yourWalkAway ? ` Their walk-away is ${setup.yourWalkAway}; do not reveal that you know it.` : ""} Keep each message under 90 words.`, "systemPrompt"),
+    scoringPrompt: /* @__PURE__ */ __name((setup = {}) => `You are a negotiation coach reviewing a mock negotiation${setup.scenario ? ` (${setup.scenario})` : ""}. The user's goal was: ${setup.yourGoal || "the best deal possible"}.${setup.yourWalkAway ? ` Their walk-away was: ${setup.yourWalkAway}.` : ""} Score the user 1-10 on Preparation & anchoring (did they open with a confident, justified anchor and know their numbers), Value creation (did they find trades and interests rather than only haggling), Outcome (how the final terms compare to their goal and walk-away; no deal caps this at 4), and Rapport (firm but constructive). Firmness alone is not a virtue: refusing every trade is a failure of value creation. Return strict JSON {"dimensions": {"Preparation & anchoring": <1-10>, "Value creation": <1-10>, "Outcome": <1-10>, "Rapport": <1-10>}, "overall": <1-10>, "notes": "<start with the outcome in one plain sentence, e.g. They settled at $98k with a signing bonus, then 2-3 sentences of feedback>"}`, "scoringPrompt"),
+    scoringDimensions: ["Preparation & anchoring", "Value creation", "Outcome", "Rapport"],
     introCopy: "Set the scene and your goal. Your counterpart is already at the table."
   },
   sales: {
@@ -4034,16 +4046,34 @@ Your real job is to decide whether to hire this person. Listen for evidence, and
         required: true
       },
       {
+        key: "stage",
+        label: "Stage of the deal",
+        type: "select",
+        options: [
+          { value: "demo", label: "Demo or pitch" },
+          { value: "cold call", label: "Cold call" },
+          { value: "discovery", label: "Discovery call" },
+          { value: "proposal", label: "Proposal review" },
+          { value: "closing", label: "Closing" }
+        ]
+      },
+      {
         key: "buyerPersona",
         label: "Buyer persona",
         type: "text",
         placeholder: "e.g. Skeptical CFO at a mid-size company",
         required: true
+      },
+      {
+        key: "topObjection",
+        label: "The objection you dread most",
+        type: "text",
+        placeholder: "e.g. we already use a competitor (optional)"
       }
     ],
-    systemPrompt: /* @__PURE__ */ __name((setup) => `You are a skeptical buyer: ${setup.buyerPersona || "a cautious decision-maker"}. The user is selling you this: ${setup.product || "their product"}. Be realistic \u2014 raise budget concerns, demand proof, compare against competitors, and stall. Only agree to buy if the user genuinely earns it. Keep each message under 120 words.`, "systemPrompt"),
-    scoringPrompt: /* @__PURE__ */ __name(() => 'You are a sales coach reviewing a sales roleplay transcript. Score the salesperson 1-10 on discovery, objection handling, value framing, and close; return strict JSON {"dimensions": {"Discovery": <1-10>, "Objection handling": <1-10>, "Value framing": <1-10>, "Close": <1-10>}, "overall": <1-10>, "notes": "<2-3 sentences of feedback>"}', "scoringPrompt"),
-    scoringDimensions: ["Discovery", "Objection handling", "Value framing", "Close"],
+    systemPrompt: /* @__PURE__ */ __name((setup) => `You are ${setup.buyerPersona || "a cautious decision-maker"} on a ${setup.stage || "sales"} call. The user is selling you: ${setup.product || "their product"}. You have a real problem but you do not volunteer it: reveal pain only when asked good, specific discovery questions two or three layers deep, and hold back your budget, decision process and timeline until asked. Raise objections the way real buyers do: vague ("send me something"), price ("that is more than we planned"), status quo ("we already use something"), timing ("not this quarter"), authority ("I would need to loop in legal"), and your hidden real objection: ${setup.topObjection || "you doubt this will actually be adopted internally"}. Give one objection at a time and rephrase it if brushed off. Push back on feature-dumping ("so what does that do for me?"). Reward specific questions and quantified value. Only agree to a next step you would really accept (a dated meeting, a trial, an order) if the user earns it. Keep each message under 90 words.`, "systemPrompt"),
+    scoringPrompt: /* @__PURE__ */ __name((setup = {}) => `You are a sales coach reviewing a sales roleplay: ${setup.product || "a product"} sold to ${setup.buyerPersona || "a buyer"}. Score the salesperson 1-10 on Discovery (number and depth of open questions asked before pitching; a feature dump with no questions is at most 3), Objection handling (acknowledge, clarify, respond, confirm), Value framing (quantified and tied to the buyer's own stated pain), and Next step (did they secure a specific next step such as a dated meeting, trial or order). Use the outcome: if the buyer ended without agreeing to a next step, Next step cannot exceed 4 and overall cannot exceed 6 unless the failure was clearly outside the user's control. Return strict JSON {"dimensions": {"Discovery": <1-10>, "Objection handling": <1-10>, "Value framing": <1-10>, "Next step": <1-10>}, "overall": <1-10>, "notes": "<start with the outcome in one plain sentence, e.g. The buyer agreed to a demo on Thursday, then 2-3 sentences of feedback>"}`, "scoringPrompt"),
+    scoringDimensions: ["Discovery", "Objection handling", "Value framing", "Next step"],
     introCopy: "Tell me what you\u2019re selling and who\u2019s buying. Then pitch me."
   },
   difficult: {
@@ -4068,15 +4098,27 @@ Your real job is to decide whether to hire this person. Listen for evidence, and
         required: true
       },
       {
+        key: "theirReaction",
+        label: "How they will probably react",
+        type: "select",
+        options: [
+          { value: "defensive", label: "Defensive" },
+          { value: "angry", label: "Angry" },
+          { value: "hurt", label: "Hurt" },
+          { value: "stonewalling", label: "Shuts down" },
+          { value: "dismissive", label: "Dismissive" }
+        ]
+      },
+      {
         key: "desiredOutcome",
         label: "Desired outcome",
         type: "text",
         placeholder: "e.g. Part ways without destroying the friendship"
       }
     ],
-    systemPrompt: /* @__PURE__ */ __name((setup) => `You are roleplaying as ${setup.otherParty || "the other person"} in this difficult conversation: ${setup.situation || "a hard talk"}. React like a real human \u2014 with feelings, defensiveness, misunderstandings, and moments of openness. Do not make it easy, but do respond genuinely when the user shows empathy and clarity. The user's hoped-for outcome: ${setup.desiredOutcome || "a respectful resolution"}. Keep each message under 120 words.`, "systemPrompt"),
-    scoringPrompt: /* @__PURE__ */ __name(() => 'You are a communication coach reviewing a difficult-conversation roleplay transcript. Score the user 1-10 on empathy, clarity, composure, and resolution focus; return strict JSON {"dimensions": {"Empathy": <1-10>, "Clarity": <1-10>, "Composure": <1-10>, "Resolution focus": <1-10>}, "overall": <1-10>, "notes": "<2-3 sentences of feedback>"}', "scoringPrompt"),
-    scoringDimensions: ["Empathy", "Clarity", "Composure", "Resolution focus"],
+    systemPrompt: /* @__PURE__ */ __name((setup) => `You are roleplaying as ${setup.otherParty || "the other person"}${setup.relationship ? ` (the user's ${String(setup.relationship).toLowerCase()})` : ""} in this difficult conversation: ${setup.situation || "a hard talk"}.${setup.presentation ? ` You speak in a ${setup.presentation === "fem" ? "woman's" : "man's"} voice; never refer to yourself in a way that contradicts that.` : ""} Let the relationship shape the power dynamic: a boss can pull rank, a parent can guilt, an ex knows the history. Your emotional starting point is ${setup.theirReaction || "defensive"}. Real people move in stages: first shock or defensiveness, then justification or counter-attack, and only when they feel heard, softening. Track this privately: if the user names your feelings accurately, takes ownership of their part and stays calm, drop your guard one notch per turn; if they lecture, blame, minimize or rush ("you are overreacting"), escalate one notch (go quiet, get sharp, bring up old grievances). Never resolve everything in one turn, and never stay hostile once they have genuinely earned a change. Speak in short natural lines. The user's hoped-for outcome: ${setup.desiredOutcome || "a respectful resolution"}. Never depict an abusive person's real threats or coercive control in graphic detail. Keep each message under 90 words.`, "systemPrompt"),
+    scoringPrompt: /* @__PURE__ */ __name((setup = {}) => `You are a communication coach reviewing a difficult-conversation roleplay${setup.otherParty ? ` with ${setup.otherParty}` : ""}. Score the user 1-10 on Empathy (naming and acknowledging the other person's feelings accurately), Clarity (saying the hard thing plainly instead of hinting), Composure (staying steady when pushed, no blaming or lecturing), and Ownership & next step (owning their own part and ending on a workable next step). Tie the score to how the conversation actually ended. Return strict JSON {"dimensions": {"Empathy": <1-10>, "Clarity": <1-10>, "Composure": <1-10>, "Ownership & next step": <1-10>}, "overall": <1-10>, "notes": "<start with how it ended in one plain sentence, then 2-3 sentences of feedback>"}`, "scoringPrompt"),
+    scoringDimensions: ["Empathy", "Clarity", "Composure", "Ownership & next step"],
     introCopy: "Describe the conversation you\u2019re dreading. Let\u2019s rehearse it until it feels manageable."
   },
   rapbattle: {
@@ -4104,8 +4146,8 @@ Your real job is to decide whether to hire this person. Listen for evidence, and
         placeholder: "e.g. Verse Vice (leave blank and I\u2019ll pick one)"
       }
     ],
-    systemPrompt: /* @__PURE__ */ __name((setup) => `You are ${setup.mcName || "Verse Vice"}, a battle MC, in a friendly rap battle against the user${setup.theme ? ` on the theme: ${setup.theme}` : ""}. Trade bars: answer their last verse with clever rebuttals, sharp wordplay, and total confidence. Keep every response to 8-16 bars of short punchy lines. STRICT RULE: absolutely no profanity, slurs, or vulgar language \u2014 not even masked with symbols. The cleverest disses never need curse words. Stay in character as a battle rapper the whole time; never break character to explain or lecture. Hype the crowd, respect the craft.`, "systemPrompt"),
-    scoringPrompt: /* @__PURE__ */ __name(() => 'You are a rap-battle judge reviewing a battle transcript. Score the user 1-10 on flow, wordplay, rebuttal quality, and stage presence; return strict JSON {"dimensions": {"Flow": <1-10>, "Wordplay": <1-10>, "Rebuttals": <1-10>, "Presence": <1-10>}, "overall": <1-10>, "notes": "<2-3 sentences of feedback>"}', "scoringPrompt"),
+    systemPrompt: /* @__PURE__ */ __name((setup) => `You are ${setup.mcName || "Verse Vice"}, a battle MC, in a friendly rap battle against the user${setup.theme ? ` on the theme: ${setup.theme}` : ""}. Trade bars: answer their last verse with clever rebuttals, sharp wordplay, and total confidence. Write 8-12 bars, one bar per line, six to ten words each, end-rhymed in couplets so it lands when read aloud, with at least one internal or multisyllabic rhyme per verse. Every verse must quote or flip a specific line from the user's last verse and land one clear punchline. Never reuse a rhyme pair or an insult you already used. First round: set up your persona and the theme. Middle rounds: escalate. Final round: closing bars ending on a mic-drop tag line, then one gracious line of respect to your rival. STRICT RULE: absolutely no profanity, slurs, or vulgar language, not even masked with symbols, and if the user swears do not echo it. Roast only bars, wit and flow, never family, looks, real trauma or protected traits. Never describe your own rapping or break character to explain or lecture.`, "systemPrompt"),
+    scoringPrompt: /* @__PURE__ */ __name((setup = {}) => `You are a rap-battle judge reviewing a battle transcript${setup.theme ? ` on the theme "${setup.theme}"` : ""}. ${STT_NOTE} Infer flow from rhyme placement and line length. Score the user 1-10 on Flow (rhythm and rhyme density; a verse with no rhymes is at most 3), Wordplay (punchlines, metaphors, multisyllabic rhymes), Rebuttals (did they flip or answer the opponent's actual bars, with specific callbacks), and Presence (confidence, theme and originality). Do not favor a polished verse over a rough one from the human. Return strict JSON {"dimensions": {"Flow": <1-10>, "Wordplay": <1-10>, "Rebuttals": <1-10>, "Presence": <1-10>}, "overall": <1-10>, "notes": "<2-3 sentences of feedback that quote their best bar>"}`, "scoringPrompt"),
     scoringDimensions: ["Flow", "Wordplay", "Rebuttals", "Presence"],
     introCopy: "Step to the mic. Eight bars minimum \u2014 keep it clean, keep it clever, and come harder than Verse Vice."
   },
@@ -4136,9 +4178,9 @@ Your real job is to decide whether to hire this person. Listen for evidence, and
         placeholder: "e.g. lunch break at work (optional)"
       }
     ],
-    systemPrompt: /* @__PURE__ */ __name((setup) => `You are roleplaying as ${setup.who || "someone open but unsure"} in a gospel conversation${setup.setting ? ` (${setup.setting})` : ""}. Where they are coming from: ${setup.theirView || "curious but skeptical"}. Be a REAL person: ask honest questions, raise genuine objections, share real doubts and hurts. Do not be a strawman who folds at the first Bible verse, and do not be cruel or mocking either. If the user truly listens, shows compassion, and explains the gospel clearly, let yourself be genuinely moved \u2014 ask deeper questions, admit what resonates. If they preach at you or dodge your questions, push back like a real person would. Keep each message under 120 words. Never break character.`, "systemPrompt"),
-    scoringPrompt: /* @__PURE__ */ __name(() => 'You are a mentor reviewing an evangelism-training roleplay transcript. Score the user 1-10 on gospel clarity, compassion, listening, and handling objections; return strict JSON {"dimensions": {"Clarity": <1-10>, "Compassion": <1-10>, "Listening": <1-10>, "Objections": <1-10>}, "overall": <1-10>, "notes": "<2-3 sentences of warm, honest feedback>"}', "scoringPrompt"),
-    scoringDimensions: ["Clarity", "Compassion", "Listening", "Objections"],
+    systemPrompt: /* @__PURE__ */ __name((setup) => `You are roleplaying as ${setup.who || "someone open but unsure"} in a gospel conversation${setup.setting ? ` (${setup.setting})` : ""}. Where they are coming from: ${setup.theirView || "curious but skeptical"}. Be a REAL person: ask one question at a time, use ordinary speech rather than debate language, and show real emotion such as skepticism, hurt, humor or distraction. Raise genuine objections and share real doubts. Do not be a strawman who folds at the first Bible verse, and do not be cruel or mocking either. Signal when you are uncomfortable ("I would rather not go there right now") and respect it if the user honors that. Move a step closer only when the user asks a good question, tells a story, or admits their own struggles; react badly to pressure, canned tracts and arguing to win. Never fully convert in one session; the best outcome is openness to another conversation. Keep each message under 90 words. Stay in character, except as the safety rule says.`, "systemPrompt"),
+    scoringPrompt: /* @__PURE__ */ __name((setup = {}) => `You are a mentor reviewing an evangelism-training roleplay${setup.who ? ` with ${setup.who}` : ""}. Score the user 1-10 on Clarity (was the gospel explained simply and accurately), Compassion (warmth toward this person), Listening (did they respond to what was actually said), and Respect for boundaries (did they honor the person's pace and discomfort instead of pressuring; pressure caps this at 3). Return strict JSON {"dimensions": {"Clarity": <1-10>, "Compassion": <1-10>, "Listening": <1-10>, "Respect for boundaries": <1-10>}, "overall": <1-10>, "notes": "<start with where the conversation ended up in one plain sentence, then 2-3 sentences of warm, honest feedback>"}`, "scoringPrompt"),
+    scoringDimensions: ["Clarity", "Compassion", "Listening", "Respect for boundaries"],
     introCopy: "Tell me who you want to reach. They\u2019ll ask the hard questions \u2014 so you\u2019re ready when it counts."
   },
   thesis: {
@@ -4163,8 +4205,8 @@ Your real job is to decide whether to hire this person. Listen for evidence, and
         required: true
       }
     ],
-    systemPrompt: /* @__PURE__ */ __name((setup) => `You are a panel of exacting thesis examiners in ${setup.field || "the user's field"}. The candidate defends this thesis: "${setup.thesisStatement || "their thesis"}". Probe the argument relentlessly: challenge the methodology, demand evidence, raise counterarguments and edge cases. One examiner speaks at a time; keep each message under 120 words. Begin with the committee's first question.`, "systemPrompt"),
-    scoringPrompt: /* @__PURE__ */ __name(() => 'You are the chair of a thesis examination committee reviewing a defense transcript. Score the candidate 1-10 on rigor, evidence, defense under pressure, and clarity; return strict JSON {"dimensions": {"Rigor": <1-10>, "Evidence": <1-10>, "Defense under pressure": <1-10>, "Clarity": <1-10>}, "overall": <1-10>, "notes": "<2-3 sentences of feedback>"}', "scoringPrompt"),
+    systemPrompt: /* @__PURE__ */ __name((setup) => `You are a panel of exacting thesis examiners in ${setup.field || "the user's field"}. The candidate defends this thesis: "${setup.thesisStatement || "their thesis"}". Rotate between named examiners, each with a distinct angle: a Methodologist (design, data, validity), a Domain Specialist (the literature and what is already known), and an External Examiner (significance and real-world claims); say who is speaking in a few words. Follow the arc of a real defense: motivation, methods, findings, limitations, contribution, and what would prove the thesis wrong. Escalate as the candidate holds up. One examiner asks one question at a time; keep each message under 90 words.`, "systemPrompt"),
+    scoringPrompt: /* @__PURE__ */ __name((setup = {}) => `You are the chair of a thesis examination committee reviewing a defense in ${setup.field || "the candidate's field"} of the thesis: "${setup.thesisStatement || "their thesis"}". Score the candidate 1-10 on Rigor, Evidence, Defense under pressure, and Clarity. Start the notes with the committee's outcome: Verdict: Pass, Verdict: Minor revisions, Verdict: Major revisions, or Verdict: Not passed. The overall score must agree with that outcome (Pass 7 or higher, Minor revisions 6, Major revisions 4 to 5, Not passed 3 or lower). Return strict JSON {"dimensions": {"Rigor": <1-10>, "Evidence": <1-10>, "Defense under pressure": <1-10>, "Clarity": <1-10>}, "overall": <1-10>, "notes": "<start with the Verdict, then 2-3 sentences of feedback>"}`, "scoringPrompt"),
     scoringDimensions: ["Rigor", "Evidence", "Defense under pressure", "Clarity"],
     introCopy: "State your thesis. The committee is seated and the questioning begins now."
   },
@@ -4239,7 +4281,7 @@ CRITICAL RULES OF ENGAGEMENT:
    - Stay strictly in character as the inquirer. Never break character to act as an AI assistant.
 4. OPENING TURN:
    - Begin immediately in character with a natural 1-sentence greeting framing who you are, followed by your first question about "${setup.topic || "their topic"}".`, "systemPrompt"),
-    scoringPrompt: /* @__PURE__ */ __name(() => 'You are an executive communications coach and domain mastery evaluator. Score the expert user 1-10 on Clarity (avoiding confusing jargon), Domain Mastery (technical/conceptual accuracy), Analogy & Simplification (using intuitive metaphors), and Value & Persuasion (making the "why it matters" compelling); return strict JSON {"dimensions": {"Clarity": <1-10>, "Domain Mastery": <1-10>, "Analogy & Simplification": <1-10>, "Value & Persuasion": <1-10>}, "overall": <1-10>, "notes": "<2-3 sentences of constructive feedback highlighting their best moment and where their explanation could be more accessible or robust>"}', "scoringPrompt"),
+    scoringPrompt: /* @__PURE__ */ __name((setup = {}) => `You are an executive communications coach and domain mastery evaluator. The expert${setup.profession ? ` (${setup.profession})` : ""} explained${setup.topic ? ` "${setup.topic}"` : " a topic"} to ${setup.audience || "a skeptical questioner"}. Score the expert user 1-10 on Clarity (avoiding confusing jargon for THIS audience), Domain Mastery (technical or conceptual accuracy; name any factual error you notice), Analogy & Simplification (intuitive metaphors that fit the audience), and Value & Persuasion (making the why it matters compelling). Credit honest admission of the limits of their knowledge. Return strict JSON {"dimensions": {"Clarity": <1-10>, "Domain Mastery": <1-10>, "Analogy & Simplification": <1-10>, "Value & Persuasion": <1-10>}, "overall": <1-10>, "notes": "<2-3 sentences that name their best moment and where the explanation could be more accessible or robust>"}`, "scoringPrompt"),
     scoringDimensions: ["Clarity", "Domain Mastery", "Analogy & Simplification", "Value & Persuasion"],
     introCopy: "Take the expert seat. Name your subject and topic — the questions begin as soon as you step up."
   }
@@ -4508,7 +4550,7 @@ function roleLock(debate, mode, setup) {
 }
 __name(roleLock, "roleLock");
 __name(formatTranscript, "formatTranscript");
-var PROFANITY_PATTERN = /\b(f+u+c+k+|s+h+i+t+|b+i+t+c+h+|a+s+s+(h+o+l+e+)?|d+a+m+n+|d+i+c+k+|p+u+s+s+y+|c+u+n+t+|w+h+o+r+e+|s+l+u+t+|n+i+g+g+[aeiou]+|f+a+g+(g+o+t+)?|t+i+t+s+|b+o+o+b+s?|p+e+n+i+s+|v+a+g+i+n+a+|c+l+i+t+|o+r+g+a+s+m+|m+a+s+t+u+r+b+a+t+e+|p+o+r+n+|h+e+n+t+a+i+|r+a+p+i+s+t+|m+o+l+e+s+t+)\b/gi;
+var PROFANITY_PATTERN = /\b(?:\w*(?:f+u+c+k+|s+h+i+t+)\w*|(?:b+i+t+c+h+|d+a+m+n+|d+i+c+k+|p+u+s+s+y+|c+u+n+t+|w+h+o+r+e+|s+l+u+t+|b+o+o+b+|p+e+n+i+s+|c+l+i+t+)(?:e+s|s|y|ed|ing|er|ers)?|t+i+t+s+|a+s+s+(?:h+o+l+e+s?|e+s)?|n+i+g+g+\w*|f+a+g+(?:g+o+t+s?)?|v+a+g+i+n+a+|o+r+g+a+s+m+|m+a+s+t+u+r+b+a+t+\w*|p+o+r+n+\w*|h+e+n+t+a+i+|r+a+p+i+s+t+s?|m+o+l+e+s+t+\w*)\b/gi;
 function maskProfanity(text) {
   PROFANITY_PATTERN.lastIndex = 0;
   return text.replace(PROFANITY_PATTERN, "****");
@@ -4600,6 +4642,7 @@ __name(parseScores, "parseScores");
 var SCORE_HUMAN_ONLY = `
 
 WHO YOU ARE SCORING: only the turns labeled "HUMAN". The "AI OPPONENT" turns are context for judging how well the human responded — never give the human credit for the opponent's arguments, and never score the opponent. Score what the human actually said: short, off-topic, insulting, or content-free turns earn low scores (1-3) no matter how strong the opponent was. Write "notes" to the human in second person ("you").`;
+var STT_NOTE = "The transcript is speech-to-text: ignore line breaks, spelling and punctuation.";
 // Appended after SCORE_HUMAN_ONLY: calibrated scores and real coaching instead of generic praise.
 var COACH_ADDENDUM = `
 
@@ -4851,7 +4894,7 @@ State your side's resolution with confidence, lay out 2-3 foundational pillars s
     } else if (debate.mode === "interview") {
       return `You are the hiring manager conducting an interview for ${setup.jobTitle || "the position"}${setup.company ? ` at ${setup.company}` : ""}. Welcome the candidate warmly in a sentence, then ask a realistic opening question such as asking them to tell you a little about themselves and what drew them to this role. Keep under 80 words.`;
     } else if (debate.mode === "thesis") {
-      return `The thesis defense is convened on: "${setup.thesisStatement}". As committee chair, welcome the candidate and deliver the committee's opening challenge/question. Keep under 80 words.`;
+      return `The thesis defense is convened on: "${setup.thesisStatement}". As committee chair, welcome the candidate in a sentence and invite them to give a sixty-second summary of what the thesis contributes; then ask your first question yourself, on the motivation. Keep under 80 words.`;
     } else if (debate.mode === "expert") {
       return `You are playing ${setup.audience || "a skeptical decision-maker"}. The candidate is the expert on "${setup.topic}". Welcome them and ask your first challenging question. Keep under 80 words.`;
     } else if (debate.mode === "rapbattle") {

@@ -1181,6 +1181,10 @@ async function Mh(i, e) {
     if (err) return showErr(err);
     const fig = state.figure ? figMap.get(state.figure) : null;
     if (fig) T.figureId = fig.id;
+    if (isDifficult) {
+      T.relationship = vs.find((x) => x.id === state.rel)?.label || "";
+      T.presentation = state.present || "";
+    }
     const visual = fig ? hh(fig.id) : isDifficult ? ph(state.rel, state.present) : isDebate ? _h(state.persona.id) : xh(s.id);
     T.personaVisual = visual;
     const y = dh(visual);
@@ -25683,7 +25687,7 @@ function ix(root, debateId, t, data) {
 
   // Same pattern the worker uses (maskProfanity). Applied to whole sentences before
   // synthesis so words split across stream tokens are still caught.
-  const PROFANITY = /\b(f+u+c+k+|s+h+i+t+|b+i+t+c+h+|a+s+s+(h+o+l+e+)?|d+a+m+n+|d+i+c+k+|p+u+s+s+y+|c+u+n+t+|w+h+o+r+e+|s+l+u+t+|n+i+g+g+[aeiou]+|f+a+g+(g+o+t+)?|t+i+t+s+|b+o+o+b+s?|p+e+n+i+s+|v+a+g+i+n+a+|c+l+i+t+|o+r+g+a+s+m+|m+a+s+t+u+r+b+a+t+e+|p+o+r+n+|h+e+n+t+a+i+|r+a+p+i+s+t+|m+o+l+e+s+t+)\b/gi;
+  const PROFANITY = /\b(?:\w*(?:f+u+c+k+|s+h+i+t+)\w*|(?:b+i+t+c+h+|d+a+m+n+|d+i+c+k+|p+u+s+s+y+|c+u+n+t+|w+h+o+r+e+|s+l+u+t+|b+o+o+b+|p+e+n+i+s+|c+l+i+t+)(?:e+s|s|y|ed|ing|er|ers)?|t+i+t+s+|a+s+s+(?:h+o+l+e+s?|e+s)?|n+i+g+g+\w*|f+a+g+(?:g+o+t+s?)?|v+a+g+i+n+a+|o+r+g+a+s+m+|m+a+s+t+u+r+b+a+t+\w*|p+o+r+n+\w*|h+e+n+t+a+i+|r+a+p+i+s+t+s?|m+o+l+e+s+t+\w*)\b/gi;
   const maskRap = (x) => (t.modeId === "rapbattle" ? x.replace(PROFANITY, "****") : x);
   // Acting "Run my script": the user's lines, for the "Line?" prompt and the accuracy check.
   const scriptLines = t.actingScript ? scriptUserLines(parseScript(t.actingScript.script), t.actingScript.role) : null;
