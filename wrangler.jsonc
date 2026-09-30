@@ -29,7 +29,7 @@
     "DEEPSEEK_BASE_URL": "https://adversaryai-resource.services.ai.azure.com/openai/v1/chat/completions",
     "DEEPSEEK_PRO_MODEL": "DeepSeek-V4-Pro",
     "DEEPSEEK_PRO_URL": "https://adversaryai-resource.services.ai.azure.com/openai/v1/chat/completions",
-    "CHAMPION_VIDEO_MINUTES": "150",
+    "CHAMPION_VIDEO_MINUTES": "45",
     "LIVEAVATAR_API_URL": "https://api.liveavatar.com",
     "LIVEAVATAR_SANDBOX": "0",
     "AZURE_SPEECH_HD_REGION": "westus2"

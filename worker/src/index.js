@@ -72,8 +72,8 @@ var init_config = __esm({
     TIERS = {
       trial: { name: "Trial", debates: 15, rounds: 15, lifetime: true, price: 0 },
       debater: { name: "Debater", priceMonthly: 12, debatesPerMonth: 300, roundsPerMonth: 300, blurb: "All 11 practice modes, voiced 3D opponents with lip-sync, coaching scorecards, and credit rollover." },
-      coach: { name: "Coach", priceMonthly: 29, debatesPerMonth: 1000, roundsPerMonth: 1000, analytics: true, blurb: "Detailed coaching analytics, scorecard rubrics, and judge feedback. Unused credits roll over." },
-      champion: { name: "Champion", priceMonthly: 49, debatesPerMonth: 1e3, roundsPerMonth: 1e3, premiumModel: true, photorealMinutes: 150, blurb: "Photoreal video opponents that look you in the eye, our strongest reasoning model for sharper arguments and deeper judge feedback, and priority speed." }
+      coach: { name: "Coach", priceMonthly: 29, debatesPerMonth: 750, roundsPerMonth: 750, analytics: true, blurb: "Detailed coaching analytics, scorecard rubrics, and judge feedback. Unused credits roll over." },
+      champion: { name: "Champion", priceMonthly: 49, debatesPerMonth: 500, roundsPerMonth: 500, premiumModel: true, photorealMinutes: 45, blurb: "Photoreal video opponents that look you in the eye, our strongest reasoning model for sharper arguments and deeper judge feedback, and priority speed." }
     };
     PACKS = [
       { id: "pack10", name: "100 Rounds", debates: 100, rounds: 100, price: 9 },
@@ -84,8 +84,8 @@ var init_config = __esm({
       /** Displayed price per seat per month (USD). Stripe price configured via STRIPE_PRICE_EDU_SEAT. */
       pricePerSeatMonthly: 6,
       /** Monthly debate rounds each paid seat contributes to the org pool. */
-      sessionsPerSeat: 300,
-      roundsPerSeat: 300
+      sessionsPerSeat: 150,
+      roundsPerSeat: 150
     };
     PERSONALITY_VOICES = {
       prosecutor: "en-US-DavisNeural",
@@ -4340,7 +4340,7 @@ modesRouter.get("/", async (c) => {
 });
 
 // worker/src/debate.ts
-var FALLBACK_QUOTAS = { debater: 300, coach: 1e3, champion: 1e3 };
+var FALLBACK_QUOTAS = { debater: 300, coach: 750, champion: 500 };
 async function getTierQuotas() {
   const quotas = { ...FALLBACK_QUOTAS };
   try {
@@ -6431,12 +6431,12 @@ accountRouter.post("/admin/setup-stripe", async (c) => {
 
   const ITEMS = [
     { key: "debater", name: "AdversaryAI Debater", description: "300 sparring rounds per month across all 11 practice modes", type: "recurring", amount: 1200, interval: "month" },
-    { key: "coach", name: "AdversaryAI Coach", description: "1,000 sparring rounds per month plus coaching analytics and rubrics", type: "recurring", amount: 2900, interval: "month" },
-    { key: "champion", name: "AdversaryAI Champion", description: "1,000 sparring rounds per month with DeepSeek-V4-Pro & photorealistic 3D personas", type: "recurring", amount: 4900, interval: "month" },
+    { key: "coach", name: "AdversaryAI Coach", description: "750 sparring rounds per month plus coaching analytics and rubrics", type: "recurring", amount: 2900, interval: "month" },
+    { key: "champion", name: "AdversaryAI Champion", description: "500 premium rounds per month on the Pro model, with 45 minutes of photoreal video opponents", type: "recurring", amount: 4900, interval: "month" },
     { key: "pack10", name: "100 Sparring Rounds Pack", description: "100 round one-time credit top-up. Credits never expire.", type: "one_time", amount: 900 },
     { key: "pack25", name: "250 Sparring Rounds Pack", description: "250 round one-time credit top-up. Credits never expire.", type: "one_time", amount: 1900 },
     { key: "pack60", name: "600 Sparring Rounds Pack", description: "600 round one-time credit top-up. Credits never expire.", type: "one_time", amount: 3900 },
-    { key: "eduSeat", name: "AdversaryAI Education Seat", description: "1 seat license with 300 pooled rounds per month for classrooms & teams", type: "recurring", amount: 600, interval: "month" }
+    { key: "eduSeat", name: "AdversaryAI Education Seat", description: "1 seat license with 150 pooled rounds per month for classrooms & teams", type: "recurring", amount: 600, interval: "month" }
   ];
 
   try {
@@ -7040,8 +7040,8 @@ function avatarApiUrl(env) {
 }
 __name(avatarApiUrl, "avatarApiUrl");
 function videoMinutesCap(env) {
-  const n = Number(env.CHAMPION_VIDEO_MINUTES ?? 150);
-  return Number.isFinite(n) && n > 0 ? n : 150;
+  const n = Number(env.CHAMPION_VIDEO_MINUTES ?? 45);
+  return Number.isFinite(n) && n > 0 ? n : 45;
 }
 __name(videoMinutesCap, "videoMinutesCap");
 // Complimentary (lifetime VIP) Champions get a small monthly photoreal allowance: video is billed

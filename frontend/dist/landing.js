@@ -37,11 +37,11 @@ const PRICING = {
       name: 'Coach',
       price: 29,
       per: '/mo',
-      headline: '1,000 sparring rounds per month',
+      headline: '750 sparring rounds per month',
       badge: 'Most popular',
       cta: 'Start free, upgrade in-app',
       features: [
-        '1,000 sparring rounds per month — 3× Debater',
+        '750 sparring rounds per month — 2.5× Debater',
         'Everything in Debater',
         'Built for daily practice, interview season & debate teams',
         'Unused rounds roll over'
@@ -56,8 +56,8 @@ const PRICING = {
       features: [
         'Photoreal video opponents (rolling out)',
         'Strongest reasoning model: sharper opponents, deeper feedback',
-        '1,000 sparring rounds per month',
-        'Everything in Coach'
+        '500 premium rounds per month',
+        'Everything in Debater, plus the Pro coach'
       ]
     }
   ],
@@ -90,8 +90,8 @@ function adaptLivePrices(data) {
 
   const trial = tiers.trial || { name: 'Trial', price: 0, debates: 15, rounds: 15 };
   const debater = tiers.debater || { name: 'Debater', price: 1200, rounds: 300 };
-  const coach = tiers.coach || { name: 'Coach', price: 2900, rounds: 1000 };
-  const champion = tiers.champion || { name: 'Champion', price: 4900, rounds: 1000 };
+  const coach = tiers.coach || { name: 'Coach', price: 2900, rounds: 750 };
+  const champion = tiers.champion || { name: 'Champion', price: 4900, rounds: 500 };
 
   const getPrice = (t, def) => {
     if (typeof t.priceMonthly === 'number') return t.priceMonthly;
@@ -150,10 +150,10 @@ function adaptLivePrices(data) {
       badge: 'Best experience',
       cta: 'Start free, upgrade in-app',
       features: [
-        champion.photoreal ? 'Photoreal video opponents — ' + (champion.photorealMinutes || 150) + ' min/month' : 'Photoreal video opponents (rolling out)',
+        champion.photoreal ? 'Photoreal video opponents — ' + (champion.photorealMinutes || 45) + ' min/month' : 'Photoreal video opponents (rolling out)',
         'Strongest reasoning model: sharper opponents, deeper feedback',
-        getRounds(champion, 1000).toLocaleString() + ' sparring rounds per month',
-        'Everything in Coach'
+        getRounds(champion, 500).toLocaleString() + ' premium rounds per month',
+        'Everything in Debater, plus the Pro coach'
       ]
     }
   ];

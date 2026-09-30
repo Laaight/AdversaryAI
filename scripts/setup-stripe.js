@@ -64,7 +64,7 @@ const ITEMS = [
   {
     key: 'coach',
     name: 'AdversaryAI Coach',
-    description: '1,000 sparring rounds per month plus coaching analytics and rubrics',
+    description: '750 sparring rounds per month plus coaching analytics and rubrics',
     type: 'recurring',
     amount: 2900, // $29.00
     interval: 'month'
@@ -101,7 +101,7 @@ const ITEMS = [
   {
     key: 'eduSeat',
     name: 'AdversaryAI Education Seat',
-    description: '1 seat license with 300 pooled rounds per month for classrooms & teams',
+    description: '1 seat license with 150 pooled rounds per month for classrooms & teams',
     type: 'recurring',
     amount: 600, // $6.00
     interval: 'month'

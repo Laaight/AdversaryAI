@@ -4233,14 +4233,14 @@ void main() {
             <span class="block text-white font-medium">${At(L.name)}</span>
             <span class="block text-body-sm text-slate-400 capitalize">${At(L.role)} \xB7 ${L.memberCount} members \xB7 ${L.sessionsUsed}/${L.sessionsPool} sessions${L.subscriptionActive?"":' \xB7 <span class="text-amber-300">no subscription</span>'}</span>
           </span>
-          <span class="ml-auto text-accent-400 text-body-sm">Open \u2192</span>`,f.appendChild(N)}}catch{f.innerHTML=`<p class="text-body-sm text-slate-500">Couldn't load your schools.</p>`}}m(),v.querySelector("[data-create-school]").addEventListener("click",async()=>{let I=null;await Ks({title:"Create a school",label:"School name",autocomplete:"organization",placeholder:"e.g. Lincoln High Debate Team",confirm:"Create school",validate:async N=>{if(!N.trim())return"Enter a name for your school.";try{I=(await Ct("/api/orgs",{name:N.trim()})).org}catch{return"Could not create the school. Please try again."}}})!=null&&I&&(location.hash=`#/org/${I.id}`)});let S=!!n?.photoreal,_=!!n?.champion,P=a&&/active|trialing/.test(a.status||"")?a.tier:null,E={debater:["300 rounds / month","All 11 practice modes","Voiced 3D opponents with real lip-sync","Scorecards + impartial judge verdicts","Unused rounds roll over"],coach:["1,000 rounds / month \u2014 3\xD7 Debater","Everything in Debater","Best for daily practice, interview season & debate teams","Unused rounds roll over"],champion:["1,000 rounds / month",S?"Photoreal video opponents \u2014 150 min/month":"Photoreal video opponents (rolling out)","Strongest reasoning model \u2014 sharper opponents, deeper judge feedback","Everything in Coach"]},M=document.createElement("section");M.id="plans",M.innerHTML=`
+          <span class="ml-auto text-accent-400 text-body-sm">Open \u2192</span>`,f.appendChild(N)}}catch{f.innerHTML=`<p class="text-body-sm text-slate-500">Couldn't load your schools.</p>`}}m(),v.querySelector("[data-create-school]").addEventListener("click",async()=>{let I=null;await Ks({title:"Create a school",label:"School name",autocomplete:"organization",placeholder:"e.g. Lincoln High Debate Team",confirm:"Create school",validate:async N=>{if(!N.trim())return"Enter a name for your school.";try{I=(await Ct("/api/orgs",{name:N.trim()})).org}catch{return"Could not create the school. Please try again."}}})!=null&&I&&(location.hash=`#/org/${I.id}`)});let S=!!n?.photoreal,_=!!n?.champion,P=a&&/active|trialing/.test(a.status||"")?a.tier:null,E={debater:["300 rounds / month","All 11 practice modes","Voiced 3D opponents with real lip-sync","Scorecards + impartial judge verdicts","Unused rounds roll over"],coach:["750 rounds / month \u2014 2.5\xD7 Debater","Everything in Debater","Best for daily practice, interview season & debate teams","Unused rounds roll over"],champion:["500 premium rounds / month",S?"Photoreal video opponents \u2014 45 min/month":"Photoreal video opponents (rolling out)","Strongest reasoning model \u2014 sharper opponents, deeper judge feedback","Everything in Debater, plus the Pro coach"]},M=document.createElement("section");M.id="plans",M.innerHTML=`
     ${_?"":`<div class="card relative mb-6 overflow-hidden border-amber-500/30 p-6 sm:p-8">
       <div class="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-amber-500/10 blur-3xl" aria-hidden="true"></div>
       <p class="eyebrow mb-2 !text-amber-300">Champion</p>
       <h2 class="text-2xl font-extrabold tracking-tight text-white sm:text-3xl">Practice against someone who looks you in the eye.</h2>
       <p class="mt-2 max-w-xl text-sm leading-relaxed text-slate-400">Pressure is what you're training for. Champion puts a photoreal human opponent on screen \u2014 real eye contact, real facial reactions, lips that match every word \u2014 driven by our sharpest reasoning model.</p>
       <ul class="mt-5 grid gap-3 text-sm sm:grid-cols-3">
-        <li class="rounded-xl border border-ink-700 bg-ink-800/60 p-4"><div class="font-semibold text-white">Photoreal video</div><div class="mt-1 text-slate-400">${S?"150 minutes a month of lifelike video opponents.":"Lifelike video opponents \u2014 rolling out to Champions first."}</div></li>
+        <li class="rounded-xl border border-ink-700 bg-ink-800/60 p-4"><div class="font-semibold text-white">Photoreal video</div><div class="mt-1 text-slate-400">${S?"45 minutes a month of lifelike video opponents.":"Lifelike video opponents \u2014 rolling out to Champions first."}</div></li>
         <li class="rounded-xl border border-ink-700 bg-ink-800/60 p-4"><div class="font-semibold text-white">Sharper opponent</div><div class="mt-1 text-slate-400">DeepSeek-V4-Pro finds the hole in your argument faster and pushes harder.</div></li>
         <li class="rounded-xl border border-ink-700 bg-ink-800/60 p-4"><div class="font-semibold text-white">Deeper feedback</div><div class="mt-1 text-slate-400">The judge and coach run on the Pro model too \u2014 more specific notes, better turning points.</div></li>
       </ul>
@@ -4253,8 +4253,8 @@ void main() {
       <div class="mt-4 overflow-x-auto"><table class="w-full min-w-[520px] text-left">
         <thead class="text-xs uppercase tracking-wider text-slate-500"><tr><th class="py-2 pr-4 font-semibold"></th><th class="py-2 pr-4">Debater</th><th class="py-2 pr-4">Coach</th><th class="py-2 text-amber-300">Champion</th></tr></thead>
         <tbody class="divide-y divide-ink-700/70 text-slate-300">
-          <tr><td class="py-2.5 pr-4 text-slate-400">Rounds / month</td><td>300</td><td>1,000</td><td>1,000</td></tr>
-          <tr><td class="py-2.5 pr-4 text-slate-400">Opponent on screen</td><td>3D, lip-synced</td><td>3D, lip-synced</td><td class="font-semibold text-white">Photoreal video${S?" (150 min)":" (rolling out)"}</td></tr>
+          <tr><td class="py-2.5 pr-4 text-slate-400">Rounds / month</td><td>300</td><td>750</td><td>500 premium</td></tr>
+          <tr><td class="py-2.5 pr-4 text-slate-400">Opponent on screen</td><td>3D, lip-synced</td><td>3D, lip-synced</td><td class="font-semibold text-white">Photoreal video${S?" (45 min)":" (rolling out)"}</td></tr>
           <tr><td class="py-2.5 pr-4 text-slate-400">Reasoning model</td><td>Standard</td><td>Standard</td><td class="font-semibold text-white">Pro</td></tr>
           <tr><td class="py-2.5 pr-4 text-slate-400">Judge & coach feedback</td><td>\u2713</td><td>\u2713</td><td class="font-semibold text-white">\u2713 Pro-level detail</td></tr>
           <tr><td class="py-2.5 pr-4 text-slate-400">All 11 modes \xB7 unused rounds roll over</td><td>\u2713</td><td>\u2713</td><td>\u2713</td></tr>
@@ -4333,7 +4333,7 @@ void main() {
       </div>
     </div>`,t.appendChild(c),s){let S=document.createElement("div");S.className="card card-lift p-6 mb-6",S.innerHTML=`
       <h2 class="font-display text-display-md text-white mb-1">Billing</h2>
-      <p class="text-slate-400 text-body-sm mb-5">$6 per seat per month. Each seat adds 300 shared sparring rounds per month. Students never pay.</p>
+      <p class="text-slate-400 text-body-sm mb-5">$6 per seat per month. Each seat adds 150 shared sparring rounds per month. Students never pay.</p>
       <div class="flex flex-wrap items-end gap-3">
         <div>
           <label class="block text-body-sm font-medium text-slate-300 mb-1.5" for="seats-input">Seats</label>
