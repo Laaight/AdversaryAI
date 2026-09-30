@@ -5837,6 +5837,8 @@ async function handlePromoRedeem(c) {
   await ensureLedgerIndexes(db);
   const promo = await db.prepare("SELECT * FROM promo_codes WHERE code = ?").bind(code).first();
   if (!promo) return c.json({ error: "Invalid promo code. Please check the code and try again." }, 404);
+  // Lifetime VIP is granted by email from Account → Admin only; a shareable code can leak.
+  if (promo.type === "lifetime_vip") return c.json({ error: "This promo code is no longer active." }, 410);
 
   if (promo.max_redemptions > 0 && promo.times_redeemed >= promo.max_redemptions) {
     return c.json({ error: "This promo code has reached its maximum redemptions." }, 410);
@@ -5903,7 +5905,7 @@ async function handleAdminGrantVip(c) {
   if (!targetUser) {
     return c.json({
       ok: false,
-      error: `No user with email "${email}" has signed up yet. Have them create an account, or share promo code FAMILYVIP with them.`
+      error: `No user with email "${email}" has signed up yet. Have them create an account first, then grant it again.`
     }, 404);
   }
 
@@ -5927,7 +5929,7 @@ async function handleAdminGrantVip(c) {
 
   return c.json({
     ok: true,
-    message: `Successfully granted Lifetime Champion VIP to ${targetUser.email} with 100,000 rounds!`
+    message: `Successfully granted Lifetime Champion VIP to ${targetUser.email} with 100,000 rounds and ${VIP_VIDEO_MINUTES} photoreal video minutes a month!`
   });
 }
 __name(handleAdminGrantVip, "handleAdminGrantVip");
@@ -6693,6 +6695,14 @@ function videoMinutesCap(env) {
   return Number.isFinite(n) && n > 0 ? n : 150;
 }
 __name(videoMinutesCap, "videoMinutesCap");
+// Complimentary (lifetime VIP) Champions get a small monthly photoreal allowance: video is billed
+// per minute, and they don't pay for it. VIP rows are Champion with no Stripe subscription.
+var VIP_VIDEO_MINUTES = 10;
+async function isCompedChampion(db, userId) {
+  const row = await db.prepare("SELECT stripe_subscription_id, current_period_end FROM subscriptions WHERE user_id = ? AND tier = 'champion'").bind(userId).first();
+  return !!row && !row.stripe_subscription_id && String(row.current_period_end ?? "").startsWith("2099");
+}
+__name(isCompedChampion, "isCompedChampion");
 async function getAvatarMap(db) {
   try {
     const row = await db.prepare("SELECT value FROM app_config WHERE key = 'liveavatar_map'").first();
@@ -6732,7 +6742,8 @@ async function avatarStatus(c, user) {
   const enabled = !!c.env.LIVEAVATAR_API_KEY && !outOfCredits;
   const eligible = await isPremium(c, user.id, user.email);
   const owner = isOwnerEmail(user.email, c.env);
-  const capSeconds = owner ? 24 * 3600 : videoMinutesCap(c.env) * 60;
+  const capMinutes = await isCompedChampion(c.env.DB, user.id) ? VIP_VIDEO_MINUTES : videoMinutesCap(c.env);
+  const capSeconds = owner ? 24 * 3600 : capMinutes * 60;
   const used = enabled && eligible ? await avatarSecondsUsed(c.env.DB, user.id) : 0;
   return { enabled, outOfCredits, eligible, owner, capSeconds, usedSeconds: used, remainingSeconds: Math.max(0, capSeconds - used) };
 }
