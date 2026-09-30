@@ -2994,8 +2994,11 @@ async function getSessionUser(c) {
 __name(getSessionUser, "getSessionUser");
 var authRouter = new Hono2();
 authRouter.post("/signup", async (c) => {
-  // Each trial account is worth real money (15 rounds of model + speech): throttle per IP.
-  if (!(await rateLimit(c.env.DB, `signup:${clientIp(c)}`, 5, 3600))) return c.json({ error: "rate_limited", message: "Too many sign-ups from this network — try again later." }, 429);
+  // Each trial account is worth real money (15 rounds of model + speech): throttle per IP. A valid
+  // school invite skips it — a class shares one network, and the invite's use cap bounds it — but a
+  // wrong invite code counts, so codes can't be guessed.
+  const throttled = async () => !(await rateLimit(c.env.DB, `signup:${clientIp(c)}`, 20, 3600));
+  const tooMany = () => c.json({ error: "rate_limited", message: "Too many sign-ups from this network — try again in an hour." }, 429);
   const body = await c.req.json().catch(() => ({}));
   const email = String(body.email ?? "").trim().toLowerCase();
   const password = String(body.password ?? "");
@@ -3007,7 +3010,7 @@ authRouter.post("/signup", async (c) => {
     const row = await c.env.DB.prepare(
       "SELECT org_id, role, code, max_uses, uses, expires_at FROM org_invites WHERE code = ?"
     ).bind(inviteCode).first();
-    if (!row) return c.json({ error: "invalid_code" }, 404);
+    if (!row) return await throttled() ? tooMany() : c.json({ error: "invalid_code" }, 404);
     if (row.uses >= row.max_uses) return c.json({ error: "code_exhausted" }, 410);
     if (row.expires_at && row.expires_at < nowIso()) return c.json({ error: "code_expired" }, 410);
     invite = row;
@@ -3015,6 +3018,8 @@ authRouter.post("/signup", async (c) => {
   if (invite) {
     const seats = await seatAvailability(c.env.DB, invite.org_id);
     if (!seats.ok) return c.json({ error: seats.error }, 403);
+  } else if (await throttled()) {
+    return tooMany();
   }
   const existing = await getUserByEmail(c.env.DB, email);
   if (existing) return c.json({ error: "email_taken" }, 409);

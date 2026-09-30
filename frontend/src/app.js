@@ -316,7 +316,9 @@ async function od(i, e, t) {
       ? os(e, "An account with that email already exists. Try logging in instead.")
       : c === 401
         ? os(e, "Wrong email or password. Try again — or, if you forgot it, email support@getadversaryai.com.")
-        : os(e, "Something went wrong. Please try again.");
+        : c === 429
+          ? os(e, o.body?.message || "Too many attempts from this network — try again in an hour.")
+          : os(e, "Something went wrong. Please try again.");
   } finally {
     Rc(r, !1, a);
   }
@@ -27811,7 +27813,9 @@ function mo(i, e) {
             ? "An account with that email already exists. Log in first, then open the invite link again to join."
             : i === 404
               ? "We couldn't find that invite. Check the link and try again."
-              : "Something went wrong. Please try again.";
+              : i === 429
+                ? e?.message || "Too many attempts from this network — try again in an hour."
+                : "Something went wrong. Please try again.";
 }
 async function hx(i, e) {
   const t = document.createElement("div");
