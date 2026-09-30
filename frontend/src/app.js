@@ -26861,6 +26861,26 @@ function $u(i, e, t = 10) {
       </div>
     </div>`;
 }
+/** Coaching cards: the #1 priority, real moments quoted from the session, and a drill for next time. */
+function coachCards(r, t) {
+  const cards = [];
+  if (r?.topPriority) {
+    cards.push(`<div class="card mb-4 border-accent-500/30 p-5 sm:p-6"><div class="eyebrow mb-1 !text-accent-400">Your #1 priority</div><div class="text-lg font-bold text-white">${xt(r.topPriority.skill)}</div><p class="mt-1 text-sm leading-relaxed text-slate-300">${xt(r.topPriority.why)}</p></div>`);
+  }
+  if (r?.moments?.length) {
+    const order = [...r.moments].sort((a, b) => (a.type === "miss" ? 0 : 1) - (b.type === "miss" ? 0 : 1));
+    cards.push(`<div class="card mb-4 p-5 sm:p-6"><div class="mb-3 text-sm font-semibold text-white">Moments from your session</div><div class="space-y-4">${order
+      .map((m) => {
+        const good = m.type === "strength";
+        return `<div class="rounded-xl border ${good ? "border-emerald-500/30 bg-emerald-500/5" : "border-amber-500/30 bg-amber-500/5"} p-4"><div class="mb-1 text-xs font-bold uppercase tracking-wide ${good ? "text-emerald-300" : "text-amber-300"}">${good ? "Keep doing this" : "Missed moment"}</div><blockquote class="border-l-2 ${good ? "border-emerald-500/60" : "border-amber-500/60"} pl-3 text-sm italic text-slate-200">“${xt(m.quote)}”</blockquote><p class="mt-2 text-sm leading-relaxed text-slate-300">${xt(m.what)}</p>${m.insteadSay ? `<p class="mt-2 text-sm leading-relaxed text-white"><span class="font-semibold text-accent-400">Try instead:</span> “${xt(m.insteadSay)}”</p>` : ""}</div>`;
+      })
+      .join("")}</div></div>`);
+  }
+  if (r?.nextDrill) {
+    cards.push(`<div class="card mb-4 p-5 sm:p-6"><div class="eyebrow mb-1 !text-accent-400">Your next drill</div><p class="text-sm leading-relaxed text-slate-200">${xt(r.nextDrill)}</p>${t?.modeId ? `<a href="#/setup/${encodeURIComponent(t.modeId)}" class="btn-primary mt-4 inline-flex px-5 py-2.5 text-sm">Start this drill</a>` : ""}</div>`);
+  }
+  return cards.join("");
+}
 function sx(i, e, t, n, s, r) {
   try {
     localStorage.setItem("aai_sessions_done", "1"); // lets the install nudge wait until after a first scorecard
@@ -26887,13 +26907,15 @@ function sx(i, e, t, n, s, r) {
           </div>
           <div class="min-w-0 flex-1">
             <div class="text-lg font-bold text-white">Your score</div>
-            <p class="text-sm text-slate-400">${yourTurns} turn${yourTurns === 1 ? "" : "s"} vs ${xt(t.personaLabel)}</p>
+            ${r?.headline ? `<p class="text-base font-semibold leading-snug text-white">${xt(r.headline)}</p>` : ""}
+            <p class="text-sm text-slate-400">${yourTurns} turn${yourTurns === 1 ? "" : "s"} vs ${xt(t.personaLabel)}${yourTurns < 3 ? " · limited sample" : ""}</p>
             ${t.judgeEnabled ? `<div id="verdict-pill" class="mt-2"><span class="badge border-ink-700 bg-ink-800 text-slate-400"><span class="spinner !h-3 !w-3"></span>Judge deliberating…</span></div>` : ""}
           </div>
         </div>
         ${scored.length ? `<div class="mt-6 grid gap-x-8 gap-y-4 border-t border-ink-700 pt-6 sm:grid-cols-2">${a.map((o) => $u(o.label, o.score)).join("")}</div>` : ""}
       </div>
       ${t.judgeEnabled ? `<div class="card mb-4 p-5 sm:p-7" id="verdict-card"><div class="mb-4 flex items-center gap-3"><span class="text-accent-400 [&>svg]:h-5 [&>svg]:w-5">${it.scale}</span><div><div class="font-semibold text-white">Head-to-head</div><p class="text-xs text-slate-500">An impartial judge scored both sides on the same rubric.</p></div></div><div id="verdict-body"><div class="flex items-center justify-center gap-2 py-6 text-sm text-slate-400"><span class="spinner"></span>The judge is deliberating…</div></div></div>` : ""}
+      ${coachCards(r, t)}
       <div class="card mb-4 p-5 sm:p-7">
         <div class="mb-2 text-sm font-semibold text-white">Coach’s notes</div>
         <p class="whitespace-pre-wrap text-sm leading-relaxed text-slate-300">${xt(r?.notes || "No notes this time.")}</p>

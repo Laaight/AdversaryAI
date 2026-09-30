@@ -4514,7 +4514,39 @@ function maskProfanity(text) {
   return text.replace(PROFANITY_PATTERN, "****");
 }
 __name(maskProfanity, "maskProfanity");
-function parseScores(raw2, dimensions) {
+function normQuote(x) {
+  return String(x || "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+}
+// Keeps only coaching content that is grounded: quotes must appear in what the human actually said.
+function cleanCoaching(obj, dimensions, humanText) {
+  const out = {};
+  const str = (v, n) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, n) : "");
+  const headline = str(obj?.headline, 120);
+  if (headline) out.headline = headline;
+  const skill = str(obj?.topPriority?.skill, 60);
+  const why = str(obj?.topPriority?.why, 260);
+  if (skill && why) out.topPriority = { skill, why };
+  const strength = str(obj?.strength, 220);
+  if (strength) out.strength = strength;
+  const drill = str(obj?.nextDrill, 320);
+  if (drill) out.nextDrill = drill;
+  const human = normQuote(humanText);
+  const moments = [];
+  for (const m of Array.isArray(obj?.moments) ? obj.moments.slice(0, 4) : []) {
+    const quote = str(m?.quote, 220);
+    const q = normQuote(quote);
+    if (!quote || q.length < 8 || (human && !human.includes(q.slice(0, 70)))) continue;
+    const type = m?.type === "strength" ? "strength" : "miss";
+    const what = str(m?.what, 260);
+    const insteadSay = str(m?.insteadSay, 320);
+    if (!what || (type === "miss" && !insteadSay)) continue;
+    moments.push(type === "miss" ? { type, quote, what, insteadSay } : { type, quote, what });
+  }
+  if (moments.length) out.moments = moments;
+  return out;
+}
+__name(cleanCoaching, "cleanCoaching");
+function parseScores(raw2, dimensions, humanText = "") {
   const fallback = /* @__PURE__ */ __name(() => ({
     overall: null,
     notes: "",
@@ -4530,13 +4562,23 @@ function parseScores(raw2, dimensions) {
     if (dimObj && typeof dimObj === "object") {
       for (const [k, v] of Object.entries(dimObj)) lower[k.toLowerCase()] = v;
     }
+    const dims = dimensions.map((label) => ({
+      label,
+      score: coerce(lower[label.toLowerCase()])
+    }));
+    let overall = coerce(obj?.overall);
+    // The headline number must agree with the bars under it.
+    const got = dims.filter((d) => d.score != null).map((d) => d.score);
+    if (got.length >= 2) {
+      const mean = got.reduce((a, b) => a + b, 0) / got.length;
+      if (overall == null || Math.abs(overall - mean) > 1) overall = Math.min(10, Math.max(1, Math.round(mean)));
+    }
+    if (dims.length && got.length * 2 < dims.length) return { ...fallback(), failed: true };
     return {
-      overall: coerce(obj?.overall),
+      overall,
       notes: typeof obj?.notes === "string" ? obj.notes.slice(0, 2e3) : "",
-      dimensions: dimensions.map((label) => ({
-        label,
-        score: coerce(lower[label.toLowerCase()])
-      }))
+      dimensions: dims,
+      ...cleanCoaching(obj, dimensions, humanText)
     };
   }, "pick");
   try {
@@ -4558,6 +4600,12 @@ __name(parseScores, "parseScores");
 var SCORE_HUMAN_ONLY = `
 
 WHO YOU ARE SCORING: only the turns labeled "HUMAN". The "AI OPPONENT" turns are context for judging how well the human responded — never give the human credit for the opponent's arguments, and never score the opponent. Score what the human actually said: short, off-topic, insulting, or content-free turns earn low scores (1-3) no matter how strong the opponent was. Write "notes" to the human in second person ("you").`;
+// Appended after SCORE_HUMAN_ONLY: calibrated scores and real coaching instead of generic praise.
+var COACH_ADDENDUM = `
+
+CALIBRATION: 1-2 = barely engaged; 3-4 = beginner with major gaps; 5 = competent but unremarkable (the typical untrained speaker); 6-7 = clearly good, with specific strengths you can quote; 8 = excellent, would impress a professional; 9-10 = near-flawless and almost never awarded. Use the full range and spread the dimensions when the transcript supports it: identical scores everywhere are a failure. Only give 7 or higher when you can quote the line that earned it. "overall" must be within 1 point of the average of the dimensions. A session of fewer than about four human turns cannot score above 5 overall; say the sample is small. Be honest but constructive, and frame every miss as a skill to build.
+
+COACHING FIELDS: in the SAME JSON object, also include "headline" (at most 10 words, your verdict on THIS session), "topPriority" ({"skill": "<one of the scored dimensions>", "why": "<one sentence>"}), "strength" (the one thing to keep doing), "nextDrill" (one concrete five-minute exercise for the next session, e.g. answer every objection in two sentences and then ask a question), and "moments": exactly 1 strength and 2 misses, each {"type": "strength" or "miss", "quote": "<copied word for word from a HUMAN turn, 25 words or fewer>", "what": "<what happened, one sentence>", "insteadSay": "<for a miss: a better line they could have said>"}. Quotes MUST be copied exactly from the transcript; never invent one. Never write generic praise such as "good job"; cite something specific or say nothing. Keep "notes" as two or three plain sentences.`;
 // Deterministic backstop: a handful of words can't earn a good grade, whatever the model says.
 function capLowEffortScores(scores, turnRows) {
   const words = turnRows
@@ -5261,23 +5309,29 @@ debateRouter.post("/end", async (c) => {
       const accs = said.map((t, i) => userBlocks[i] ? lineAccuracy(blockText(userBlocks[i]), t.text) : null).filter((x) => x != null);
       if (accs.length) accuracyNote = `Line accuracy: ${Math.round(accs.reduce((a, b) => a + b, 0) / accs.length)}% word-for-word across ${accs.length} of ${userBlocks.length} lines.`;
     }
-    const transcript = turnRows
-      .map((t) => `${t.role === "user" ? "HUMAN" : `AI OPPONENT (${oppName})`}: ${t.text}`)
-      .join("\n\n");
+    const lines = turnRows.map((t) => `${t.role === "user" ? "HUMAN" : `AI OPPONENT (${oppName})`}: ${t.text}`);
+    // A very long session keeps its opening and its most recent turns instead of overflowing the model.
+    let transcript = lines.join("\n\n");
+    if (transcript.length > 60000 && lines.length > 50) {
+      transcript = [...lines.slice(0, 6), `[... ${lines.length - 46} turns omitted for length ...]`, ...lines.slice(-40)].join("\n\n");
+    }
+    const humanText = turnRows.filter((t) => t.role === "user").map((t) => t.text).join("\n");
+    const humanRole = turnRoles(debate, mode, endSetup).human;
     try {
       const premium = await isPremium(c, user.id, user.email);
       // A cut-off or malformed scorecard is never saved: ask once more, then let the user retry.
       for (let attempt = 1; attempt <= 2; attempt++) {
         const raw2 = await modelText(
           c.env,
-          mode.scoringPrompt(endSetup) + SCORE_HUMAN_ONLY + (scriptMode ? `\n\nThis was a scripted scene: the HUMAN performed written lines as the character ${endSetup.scriptRole} and the AI OPPONENT read the other parts verbatim. Judge delivery, interpretation and pacing as shown in the text, not the writing itself. ${accuracyNote}` : ""),
+          mode.scoringPrompt(endSetup) + SCORE_HUMAN_ONLY + COACH_ADDENDUM + (attempt > 1 ? "\n\nYour previous reply was not valid JSON. Return ONLY the JSON object." : "") + (scriptMode ? `\n\nThis was a scripted scene: the HUMAN performed written lines as the character ${endSetup.scriptRole} and the AI OPPONENT read the other parts verbatim. Judge delivery, interpretation and pacing as shown in the text, not the writing itself. ${accuracyNote}` : ""),
           `Session topic: ${debate.topic}
+The HUMAN played: ${humanRole}.
 
 ${transcript}`,
           4e3,
           { premium }
         );
-        scores = parseScores(raw2, mode.scoringDimensions);
+        scores = parseScores(raw2, mode.scoringDimensions, humanText);
         if (!scores.failed) break;
         console.warn("[end] unparseable scorecard", { debateId, attempt, len: raw2.length });
       }
