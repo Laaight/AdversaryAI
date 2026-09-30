@@ -69,7 +69,7 @@ doctors/nurses are skipped). The owner can override any look in Account → Admi
 Azure's HD ("DragonHD") voices sound far more human, but they aren't offered in `westus3`.
 Create a second **Speech** resource in `westus2` or `eastus`, then:
 1. Add a plain variable `AZURE_SPEECH_HD_REGION` = `westus2` (Cloudflare → adversaryai → Settings → Variables).
-2. Add a secret `AZURE_SPEECH_HD_KEY` (or `AzureSpeechReal`) = that resource's key. The region `westus2` is already set in `wrangler.jsonc`.
+2. Add a secret `AZURE_SPEECH_HD_KEY` = that resource's key. The region `westus2` is already set in `wrangler.jsonc`.
 Champion photoreal sessions then use HD voices automatically; everything else keeps the
 standard neural voices (which provide visemes for the 3D lip-sync).
 

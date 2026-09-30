@@ -6553,7 +6553,7 @@ var HD_VOICE_MAP = {
   "en-US-AriaNeural": "en-US-Aria:DragonHDLatestNeural"
 };
 function hdSpeechKey(env) {
-  return env.AZURE_SPEECH_HD_KEY || env.AzureSpeechReal || null;
+  return env.AZURE_SPEECH_HD_KEY || null;
 }
 __name(hdSpeechKey, "hdSpeechKey");
 function hdSpeechConfigured(env) {
