@@ -27768,7 +27768,9 @@ async function qu(i) {
         try {
           await zt("/api/auth/delete-account", { password: v });
         } catch (err) {
-          return err instanceof Bt && err.status === 401 ? "That password didn’t match." : "Couldn’t delete the account — please email support@getadversaryai.com.";
+          if (err instanceof Bt && err.status === 401) return "That password didn’t match.";
+          if (err instanceof Bt && err.body?.message) return err.body.message;
+          return "Couldn’t delete the account — please email support@getadversaryai.com.";
         }
       },
     });

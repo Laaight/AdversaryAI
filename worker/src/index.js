@@ -3068,16 +3068,30 @@ authRouter.post("/login", async (c) => {
 authRouter.post("/delete-account", async (c) => {
   const user = await getSessionUser(c);
   if (!user) return c.json({ error: "unauthorized" }, 401);
+  // Password guesses against a stolen session are throttled like logins.
+  if (!(await rateLimit(c.env.DB, `delete:${user.id}`, 5, 3600))) return c.json({ error: "rate_limited", message: "Too many attempts — try again in an hour." }, 429);
   const body = await c.req.json().catch(() => ({}));
-  const v = await verifyPassword(String(body.password ?? ""), user);
+  // getSessionUser returns only id + email; the hash and salt live on the full row.
+  const full = await getUserById(c.env.DB, user.id);
+  const v = full ? await verifyPassword(String(body.password ?? ""), full) : { ok: false };
   if (!v.ok) return c.json({ error: "invalid_credentials" }, 401);
   const db = c.env.DB;
+  // A school the user created keeps billing after they're gone, with nobody able to cancel it.
+  const ownedOrg = await db.prepare(
+    "SELECT id FROM orgs WHERE created_by = ? AND stripe_subscription_id IS NOT NULL AND status IN ('active', 'trialing', 'past_due') LIMIT 1"
+  ).bind(user.id).first();
+  if (ownedOrg) {
+    return c.json({ error: "org_subscription_active", message: "You manage a school with an active subscription. Cancel it from Manage billing first, then delete your account." }, 409);
+  }
+  // Stop billing before anything is deleted; if Stripe can't be reached, keep the account so the
+  // user isn't left paying for something they can no longer reach.
   const sub = await getSubscription(db, user.id);
   if (sub?.stripe_subscription_id && isSubscriptionActive(sub)) {
     try {
       await stripePost(c.env, `/subscriptions/${sub.stripe_subscription_id}`, { cancel_at_period_end: "true" });
     } catch (e) {
       console.error("cancel on delete", e?.message || e);
+      return c.json({ error: "billing_cancel_failed", message: "We couldn't cancel your subscription just now, so your account was not deleted. Please try again in a minute." }, 502);
     }
   }
   const debates = await db.prepare("SELECT id FROM debates WHERE user_id = ?").bind(user.id).all();
@@ -3086,16 +3100,22 @@ authRouter.post("/delete-account", async (c) => {
   for (const id of ids) {
     for (const t of ["turns", "verdicts", "debate_votes", "debate_reactions", "scorecards"]) stmts.push(db.prepare(`DELETE FROM ${t} WHERE debate_id = ?`).bind(id));
   }
-  for (const t of ["debates", "credit_ledger", "usage_monthly", "promo_redemptions", "org_members", "subscriptions", "sessions", "tts_usage", "avatar_usage", "avatar_sessions", "speech_token_mints"]) {
+  for (const t of ["debates", "credit_ledger", "usage_monthly", "promo_redemptions", "org_members", "subscriptions", "sessions", "avatar_usage", "avatar_sessions", "speech_token_mints"]) {
     stmts.push(db.prepare(`DELETE FROM ${t} WHERE user_id = ?`).bind(user.id));
   }
-  stmts.push(db.prepare("DELETE FROM users WHERE id = ?").bind(user.id));
   // Tables that may not exist yet are skipped one by one rather than failing the whole delete.
   for (const st of stmts) {
     try {
       await st.run();
     } catch {
     }
+  }
+  // The account row goes last, and a failure here must be reported, not hidden.
+  try {
+    await db.prepare("DELETE FROM users WHERE id = ?").bind(user.id).run();
+  } catch (e) {
+    console.error("delete user row", e?.message || e);
+    return c.json({ error: "delete_failed", message: "Something went wrong deleting your account. Please try again." }, 500);
   }
   deleteCookie(c, SESSION_COOKIE, { path: "/" });
   return c.json({ ok: true });
