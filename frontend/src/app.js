@@ -446,12 +446,12 @@ async function ld(i) {
   }
 }
 const Cc = {
-  "teen-boy": { id: "teen-boy", model: "/models/personas/teen-boy.glb", label: "Teenage boy" },
-  "teen-girl": { id: "teen-girl", model: "/models/personas/teen-girl.glb", label: "Teenage girl" },
-  "man-pro": { id: "man-pro", model: "/models/personas/man-pro.glb", label: "Professional man" },
-  "woman-pro": { id: "woman-pro", model: "/models/personas/woman-pro.glb", label: "Professional woman" },
-  "older-man": { id: "older-man", model: "/models/personas/older-man.glb", label: "Older gentleman" },
-  "older-woman": { id: "older-woman", model: "/models/personas/older-woman.glb", label: "Older woman" },
+  "teen-boy": { id: "teen-boy", model: "/models/personas/teen-boy.glb?v=face67", label: "Teenage boy" },
+  "teen-girl": { id: "teen-girl", model: "/models/personas/teen-girl.glb?v=face67", label: "Teenage girl" },
+  "man-pro": { id: "man-pro", model: "/models/personas/man-pro.glb?v=face67", label: "Professional man" },
+  "woman-pro": { id: "woman-pro", model: "/models/personas/woman-pro.glb?v=face67", label: "Professional woman" },
+  "older-man": { id: "older-man", model: "/models/personas/older-man.glb?v=face67", label: "Older gentleman" },
+  "older-woman": { id: "older-woman", model: "/models/personas/older-woman.glb?v=face67", label: "Older woman" },
   "man-casual": { id: "man-casual", model: "/models/adversary-masc.glb", label: "Man" },
   "woman-casual": { id: "woman-casual", model: "/models/adversary-fem.glb", label: "Woman" },
   "default-masc": { id: "default-masc", model: "/models/adversary-masc.glb", label: "Opponent" },
