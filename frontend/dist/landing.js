@@ -99,6 +99,12 @@ function adaptLivePrices(data) {
     return def;
   };
   const getRounds = (t, def) => t.roundsPerMonth || t.rounds || t.debatesPerMonth || t.debates || def;
+  // Yearly price, only when the live price list offers one.
+  const annualOf = (t) => {
+    if (typeof t.annualPrice !== 'number') return null;
+    const yr = Math.round(t.annualPrice / 100);
+    return { price: yr, save: Math.max(0, getPrice(t, 0) * 12 - yr) };
+  };
 
   const plans = [
     {
@@ -117,6 +123,7 @@ function adaptLivePrices(data) {
     {
       name: debater.name || 'Debater',
       price: getPrice(debater, 12),
+      annual: annualOf(debater),
       per: '/mo',
       headline: getRounds(debater, 300).toLocaleString() + ' sparring rounds per month',
       cta: 'Start free, upgrade in-app',
@@ -131,6 +138,7 @@ function adaptLivePrices(data) {
     {
       name: coach.name || 'Coach',
       price: getPrice(coach, 29),
+      annual: annualOf(coach),
       per: '/mo',
       headline: getRounds(coach, 1000).toLocaleString() + ' sparring rounds per month',
       badge: 'Most popular',
@@ -145,6 +153,7 @@ function adaptLivePrices(data) {
     {
       name: champion.name || 'Champion',
       price: getPrice(champion, 49),
+      annual: annualOf(champion),
       per: '/mo',
       headline: 'Photoreal video opponents',
       badge: 'Best experience',
@@ -280,6 +289,7 @@ function renderPricing(pricing) {
       '<h3>' + plan.name + '</h3>' +
       '<p class="plan-headline">' + plan.headline + '</p>' +
       '<div class="plan-price">' + priceLabel(plan) + ' ' + per + '</div>' +
+      (plan.annual ? '<p class="plan-annual">or $' + plan.annual.price + '/year' + (plan.annual.save ? ' \u2014 save $' + plan.annual.save : '') + '</p>' : '') +
       '<ul>' + features + '</ul>' +
       '<a class="btn ' + (i === 0 ? 'btn-ghost' : 'btn-primary') + '" href="' + SIGNUP_URL + '">' + plan.cta + '</a>' +
       '</article>';

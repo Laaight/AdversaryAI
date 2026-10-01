@@ -27884,13 +27884,13 @@ async function qu(i) {
     e.appendChild(g));
   const _ = e.querySelector("#tier-grid"),
     m = e.querySelector("#pack-grid");
-  async function f(x, R, T) {
+  async function f(x, R, T, extra = {}) {
     T.disabled = !0;
     const A = T.textContent;
     T.innerHTML = '<span class="spinner" aria-hidden="true"></span><span>Redirecting…</span>';
     try {
-      track("begin_checkout", { kind: x, item: R });
-      const { url: L } = await zt("/api/billing/checkout", { kind: x, item: R });
+      track("begin_checkout", { kind: x, item: R, ...extra });
+      const { url: L } = await zt("/api/billing/checkout", { kind: x, item: R, ...extra });
       window.location.href = L;
     } catch (err) {
       T.disabled = !1;
@@ -27921,6 +27921,15 @@ async function qu(i) {
       <button class="${current ? "btn-ghost" : champ ? "btn-primary !bg-amber-400 !text-black hover:!bg-amber-300" : popular ? "btn-primary" : "btn-ghost"} mt-auto py-2.5 text-sm" ${current ? "disabled" : ""}>${current ? "Current plan" : `Choose ${Lt(xs(x.name))}`}</button>`;
     const A = T.querySelector("button");
     current || A.addEventListener("click", () => void f("subscription", x.id, A));
+    if (!current && x.annualPrice) {
+      const save = Math.round((x.price * 12 - x.annualPrice) / 100);
+      const Y = document.createElement("button");
+      Y.type = "button";
+      Y.className = "mt-2 text-xs text-slate-400 underline decoration-slate-600 underline-offset-2 hover:text-white";
+      Y.textContent = `or pay yearly: ${Kl(x.annualPrice, x.currency)}/year${save > 0 ? ` (save $${save})` : ""}`;
+      Y.addEventListener("click", () => void f("subscription", x.id, Y, { interval: "year" }));
+      T.appendChild(Y);
+    }
     _.appendChild(T);
   }
   if (/plans=1/.test(location.hash)) setTimeout(() => p.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" }), 150);
@@ -27941,6 +27950,26 @@ async function qu(i) {
   }
   n.packs.length === 0 &&
     (m.innerHTML = '<p class="text-body-sm text-slate-500 col-span-full">No round packs are available right now.</p>');
+  if (isChampion && n.videoPacks?.length) {
+    const vs2 = document.createElement("section");
+    vs2.className = "mt-10";
+    vs2.innerHTML = `<h2 class="text-display-md text-white mb-1">Extra video minutes</h2>
+      <p class="text-slate-400 text-body-sm mb-5">More time with photoreal opponents. Used only after your monthly 45 minutes run out, and they never expire.</p>
+      <div class="grid sm:grid-cols-2 gap-4" id="video-pack-grid"></div>`;
+    g.appendChild(vs2);
+    const vg = vs2.querySelector("#video-pack-grid");
+    for (const v of n.videoPacks) {
+      const card = document.createElement("div");
+      card.className = "card p-6 flex flex-col border-amber-400/30";
+      card.innerHTML = `<div class="font-semibold text-white text-lg">${v.minutes} video minutes</div>
+        <div class="mt-2 mb-1"><span class="font-display text-display-md text-amber-300">${Lt(Kl(v.price, v.currency))}</span></div>
+        <p class="text-body-sm text-slate-300 mb-3">One-time · never expires</p>
+        <button class="btn-ghost mt-auto px-4 py-2.5 text-sm">Buy minutes</button>`;
+      const b = card.querySelector("button");
+      b.addEventListener("click", () => void f("video", v.id, b));
+      vg.appendChild(card);
+    }
+  }
   e.appendChild(l); // schools section after plans & packs
   // Privacy: delete everything (password confirmation; cancels any subscription at period end).
   const dz = document.createElement("section");

@@ -71,9 +71,9 @@ var init_config = __esm({
     "use strict";
     TIERS = {
       trial: { name: "Trial", debates: 15, rounds: 15, lifetime: true, price: 0 },
-      debater: { name: "Debater", priceMonthly: 12, debatesPerMonth: 300, roundsPerMonth: 300, blurb: "All 11 practice modes, voiced 3D opponents with lip-sync, coaching scorecards, and credit rollover." },
-      coach: { name: "Coach", priceMonthly: 29, debatesPerMonth: 750, roundsPerMonth: 750, analytics: true, blurb: "Detailed coaching analytics, scorecard rubrics, and judge feedback. Unused credits roll over." },
-      champion: { name: "Champion", priceMonthly: 49, debatesPerMonth: 500, roundsPerMonth: 500, premiumModel: true, photorealMinutes: 45, blurb: "Photoreal video opponents that look you in the eye, our strongest reasoning model for sharper arguments and deeper judge feedback, and priority speed." }
+      debater: { name: "Debater", priceMonthly: 12, priceAnnual: 129, debatesPerMonth: 300, roundsPerMonth: 300, blurb: "All 11 practice modes, voiced 3D opponents with lip-sync, coaching scorecards, and credit rollover." },
+      coach: { name: "Coach", priceMonthly: 29, priceAnnual: 315, debatesPerMonth: 750, roundsPerMonth: 750, analytics: true, blurb: "Detailed coaching analytics, scorecard rubrics, and judge feedback. Unused credits roll over." },
+      champion: { name: "Champion", priceMonthly: 49, priceAnnual: 529, debatesPerMonth: 500, roundsPerMonth: 500, premiumModel: true, photorealMinutes: 45, blurb: "Photoreal video opponents that look you in the eye, our strongest reasoning model for sharper arguments and deeper judge feedback, and priority speed." }
     };
     PACKS = [
       { id: "pack10", name: "100 Rounds", debates: 100, rounds: 100, price: 9 },
@@ -2515,8 +2515,9 @@ billingRouter.post("/api/billing/checkout", async (c) => {
   if (existing?.stripe_customer_id) params["customer"] = existing.stripe_customer_id;
   else if (user.email) params["customer_email"] = user.email;
   if (kind === "subscription" && (item === "debater" || item === "coach" || item === "champion")) {
-    const priceId = priceIds[item];
-    if (!priceId) return c.json({ error: "price not configured" }, 500);
+    const annual = body.interval === "year";
+    const priceId = priceIds[annual ? `${item}_annual` : item];
+    if (!priceId) return c.json(annual ? { error: "annual_not_available", message: "Yearly billing isn't available for this plan yet." } : { error: "price not configured" }, annual ? 400 : 500);
     // A second Checkout would create a second subscription (double billing). Plan changes go
     // through the Stripe portal, which prorates and swaps the price on the existing subscription.
     if (isSubscriptionActive(existing) && existing.stripe_subscription_id) {
@@ -2528,6 +2529,7 @@ billingRouter.post("/api/billing/checkout", async (c) => {
     params["metadata[userId]"] = user.id;
     params["metadata[kind]"] = "subscription";
     params["metadata[item]"] = item;
+    params["metadata[interval]"] = annual ? "year" : "month";
   } else if (kind === "pack" && typeof item === "string") {
     const pack = PACKS.find((p) => p.id === item);
     if (!pack) return c.json({ error: "unknown pack" }, 400);
@@ -2539,6 +2541,18 @@ billingRouter.post("/api/billing/checkout", async (c) => {
     params["metadata[userId]"] = user.id;
     params["metadata[kind]"] = "pack";
     params["metadata[debates]"] = String(pack.debates);
+  } else if (kind === "video" && typeof item === "string") {
+    const vp = VIDEO_PACKS.find((v) => v.id === item);
+    if (!vp) return c.json({ error: "unknown pack" }, 400);
+    if (!(await isPremium(c, user.id, user.email))) return c.json({ error: "champion_only", message: "Extra video minutes are for Champion members." }, 403);
+    const priceId = priceIds[vp.id];
+    if (!priceId) return c.json({ error: "price not configured" }, 500);
+    params["mode"] = "payment";
+    params["line_items[0][price]"] = priceId;
+    params["line_items[0][quantity]"] = "1";
+    params["metadata[userId]"] = user.id;
+    params["metadata[kind]"] = "video";
+    params["metadata[seconds]"] = String(vp.minutes * 60);
   } else {
     return c.json({ error: "invalid kind/item" }, 400);
   }
@@ -2585,15 +2599,23 @@ billingRouter.post("/api/billing/portal", async (c) => {
     return c.json({ error: "portal failed" }, 502);
   }
 });
-billingRouter.get("/api/billing/prices", (c) => {
+// Extra photoreal minutes for Champions; they never expire and are used after the monthly allowance.
+var VIDEO_PACKS = [
+  { id: "video30", minutes: 30, price: 15 },
+  { id: "video60", minutes: 60, price: 28 }
+];
+billingRouter.get("/api/billing/prices", async (c) => {
+  const priceIds = await getStripePriceIdsAsync(c.env);
   const tiers = Object.entries(TIERS).filter(([id]) => id !== "trial").map(([id, t]) => {
     const debates = Number(t.roundsPerMonth ?? t.debatesPerMonth ?? t.rounds ?? t.debates ?? 0);
+    const annual = priceIds[`${id}_annual`] && t.priceAnnual ? Math.round(Number(t.priceAnnual) * 100) : null;
     return {
       id,
       name: String(t.name ?? id),
       price: Math.round(Number(t.priceMonthly ?? t.price ?? 0) * 100),
       currency: "usd",
       interval: "month",
+      ...annual ? { annualPrice: annual } : {},
       debates,
       rounds: debates,
       credits: debates,
@@ -2610,7 +2632,8 @@ billingRouter.get("/api/billing/prices", (c) => {
     rounds: p.debates,
     debates: p.debates
   }));
-  return c.json({ tiers, packs });
+  const videoPacks = c.env.LIVEAVATAR_API_KEY ? VIDEO_PACKS.filter((v) => priceIds[v.id]).map((v) => ({ id: v.id, minutes: v.minutes, price: Math.round(v.price * 100), currency: "usd" })) : [];
+  return c.json({ tiers, packs, videoPacks });
 });
 
 // worker/src/orgs.ts
@@ -3100,7 +3123,7 @@ authRouter.post("/delete-account", async (c) => {
   for (const id of ids) {
     for (const t of ["turns", "verdicts", "debate_votes", "debate_reactions", "scorecards"]) stmts.push(db.prepare(`DELETE FROM ${t} WHERE debate_id = ?`).bind(id));
   }
-  for (const t of ["debates", "credit_ledger", "usage_monthly", "promo_redemptions", "org_members", "subscriptions", "sessions", "avatar_usage", "avatar_sessions", "speech_token_mints"]) {
+  for (const t of ["debates", "credit_ledger", "usage_monthly", "promo_redemptions", "org_members", "subscriptions", "sessions", "avatar_usage", "avatar_sessions", "video_credits", "speech_token_mints"]) {
     stmts.push(db.prepare(`DELETE FROM ${t} WHERE user_id = ?`).bind(user.id));
   }
   // Tables that may not exist yet are skipped one by one rather than failing the whole delete.
@@ -6436,6 +6459,11 @@ accountRouter.post("/admin/setup-stripe", async (c) => {
     { key: "pack10", name: "100 Sparring Rounds Pack", description: "100 round one-time credit top-up. Credits never expire.", type: "one_time", amount: 900 },
     { key: "pack25", name: "250 Sparring Rounds Pack", description: "250 round one-time credit top-up. Credits never expire.", type: "one_time", amount: 1900 },
     { key: "pack60", name: "600 Sparring Rounds Pack", description: "600 round one-time credit top-up. Credits never expire.", type: "one_time", amount: 3900 },
+    { key: "debater_annual", productKey: "debater", name: "AdversaryAI Debater", description: "300 sparring rounds per month across all 11 practice modes", type: "recurring", amount: 12900, interval: "year" },
+    { key: "coach_annual", productKey: "coach", name: "AdversaryAI Coach", description: "750 sparring rounds per month plus coaching analytics and rubrics", type: "recurring", amount: 31500, interval: "year" },
+    { key: "champion_annual", productKey: "champion", name: "AdversaryAI Champion", description: "500 premium rounds per month on the Pro model, with 45 minutes of photoreal video opponents", type: "recurring", amount: 52900, interval: "year" },
+    { key: "video30", productKey: "video", name: "Photoreal Video Minutes", description: "Extra minutes of photoreal video opponents for Champion members. Never expire.", type: "one_time", amount: 1500 },
+    { key: "video60", productKey: "video", name: "Photoreal Video Minutes", description: "Extra minutes of photoreal video opponents for Champion members. Never expire.", type: "one_time", amount: 2800 },
     { key: "eduSeat", name: "AdversaryAI Education Seat", description: "1 seat license with 150 pooled rounds per month for classrooms & teams", type: "recurring", amount: 600, interval: "month" }
   ];
 
@@ -6446,14 +6474,16 @@ accountRouter.post("/admin/setup-stripe", async (c) => {
 
     for (const item of ITEMS) {
       let product = existingProducts.find(
-        p => (p.metadata && p.metadata.adversaryai_key === item.key) || p.name.trim().toLowerCase() === item.name.trim().toLowerCase()
+        p => (p.metadata && p.metadata.adversaryai_key === (item.productKey || item.key)) || p.name.trim().toLowerCase() === item.name.trim().toLowerCase()
       );
       if (!product) {
         product = await stripeFetch("POST", "/products", {
           name: item.name,
           description: item.description,
-          "metadata[adversaryai_key]": item.key
+          "metadata[adversaryai_key]": item.productKey || item.key,
+          tax_code: item.key === "eduSeat" ? "txcd_10105002" : "txcd_10105001"
         });
+        existingProducts.push(product);
       }
       let price = existingPrices.find(p => {
         const matchProduct = p.product === product.id;
@@ -6542,6 +6572,9 @@ function tierFromPriceId(priceIds, priceId) {
   if (priceIds.debater && priceId === priceIds.debater) return "debater";
   if (priceIds.coach && priceId === priceIds.coach) return "coach";
   if (priceIds.champion && priceId === priceIds.champion) return "champion";
+  if (priceIds.debater_annual && priceId === priceIds.debater_annual) return "debater";
+  if (priceIds.coach_annual && priceId === priceIds.coach_annual) return "coach";
+  if (priceIds.champion_annual && priceId === priceIds.champion_annual) return "champion";
   return null;
 }
 __name(tierFromPriceId, "tierFromPriceId");
@@ -6549,6 +6582,17 @@ async function handleCheckoutSessionCompleted(env, session) {
   const db = env.DB;
   const metadata = session.metadata ?? {};
   const kind = metadata.kind;
+  if (kind === "video") {
+    const userId = metadata.userId;
+    const seconds = parseInt(metadata.seconds ?? "0", 10);
+    const paymentIntent = typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id ?? null;
+    if (!userId || !Number.isFinite(seconds) || seconds <= 0 || !paymentIntent) return;
+    await ensureAvatarTables(db);
+    await db.prepare(
+      "INSERT OR IGNORE INTO video_credits (user_id, seconds, reason, stripe_payment_id, created_at) VALUES (?, ?, 'video_pack', ?, ?)"
+    ).bind(userId, seconds, paymentIntent, nowIso()).run();
+    return;
+  }
   if (kind === "pack") {
     const userId = metadata.userId;
     const debates = parseInt(metadata.debates ?? "0", 10);
@@ -6673,7 +6717,17 @@ async function handleChargeRefunded(env, charge) {
   const pi = typeof charge.payment_intent === "string" ? charge.payment_intent : charge.payment_intent?.id ?? null;
   if (!pi) return;
   const row = await env.DB.prepare("SELECT user_id, delta FROM credit_ledger WHERE stripe_payment_id = ? AND delta > 0").bind(pi).first();
-  if (!row) return;
+  if (!row) {
+    // A refunded or disputed video pack takes its minutes back (once).
+    await ensureAvatarTables(env.DB);
+    const v = await env.DB.prepare("SELECT user_id, seconds FROM video_credits WHERE stripe_payment_id = ? AND seconds > 0").bind(pi).first();
+    if (v) {
+      await env.DB.prepare(
+        "INSERT OR IGNORE INTO video_credits (user_id, seconds, reason, stripe_payment_id, created_at) VALUES (?, ?, 'refund', ?, ?)"
+      ).bind(v.user_id, -Number(v.seconds), `${pi}:refund`, nowIso()).run();
+    }
+    return;
+  }
   await ensureLedgerIndexes(env.DB);
   await env.DB.prepare(
     "INSERT OR IGNORE INTO credit_ledger (user_id, delta, reason, stripe_payment_id, created_at) VALUES (?, ?, 'refund', ?, ?)"
@@ -7026,6 +7080,7 @@ async function ensureAvatarTables(db) {
   if (avatarTablesReady) return;
   await db.batch([
     db.prepare("CREATE TABLE IF NOT EXISTS avatar_usage (user_id TEXT NOT NULL, month TEXT NOT NULL, seconds INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user_id, month))"),
+    db.prepare("CREATE TABLE IF NOT EXISTS video_credits (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, seconds INTEGER NOT NULL, reason TEXT NOT NULL, stripe_payment_id TEXT UNIQUE, created_at TEXT NOT NULL)"),
     db.prepare("CREATE TABLE IF NOT EXISTS avatar_sessions (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, debate_id TEXT, started_at TEXT NOT NULL, last_beat_at TEXT NOT NULL, ended_at TEXT, max_seconds INTEGER)")
   ]);
   try {
@@ -7068,6 +7123,17 @@ async function avatarSecondsUsed(db, userId) {
   return Number(row?.seconds ?? 0);
 }
 __name(avatarSecondsUsed, "avatarSecondsUsed");
+// Bought minutes left: everything purchased, less what past months used beyond their allowance.
+async function videoExtraLeft(db, userId, capSeconds) {
+  await ensureAvatarTables(db);
+  const bought = await db.prepare("SELECT COALESCE(SUM(seconds), 0) AS s FROM video_credits WHERE user_id = ?").bind(userId).first();
+  const total = Number(bought?.s ?? 0);
+  if (total <= 0) return 0;
+  const past = (await db.prepare("SELECT seconds FROM avatar_usage WHERE user_id = ? AND month < ?").bind(userId, currentMonth()).all())?.results ?? [];
+  const usedBeyond = past.reduce((n, r) => n + Math.max(0, Number(r.seconds) - capSeconds), 0);
+  return Math.max(0, total - usedBeyond);
+}
+__name(videoExtraLeft, "videoExtraLeft");
 // When LiveAvatar reports the account is out of credits, pause photoreal for everyone for a
 // while (straight to 3D, no connect-then-fail) instead of failing every Champion session.
 var OUT_OF_CREDITS_MS = 15 * 60 * 1e3;
@@ -7092,9 +7158,11 @@ async function avatarStatus(c, user) {
   const eligible = await isPremium(c, user.id, user.email);
   const owner = isOwnerEmail(user.email, c.env);
   const capMinutes = await isCompedChampion(c.env.DB, user.id) ? VIP_VIDEO_MINUTES : videoMinutesCap(c.env);
-  const capSeconds = owner ? 24 * 3600 : capMinutes * 60;
+  const baseCap = owner ? 24 * 3600 : capMinutes * 60;
+  const extraSeconds = owner || !eligible ? 0 : await videoExtraLeft(c.env.DB, user.id, baseCap);
+  const capSeconds = baseCap + extraSeconds;
   const used = enabled && eligible ? await avatarSecondsUsed(c.env.DB, user.id) : 0;
-  return { enabled, outOfCredits, eligible, owner, capSeconds, usedSeconds: used, remainingSeconds: Math.max(0, capSeconds - used) };
+  return { enabled, outOfCredits, eligible, owner, capSeconds, extraSeconds, usedSeconds: used, remainingSeconds: Math.max(0, capSeconds - used) };
 }
 __name(avatarStatus, "avatarStatus");
 function avatarKeyForDebate(debate) {

@@ -762,3 +762,5 @@ a.mode:hover .mode-arr { transform: translateX(4px); }
   .sample-top { flex-direction: column; align-items: flex-start; gap: 12px; }
   .sample-bars { grid-template-columns: 1fr; }
 }
+
+.plan-annual { margin: -4px 0 12px; color: var(--muted); font-size: 0.85rem; }
