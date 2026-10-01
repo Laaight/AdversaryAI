@@ -2639,8 +2639,29 @@ billingRouter.get("/api/billing/prices", async (c) => {
 
 // worker/src/orgs.ts
 var ACTIVE_ORG_STATUSES = /* @__PURE__ */ new Set(["active", "trialing"]);
+// Schools and business teams share seats, invites and a pooled round budget; they differ in price,
+// rounds per seat, the minimum order, and which modes members can use.
+var ORG_KINDS = {
+  school: { label: "School", seatPrice: 6, roundsPerSeat: 150, minSeats: 1, priceKey: "eduSeat" },
+  business: { label: "Team", seatPrice: 15, roundsPerSeat: 300, minSeats: 3, priceKey: "bizSeat" }
+};
+function orgKind(org) {
+  return ORG_KINDS[org?.kind] ? org.kind : "school";
+}
+__name(orgKind, "orgKind");
+function orgPool(org) {
+  return Number(org?.seat_count || 0) * ORG_KINDS[orgKind(org)].roundsPerSeat;
+}
+__name(orgPool, "orgPool");
+function orgKindInfo(org) {
+  const k = ORG_KINDS[orgKind(org)];
+  return { kind: orgKind(org), roundsPerSeat: k.roundsPerSeat, seatPrice: k.seatPrice, minSeats: k.minSeats };
+}
+__name(orgKindInfo, "orgKindInfo");
+// "Is this user in a school?" School members can't use the modes marked educationExcluded; business
+// teams can use everything.
 async function isOrgMember(db, userId) {
-  const row = await db.prepare("SELECT 1 FROM org_members WHERE user_id = ? LIMIT 1").bind(userId).first();
+  const row = await db.prepare("SELECT 1 FROM org_members m JOIN orgs o ON o.id = m.org_id WHERE m.user_id = ? AND COALESCE(o.kind, 'school') = 'school' LIMIT 1").bind(userId).first();
   return !!row;
 }
 __name(isOrgMember, "isOrgMember");
@@ -2710,14 +2731,15 @@ orgsRouter.post("/", async (c) => {
   const name = String(body.name ?? "").trim();
   if (!name) return c.json({ error: "name_required" }, 400);
   if (name.length > 120) return c.json({ error: "name_too_long" }, 400);
+  const kind = body.kind === "business" ? "business" : "school";
   const id = newId();
   await c.env.DB.prepare(
-    "INSERT INTO orgs (id, name, created_by, created_at) VALUES (?, ?, ?, ?)"
-  ).bind(id, name, user.id, nowIso()).run();
+    "INSERT INTO orgs (id, name, created_by, created_at, kind) VALUES (?, ?, ?, ?, ?)"
+  ).bind(id, name, user.id, nowIso(), kind).run();
   await c.env.DB.prepare(
     "INSERT INTO org_members (org_id, user_id, role, joined_at) VALUES (?, ?, 'owner', ?)"
   ).bind(id, user.id, nowIso()).run();
-  return c.json({ ok: true, org: { id, name } }, 201);
+  return c.json({ ok: true, org: { id, name, kind } }, 201);
 });
 orgsRouter.get("/mine", async (c) => {
   const user = await getSessionUser(c);
@@ -2736,7 +2758,8 @@ orgsRouter.get("/mine", async (c) => {
         seatCount: m.org.seat_count,
         memberCount,
         sessionsUsed,
-        sessionsPool: m.org.seat_count * EDU.sessionsPerSeat,
+        sessionsPool: orgPool(m.org),
+        ...orgKindInfo(m.org),
         subscriptionActive: ACTIVE_ORG_STATUSES.has(m.org.status)
       };
     })
@@ -2752,7 +2775,7 @@ orgsRouter.get("/join/:code", async (c) => {
     return c.json({ error: "code_expired" }, 410);
   const org = await getOrg(c.env.DB, invite.org_id);
   if (!org) return c.json({ error: "invalid_code" }, 404);
-  return c.json({ ok: true, orgName: org.name, role: invite.role, code: invite.code });
+  return c.json({ ok: true, orgName: org.name, role: invite.role, code: invite.code, kind: orgKind(org) });
 });
 orgsRouter.post("/join", async (c) => {
   const user = await getSessionUser(c);
@@ -2796,7 +2819,8 @@ orgsRouter.get("/:id", async (c) => {
     seatCount: org.seat_count,
     memberCount,
     sessionsUsed,
-    sessionsPool: org.seat_count * EDU.sessionsPerSeat,
+    sessionsPool: orgPool(org),
+    ...orgKindInfo(org),
     subscriptionActive: ACTIVE_ORG_STATUSES.has(org.status)
   };
   if (role === "owner" || role === "teacher") {
@@ -2815,6 +2839,45 @@ orgsRouter.get("/:id", async (c) => {
     }));
   }
   return c.json({ org: res });
+});
+orgsRouter.get("/:id/report", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  const orgId = c.req.param("id");
+  const role = await membershipRole(c.env.DB, orgId, user.id);
+  if (role !== "owner" && role !== "teacher") return c.json({ error: "forbidden" }, 403);
+  await ensureScorecardTable(c.env.DB);
+  const since = new Date(Date.now() - 30 * 864e5).toISOString();
+  const members = (await c.env.DB.prepare(
+    `SELECT m.user_id AS userId, u.email AS email, m.role AS role,
+            COUNT(sc.debate_id) AS sessions, ROUND(AVG(sc.overall), 1) AS avgScore, MAX(sc.overall) AS best, MAX(sc.created_at) AS lastActive
+       FROM org_members m JOIN users u ON u.id = m.user_id
+       LEFT JOIN debates d ON d.user_id = m.user_id AND d.created_at >= ?
+       LEFT JOIN scorecards sc ON sc.debate_id = d.id AND sc.overall IS NOT NULL
+      WHERE m.org_id = ? GROUP BY m.user_id ORDER BY sessions DESC, lastActive DESC`
+  ).bind(since, orgId).all())?.results ?? [];
+  // Team-wide skills, weakest first, from every scorecard the members earned in the window.
+  const rows = (await c.env.DB.prepare(
+    `SELECT d.mode AS mode, sc.scores_json AS scores_json FROM org_members m
+       JOIN debates d ON d.user_id = m.user_id AND d.created_at >= ?
+       JOIN scorecards sc ON sc.debate_id = d.id AND sc.overall IS NOT NULL
+      WHERE m.org_id = ? LIMIT 2000`
+  ).bind(since, orgId).all())?.results ?? [];
+  const agg = {};
+  const modes = {};
+  for (const r of rows) {
+    modes[r.mode] = (modes[r.mode] || 0) + 1;
+    try {
+      for (const d of JSON.parse(r.scores_json)?.dimensions || []) {
+        if (d.score == null) continue;
+        (agg[d.label] ||= { sum: 0, n: 0 }).sum += d.score;
+        agg[d.label].n++;
+      }
+    } catch {
+    }
+  }
+  const skills = Object.entries(agg).filter(([, v]) => v.n >= 2).map(([label, v]) => ({ label, avg: Math.round(v.sum / v.n * 10) / 10, sessions: v.n })).sort((a, b) => a.avg - b.avg).slice(0, 5);
+  return c.json({ since, members, skills, modes });
 });
 orgsRouter.post("/:id/invites", async (c) => {
   const user = await getSessionUser(c);
@@ -2892,12 +2955,19 @@ orgsRouter.post("/:id/checkout", async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const seats = Math.min(5e3, Math.max(1, Math.floor(Number(body.seats ?? 0)) || 0));
   if (!seats) return c.json({ error: "seats_required" }, 400);
-  const priceId = (await getStripePriceIdsAsync(c.env)).eduSeat;
+  const kindCfg = ORG_KINDS[orgKind(org)];
+  if (seats < kindCfg.minSeats) return c.json({ error: "min_seats", message: `Team plans start at ${kindCfg.minSeats} seats.` }, 400);
+  // A second checkout would start a second subscription and bill twice: change seats in the portal.
+  if (org.stripe_subscription_id && ["active", "trialing", "past_due"].includes(org.status)) {
+    return c.json({ error: "already_subscribed", message: "This organization already has a subscription. Use Manage billing to change the number of seats." }, 409);
+  }
+  const priceId = (await getStripePriceIdsAsync(c.env))[kindCfg.priceKey];
   if (!priceId) return c.json({ error: "price not configured" }, 500);
   try {
     const session = await stripePost(c.env, "/checkout/sessions", {
       client_reference_id: user.id,
       mode: "subscription",
+      ...org.stripe_customer_id ? { customer: org.stripe_customer_id } : {},
       "line_items[0][price]": priceId,
       "line_items[0][quantity]": String(seats),
       "metadata[userId]": user.id,
@@ -4415,7 +4485,7 @@ async function checkRoundsAvailable(c, userId, email) {
   if (isOwnerEmail(email, c.env)) return { ok: true, remaining: 999999, source: "owner" };
   const activeOrgs = await getUserActiveOrgs(db, userId);
   for (const org of activeOrgs) {
-    const pool = org.seat_count * EDU.sessionsPerSeat;
+    const pool = orgPool(org);
     if (pool <= 0) continue;
     const used = await getOrgMonthlyUsage(db, org.id, month);
     if (used < pool) return { ok: true, remaining: pool - used, source: "org", orgId: org.id };
@@ -4443,7 +4513,7 @@ async function consumeRound(c, userId, email) {
   if (isOwnerEmail(email, c.env)) return { allowed: true, remaining: 999999, source: "owner" };
   const activeOrgs = await getUserActiveOrgs(db, userId);
   for (const org of activeOrgs) {
-    const pool = org.seat_count * EDU.sessionsPerSeat;
+    const pool = orgPool(org);
     if (pool <= 0) continue;
     const used = await getOrgMonthlyUsage(db, org.id, month);
     if (used < pool) {
@@ -6466,6 +6536,7 @@ accountRouter.post("/admin/setup-stripe", async (c) => {
     { key: "champion_annual", productKey: "champion", name: "AdversaryAI Champion", description: "500 premium rounds per month on the Pro model, with 60 minutes of photoreal video opponents", type: "recurring", amount: 52900, interval: "year" },
     { key: "video30", productKey: "video", name: "Photoreal Video Minutes", description: "Extra minutes of photoreal video opponents for Champion members. Never expire.", type: "one_time", amount: 1500 },
     { key: "video60", productKey: "video", name: "Photoreal Video Minutes", description: "Extra minutes of photoreal video opponents for Champion members. Never expire.", type: "one_time", amount: 2800 },
+    { key: "bizSeat", name: "AdversaryAI Team Seat", description: "1 seat for a business team: 300 pooled rounds per month and a manager dashboard", type: "recurring", amount: 1500, interval: "month" },
     { key: "eduSeat", name: "AdversaryAI Education Seat", description: "1 seat license with 150 pooled rounds per month for classrooms & teams", type: "recurring", amount: 600, interval: "month" }
   ];
 
@@ -6483,7 +6554,7 @@ accountRouter.post("/admin/setup-stripe", async (c) => {
           name: item.name,
           description: item.description,
           "metadata[adversaryai_key]": item.productKey || item.key,
-          tax_code: item.key === "eduSeat" ? "txcd_10105002" : "txcd_10105001"
+          tax_code: (item.key === "eduSeat" || item.key === "bizSeat") ? "txcd_10105002" : "txcd_10105001"
         });
         existingProducts.push(product);
       }

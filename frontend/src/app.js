@@ -27778,11 +27778,14 @@ async function qu(i) {
   const l = document.createElement("section");
   ((l.className = "mb-10"),
     (l.innerHTML = `
-    <h2 class="font-display text-display-md text-white mb-1">Schools &amp; education</h2>
-    <p class="text-slate-400 text-body-sm mb-5">Create a school, invite students with a link, and pay centrally — $6 per seat per month.</p>
+    <h2 class="font-display text-display-md text-white mb-1">Schools &amp; teams</h2>
+    <p class="text-slate-400 text-body-sm mb-5">Invite people with a link and pay centrally. Business teams (sales, support, leadership) are $15 per seat per month with 300 rounds each and a manager dashboard; schools are $6 per seat.</p>
     <div class="card card-lift p-6">
       <div data-orgs class="space-y-2 mb-4"><p class="text-body-sm text-slate-500">Loading…</p></div>
-      <button class="btn-ghost px-4 py-2 text-sm" data-create-school>+ Create a school</button>
+      <div class="flex flex-wrap gap-2">
+        <button class="btn-ghost px-4 py-2 text-sm" data-create-team>+ Create a business team</button>
+        <button class="btn-ghost px-4 py-2 text-sm" data-create-school>+ Create a school</button>
+      </div>
     </div>`),
     e.appendChild(l));
   const d = l.querySelector("[data-orgs]");
@@ -27790,7 +27793,7 @@ async function qu(i) {
     try {
       const { orgs: x } = await Ut("/api/orgs/mine");
       if (x.length === 0) {
-        d.innerHTML = `<p class="text-body-sm text-slate-500">You're not part of any school yet.</p>`;
+        d.innerHTML = `<p class="text-body-sm text-slate-500">You're not part of a school or team yet.</p>`;
         return;
       }
       d.innerHTML = "";
@@ -27800,39 +27803,41 @@ async function qu(i) {
           (T.className =
             "flex flex-wrap items-center gap-3 rounded-xl bg-ink-800/60 border border-ink-700/60 px-4 py-3 hover:border-accent-600/60 transition-colors"),
           (T.innerHTML = `
-          <span class="text-2xl" aria-hidden="true">🏫</span>
+          <span class="text-2xl" aria-hidden="true">${R.kind === "business" ? "💼" : "🏫"}</span>
           <span>
             <span class="block text-white font-medium">${Lt(R.name)}</span>
-            <span class="block text-body-sm text-slate-400 capitalize">${Lt(R.role)} · ${R.memberCount} members · ${R.sessionsUsed}/${R.sessionsPool} sessions${R.subscriptionActive ? "" : ' · <span class="text-amber-300">no subscription</span>'}</span>
+            <span class="block text-body-sm text-slate-400 capitalize">${Lt(orgRoleLabel(R.role, R.kind))} · ${R.memberCount} members · ${R.sessionsUsed}/${R.sessionsPool} sessions${R.subscriptionActive ? "" : ' · <span class="text-amber-300">no subscription</span>'}</span>
           </span>
           <span class="ml-auto text-accent-400 text-body-sm">Open →</span>`),
           d.appendChild(T));
       }
     } catch {
-      d.innerHTML = `<p class="text-body-sm text-slate-500">Couldn't load your schools.</p>`;
+      d.innerHTML = `<p class="text-body-sm text-slate-500">Couldn't load your schools and teams.</p>`;
     }
   }
   u();
-  const h = l.querySelector("[data-create-school]");
-  h.addEventListener("click", async () => {
+  const createOrg = async (kind) => {
+    const biz = kind === "business";
     let R = null;
     const x = await uiPrompt({
-      title: "Create a school",
-      label: "School name",
+      title: biz ? "Create a business team" : "Create a school",
+      label: biz ? "Team or company name" : "School name",
       autocomplete: "organization",
-      placeholder: "e.g. Lincoln High Debate Team",
-      confirm: "Create school",
+      placeholder: biz ? "e.g. Acme Sales Team" : "e.g. Lincoln High Debate Team",
+      confirm: biz ? "Create team" : "Create school",
       validate: async (v) => {
-        if (!v.trim()) return "Enter a name for your school.";
+        if (!v.trim()) return biz ? "Enter a name for your team." : "Enter a name for your school.";
         try {
-          R = (await zt("/api/orgs", { name: v.trim() })).org;
+          R = (await zt("/api/orgs", { name: v.trim(), kind })).org;
         } catch {
-          return "Could not create the school. Please try again.";
+          return biz ? "Could not create the team. Please try again." : "Could not create the school. Please try again.";
         }
       },
     });
     if (x != null && R) location.hash = `#/org/${R.id}`;
-  });
+  };
+  l.querySelector("[data-create-school]").addEventListener("click", () => createOrg("school"));
+  l.querySelector("[data-create-team]").addEventListener("click", () => createOrg("business"));
   const photorealLive = !!s?.photoreal;
   const isChampion = !!s?.champion;
   const curTier = a && /active|trialing/.test(a.status || "") ? a.tier : null;
@@ -28071,13 +28076,15 @@ async function hx(i, e) {
       </div>`;
     return;
   }
-  const s = n.role === "teacher" ? "teacher" : "student",
+  const biz = n.kind === "business",
+    s = orgRoleLabel(n.role === "teacher" ? "teacher" : "student", n.kind).toLowerCase(),
     r = await da();
   t.innerHTML = `
     <div class="text-center mb-8">
-      <div class="text-5xl mb-4" aria-hidden="true">🏫</div>
+      <div class="text-5xl mb-4" aria-hidden="true">${biz ? "💼" : "🏫"}</div>
       <h1 class="font-display text-display-lg text-white">Join ${go(n.orgName)}</h1>
-      <p class="text-slate-400 mt-2 text-body-md">You've been invited as a <span class="text-white font-medium">${s}</span>. Your school covers the cost — this is free for you.</p>
+      <p class="text-slate-400 mt-2 text-body-md">You've been invited as a <span class="text-white font-medium">${s}</span>. Your ${biz ? "company" : "school"} covers the cost — this is free for you.</p>
+      <p class="text-slate-500 mt-2 text-body-sm">Your ${biz ? "managers" : "teachers"} can see your practice scores and session counts, never your transcripts.</p>
     </div>
     <div class="card p-6 sm:p-8 relative overflow-hidden">
       <div class="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent-500/60 to-transparent" aria-hidden="true"></div>
@@ -28154,13 +28161,19 @@ function Zl(i) {
     ? i
     : e.toLocaleDateString(void 0, { month: "short", day: "numeric", year: "numeric" });
 }
+/** Teachers and students in a school; managers and members on a business team. */
+function orgRoleLabel(role, kind) {
+  if (kind === "business") return { owner: "Owner", teacher: "Manager", student: "Member" }[role] || role;
+  return role;
+}
+let curOrgKind = "school";
 function _o(i) {
   const e = {
     owner: "bg-amber-500/15 text-amber-300 border-amber-500/30",
     teacher: "bg-sky-500/15 text-sky-300 border-sky-500/30",
     student: "bg-slate-500/15 text-slate-300 border-slate-500/30",
   };
-  return `<span class="inline-block text-caption font-semibold uppercase tracking-wider border rounded-full px-2.5 py-0.5 ${e[i] ?? e.student}">${Jt(i)}</span>`;
+  return `<span class="inline-block text-caption font-semibold uppercase tracking-wider border rounded-full px-2.5 py-0.5 ${e[i] ?? e.student}">${Jt(orgRoleLabel(i, curOrgKind))}</span>`;
 }
 async function ju(i, e) {
   i.innerHTML = '<div class="max-w-4xl mx-auto px-4 py-6 sm:py-10" id="org-root"></div>';
@@ -28181,7 +28194,11 @@ async function ju(i, e) {
   }
   const a = r.role === "owner",
     o = a || r.role === "teacher",
-    c = r.sessionsPool > 0 ? Math.min(100, (r.sessionsUsed / r.sessionsPool) * 100) : 0;
+    c = r.sessionsPool > 0 ? Math.min(100, (r.sessionsUsed / r.sessionsPool) * 100) : 0,
+    biz = r.kind === "business",
+    seatPrice = Number(r.seatPrice) || (biz ? 15 : 6),
+    minSeats = Number(r.minSeats) || 1;
+  curOrgKind = r.kind || "school";
   ((t.innerHTML = ""),
     s === "success"
       ? (t.innerHTML +=
@@ -28193,7 +28210,7 @@ async function ju(i, e) {
   ((l.className = "mb-8 flex flex-wrap items-start justify-between gap-4"),
     (l.innerHTML = `
     <div>
-      <p class="eyebrow mb-2">School</p>
+      <p class="eyebrow mb-2">${biz ? "Business team" : "School"}</p>
       <h1 class="font-display text-display-lg text-white flex items-center gap-3">${Jt(r.name)} ${_o(r.role)}</h1>
       <p class="text-slate-400 text-body-sm mt-2">
         ${r.subscriptionActive ? '<span class="text-emerald-300">● Active subscription</span>' : `<span class="text-amber-300">● No active subscription</span> — ${a ? "buy seats below to activate the shared session pool." : "ask your school admin to activate billing."}`}
@@ -28221,7 +28238,7 @@ async function ju(i, e) {
       </div>
       <div class="rounded-xl bg-ink-800/60 border border-ink-700/60 p-3">
         <div class="eyebrow !text-[0.65rem]">Per seat</div>
-        <div class="text-white font-semibold mt-1">300 rds/mo</div>
+        <div class="text-white font-semibold mt-1">${r.roundsPerSeat || 150} rds/mo</div>
       </div>
     </div>`),
     t.appendChild(d),
@@ -28231,11 +28248,11 @@ async function ju(i, e) {
     ((x.className = "card card-lift p-6 mb-6"),
       (x.innerHTML = `
       <h2 class="font-display text-display-md text-white mb-1">Billing</h2>
-      <p class="text-slate-400 text-body-sm mb-5">$6 per seat per month. Each seat adds 150 shared sparring rounds per month. Students never pay.</p>
+      <p class="text-slate-400 text-body-sm mb-5">$${seatPrice} per seat per month. Each seat adds ${r.roundsPerSeat || 150} shared sparring rounds per month.${biz ? ` Minimum ${minSeats} seats. Team members never pay.` : " Students never pay."}</p>
       <div class="flex flex-wrap items-end gap-3">
         <div>
           <label class="block text-body-sm font-medium text-slate-300 mb-1.5" for="seats-input">Seats</label>
-          <input id="seats-input" type="number" min="1" max="5000" value="${Math.max(r.seatCount, 10)}" class="field w-32" />
+          <input id="seats-input" type="number" min="${minSeats}" max="5000" value="${Math.max(r.seatCount, biz ? 5 : 10, minSeats)}" class="field w-32" />
         </div>
         <div class="text-body-sm text-slate-400 pb-2.5">= <span class="text-white font-semibold" data-total>$60</span>/month</div>
         <button class="btn-primary px-5 py-2.5 text-sm" data-buy>Buy seats</button>
@@ -28246,18 +28263,18 @@ async function ju(i, e) {
     const R = x.querySelector("#seats-input"),
       T = x.querySelector("[data-total]"),
       A = () => {
-        T.textContent = `$${(Math.max(1, Number(R.value) || 0) * 6).toLocaleString()}`;
+        T.textContent = `$${(Math.max(minSeats, Number(R.value) || 0) * seatPrice).toLocaleString()}`;
       };
     (R.addEventListener("input", A), A());
     const L = x.querySelector("[data-buy]");
     L.addEventListener("click", async () => {
-      const y = Math.max(1, Math.floor(Number(R.value) || 0));
+      const y = Math.max(minSeats, Math.floor(Number(R.value) || 0));
       ((L.disabled = !0), (L.innerHTML = '<span class="spinner" aria-hidden="true"></span><span>Redirecting…</span>'));
       try {
         const { url: C } = await zt(`/api/orgs/${encodeURIComponent(r.id)}/checkout`, { seats: y });
         window.location.href = C;
-      } catch {
-        ((L.disabled = !1), (L.textContent = "Buy seats"), okModal("Couldn’t start checkout", "Please try again."));
+      } catch (err) {
+        ((L.disabled = !1), (L.textContent = "Buy seats"), okModal("Couldn’t start checkout", err?.body?.message || "Please try again."));
       }
     });
     const M = x.querySelector("[data-portal]");
@@ -28275,19 +28292,41 @@ async function ju(i, e) {
       });
   }
   if (!o) return;
+  const rep = document.createElement("div");
+  rep.className = "card card-lift p-6 mb-6";
+  rep.innerHTML = `<h2 class="font-display text-display-md text-white mb-1">${biz ? "Team progress" : "Class progress"}</h2><p class="text-slate-400 text-body-sm mb-4">Practice in the last 30 days. You see scores and session counts, never transcripts.</p><div data-report><p class="text-body-sm text-slate-500">Loading…</p></div>`;
+  t.appendChild(rep);
+  (async () => {
+    const box = rep.querySelector("[data-report]");
+    try {
+      const g = await Ut(`/api/orgs/${encodeURIComponent(r.id)}/report`);
+      const who = biz ? "member" : "student";
+      const rows = (g.members || [])
+        .map((m) => `<tr class="border-t border-ink-700/70"><td class="py-2 pr-3 text-slate-200">${Jt(m.email)} ${m.role !== "student" ? `<span class="text-xs text-slate-500">(${Jt(orgRoleLabel(m.role, r.kind))})</span>` : ""}</td><td class="py-2 pr-3 text-right">${m.sessions || 0}</td><td class="py-2 pr-3 text-right">${m.avgScore != null ? m.avgScore : "—"}</td><td class="py-2 pr-3 text-right">${m.best != null ? m.best : "—"}</td><td class="py-2 text-right text-slate-400">${m.lastActive ? Jt(Zl(m.lastActive)) : "never"}</td></tr>`)
+        .join("");
+      const skills = (g.skills || []).length
+        ? `<div class="mt-5"><div class="eyebrow mb-2">Where your ${biz ? "team" : "class"} needs work</div><div class="flex flex-wrap gap-2">${g.skills.map((k) => `<span class="badge border-amber-500/30 bg-amber-500/10 text-amber-200">${Jt(k.label)} · ${k.avg}/10</span>`).join("")}</div></div>`
+        : "";
+      box.innerHTML = rows
+        ? `<div class="overflow-x-auto"><table class="w-full min-w-[520px] text-left text-sm"><thead class="text-xs uppercase tracking-wider text-slate-500"><tr><th class="py-2 pr-3">${biz ? "Member" : "Student"}</th><th class="py-2 pr-3 text-right">Sessions</th><th class="py-2 pr-3 text-right">Avg score</th><th class="py-2 pr-3 text-right">Best</th><th class="py-2 text-right">Last active</th></tr></thead><tbody class="text-slate-300">${rows}</tbody></table></div>${skills}`
+        : `<p class="text-body-sm text-slate-500">No ${who}s yet. Create an invite link below.</p>`;
+    } catch {
+      box.innerHTML = '<p class="text-body-sm text-slate-500">Couldn’t load progress right now.</p>';
+    }
+  })();
   const u = document.createElement("div");
   u.className = "card card-lift p-6 mb-6";
   const h = r.memberCount >= r.seatCount;
   ((u.innerHTML = `
     <h2 class="font-display text-display-md text-white mb-1">Invite links</h2>
-    <p class="text-slate-400 text-body-sm mb-5">Share a link — students sign up free and join automatically. Rap battle is not available to school members.</p>
+    <p class="text-slate-400 text-body-sm mb-5">${biz ? "Share a link — your team signs up free and joins automatically. Every practice mode is available." : "Share a link — students sign up free and join automatically. Rap battle is not available to school members."}</p>
     ${r.subscriptionActive ? (h ? `<div class="rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-200 text-body-sm px-4 py-3 mb-5" role="status">All ${Jt(String(r.seatCount))} seats are filled — new members are blocked until you purchase more seats.</div>` : `<p class="text-body-sm text-slate-500 mb-5">${Jt(String(r.seatCount - r.memberCount))} of ${Jt(String(r.seatCount))} seats still open.</p>`) : '<div class="rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-200 text-body-sm px-4 py-3 mb-5" role="status">No active subscription — new members are blocked from joining until you purchase seats.</div>'}
     <form data-create class="flex flex-wrap items-end gap-3 mb-6">
       <div>
         <label class="block text-body-sm font-medium text-slate-300 mb-1.5" for="inv-role">Role</label>
         <select id="inv-role" class="field w-36">
-          <option value="student">Student</option>
-          ${a ? '<option value="teacher">Teacher</option>' : ""}
+          <option value="student">${biz ? "Member" : "Student"}</option>
+          ${a ? `<option value="teacher">${biz ? "Manager" : "Teacher"}</option>` : ""}
         </select>
       </div>
       <div>

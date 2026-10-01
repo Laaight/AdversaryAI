@@ -764,3 +764,16 @@ a.mode:hover .mode-arr { transform: translateX(4px); }
 }
 
 .plan-annual { margin: -4px 0 12px; color: var(--muted); font-size: 0.85rem; }
+
+/* ---------- teams ---------- */
+.teams-band {
+  display: flex; align-items: center; justify-content: space-between; gap: 28px; margin-top: 48px;
+  padding: 28px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel);
+}
+.teams-band h3 { margin: 4px 0 8px; font-size: 1.35rem; }
+.teams-band p { color: var(--muted); margin: 0 0 10px; max-width: 640px; }
+.teams-band ul { margin: 0; padding-left: 18px; color: var(--muted); }
+.teams-band li { margin: 4px 0; }
+.teams-band b { color: var(--text); }
+.teams-band .btn { flex-shrink: 0; }
+@media (max-width: 760px) { .teams-band { flex-direction: column; align-items: stretch; padding: 22px 18px; } }
