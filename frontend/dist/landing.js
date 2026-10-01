@@ -92,6 +92,7 @@ function adaptLivePrices(data) {
   const debater = tiers.debater || { name: 'Debater', price: 1200, rounds: 300 };
   const coach = tiers.coach || { name: 'Coach', price: 2900, rounds: 750 };
   const champion = tiers.champion || { name: 'Champion', price: 4900, rounds: 500 };
+  const elite = tiers.elite || { name: 'Elite', price: 10000, rounds: 1000 };
 
   const getPrice = (t, def) => {
     if (typeof t.priceMonthly === 'number') return t.priceMonthly;
@@ -159,10 +160,25 @@ function adaptLivePrices(data) {
       badge: 'Best experience',
       cta: 'Start free, upgrade in-app',
       features: [
-        champion.photoreal ? 'Photoreal video opponents — ' + (champion.photorealMinutes || 45) + ' min/month' : 'Photoreal video opponents (rolling out)',
+        champion.photoreal ? 'Photoreal video opponents — ' + (champion.photorealMinutes || 60) + ' min/month' : 'Photoreal video opponents (rolling out)',
         'Strongest reasoning model: sharper opponents, deeper feedback',
         getRounds(champion, 500).toLocaleString() + ' premium rounds per month',
         'Everything in Debater, plus the Pro coach'
+      ]
+    },
+    {
+      name: elite.name || 'Elite',
+      price: getPrice(elite, 100),
+      annual: annualOf(elite),
+      per: '/mo',
+      headline: 'Two hours of photoreal video',
+      badge: 'Most video',
+      cta: 'Start free, upgrade in-app',
+      features: [
+        elite.photoreal ? 'Photoreal video opponents \u2014 2 hours/month' : 'Photoreal video opponents (rolling out)',
+        getRounds(elite, 1000).toLocaleString() + ' premium rounds per month',
+        'Strongest reasoning model on every round',
+        'Everything in Champion, for daily practice'
       ]
     }
   ];
@@ -171,7 +187,7 @@ function adaptLivePrices(data) {
     ? packs.map(function (p) { return { credits: p.rounds || p.debates || p.credits, price: Math.round((p.price || 0) / 100) || p.price }; })
     : PRICING.packs;
 
-  return { trial: plans[0], plans: [plans[1], plans[2], plans[3]], packs: livePacks, packsNote: PRICING.packsNote };
+  return { trial: plans[0], plans: plans.slice(1), packs: livePacks, packsNote: PRICING.packsNote };
 }
 
 function loadLivePricing() {

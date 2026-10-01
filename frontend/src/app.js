@@ -27836,11 +27836,12 @@ async function qu(i) {
   const photorealLive = !!s?.photoreal;
   const isChampion = !!s?.champion;
   const curTier = a && /active|trialing/.test(a.status || "") ? a.tier : null;
-  const photoLine = photorealLive ? "Photoreal video opponents — 45 min/month" : "Photoreal video opponents (rolling out)";
+  const photoLine = photorealLive ? "Photoreal video opponents — 60 min/month" : "Photoreal video opponents (rolling out)";
   const TIER_FEATURES = {
     debater: ["300 rounds / month", "All 11 practice modes", "Voiced 3D opponents with real lip-sync", "Scorecards + impartial judge verdicts", "Unused rounds roll over"],
     coach: ["750 rounds / month — 2.5× Debater", "Everything in Debater", "Best for daily practice, interview season & debate teams", "Unused rounds roll over"],
     champion: ["500 premium rounds / month", photoLine, "Strongest reasoning model — sharper opponents, deeper judge feedback", "Everything in Debater, plus the Pro coach"],
+    elite: ["1,000 premium rounds / month", photorealLive ? "Photoreal video opponents — 2 hours/month" : "Photoreal video opponents (rolling out)", "Strongest reasoning model on every round", "Everything in Champion, for daily practice"],
   };
   const p = document.createElement("section");
   p.id = "plans";
@@ -27854,7 +27855,7 @@ async function qu(i) {
       <h2 class="text-2xl font-extrabold tracking-tight text-white sm:text-3xl">Practice against someone who looks you in the eye.</h2>
       <p class="mt-2 max-w-xl text-sm leading-relaxed text-slate-400">Pressure is what you're training for. Champion puts a photoreal human opponent on screen — real eye contact, real facial reactions, lips that match every word — driven by our sharpest reasoning model.</p>
       <ul class="mt-5 grid gap-3 text-sm sm:grid-cols-3">
-        <li class="rounded-xl border border-ink-700 bg-ink-800/60 p-4"><div class="font-semibold text-white">Photoreal video</div><div class="mt-1 text-slate-400">${photorealLive ? "45 minutes a month of lifelike video opponents." : "Lifelike video opponents — rolling out to Champions first."}</div></li>
+        <li class="rounded-xl border border-ink-700 bg-ink-800/60 p-4"><div class="font-semibold text-white">Photoreal video</div><div class="mt-1 text-slate-400">${photorealLive ? "60 minutes a month of lifelike video opponents, or 2 hours on Elite." : "Lifelike video opponents — rolling out to Champions first."}</div></li>
         <li class="rounded-xl border border-ink-700 bg-ink-800/60 p-4"><div class="font-semibold text-white">Sharper opponent</div><div class="mt-1 text-slate-400">DeepSeek-V4-Pro finds the hole in your argument faster and pushes harder.</div></li>
         <li class="rounded-xl border border-ink-700 bg-ink-800/60 p-4"><div class="font-semibold text-white">Deeper feedback</div><div class="mt-1 text-slate-400">The judge and coach run on the Pro model too — more specific notes, better turning points.</div></li>
       </ul>
@@ -27862,17 +27863,17 @@ async function qu(i) {
     }
     <h2 class="text-display-md text-white mb-1">${curTier ? "Your plan" : "Choose a plan"}</h2>
     <p class="text-slate-400 text-body-sm mb-5">Monthly, cancel anytime. Unused rounds roll over.</p>
-    <div class="grid gap-4 mb-6 lg:grid-cols-3" id="tier-grid"></div>
+    <div class="grid gap-4 mb-6 md:grid-cols-2 xl:grid-cols-4" id="tier-grid"></div>
     <details class="card mb-10 p-5 text-sm">
       <summary class="cursor-pointer font-semibold text-white">Compare plans</summary>
-      <div class="mt-4 overflow-x-auto"><table class="w-full min-w-[520px] text-left">
-        <thead class="text-xs uppercase tracking-wider text-slate-500"><tr><th class="py-2 pr-4 font-semibold"></th><th class="py-2 pr-4">Debater</th><th class="py-2 pr-4">Coach</th><th class="py-2 text-amber-300">Champion</th></tr></thead>
+      <div class="mt-4 overflow-x-auto"><table class="w-full min-w-[620px] text-left">
+        <thead class="text-xs uppercase tracking-wider text-slate-500"><tr><th class="py-2 pr-4 font-semibold"></th><th class="py-2 pr-4">Debater</th><th class="py-2 pr-4">Coach</th><th class="py-2 pr-4 text-amber-300">Champion</th><th class="py-2 text-amber-300">Elite</th></tr></thead>
         <tbody class="divide-y divide-ink-700/70 text-slate-300">
-          <tr><td class="py-2.5 pr-4 text-slate-400">Rounds / month</td><td>300</td><td>750</td><td>500 premium</td></tr>
-          <tr><td class="py-2.5 pr-4 text-slate-400">Opponent on screen</td><td>3D, lip-synced</td><td>3D, lip-synced</td><td class="font-semibold text-white">Photoreal video${photorealLive ? " (45 min)" : " (rolling out)"}</td></tr>
-          <tr><td class="py-2.5 pr-4 text-slate-400">Reasoning model</td><td>Standard</td><td>Standard</td><td class="font-semibold text-white">Pro</td></tr>
-          <tr><td class="py-2.5 pr-4 text-slate-400">Judge & coach feedback</td><td>✓</td><td>✓</td><td class="font-semibold text-white">✓ Pro-level detail</td></tr>
-          <tr><td class="py-2.5 pr-4 text-slate-400">All 11 modes · unused rounds roll over</td><td>✓</td><td>✓</td><td>✓</td></tr>
+          <tr><td class="py-2.5 pr-4 text-slate-400">Rounds / month</td><td>300</td><td>750</td><td>500 premium</td><td>1,000 premium</td></tr>
+          <tr><td class="py-2.5 pr-4 text-slate-400">Opponent on screen</td><td>3D, lip-synced</td><td>3D, lip-synced</td><td class="font-semibold text-white">Photoreal video${photorealLive ? " (60 min)" : " (rolling out)"}</td><td class="font-semibold text-white">Photoreal video${photorealLive ? " (2 hours)" : " (rolling out)"}</td></tr>
+          <tr><td class="py-2.5 pr-4 text-slate-400">Reasoning model</td><td>Standard</td><td>Standard</td><td class="font-semibold text-white">Pro</td><td class="font-semibold text-white">Pro</td></tr>
+          <tr><td class="py-2.5 pr-4 text-slate-400">Judge & coach feedback</td><td>✓</td><td>✓</td><td class="font-semibold text-white">✓ Pro-level detail</td><td class="font-semibold text-white">✓ Pro-level detail</td></tr>
+          <tr><td class="py-2.5 pr-4 text-slate-400">All 11 modes · unused rounds roll over</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
         </tbody></table></div>
     </details>`;
   e.appendChild(p);
@@ -27907,14 +27908,14 @@ async function qu(i) {
     }
   }
   for (const x of n.tiers) {
-    const champ = x.id === "champion",
+    const champ = x.id === "champion" || x.id === "elite",
       popular = x.id === "coach",
       current = curTier === x.id,
       feats = TIER_FEATURES[x.id] || [`${(x.rounds || x.debates).toLocaleString()} rounds / month`],
       T = document.createElement("div");
     T.className = `card relative flex flex-col p-6 ${champ ? "border-amber-400/50 shadow-[0_0_0_1px_rgba(251,191,36,0.25),0_18px_50px_-20px_rgba(251,191,36,0.35)]" : popular ? "border-accent-600/50" : ""}`;
     T.innerHTML = `
-      ${champ ? '<span class="badge mb-3 self-start border-amber-400/40 bg-amber-400/15 text-amber-200">Best experience</span>' : popular ? '<span class="badge mb-3 self-start border-accent-500/40 bg-accent-500/10 text-accent-300">Most popular</span>' : '<span class="mb-3 h-[22px]"></span>'}
+      ${champ ? `<span class="badge mb-3 self-start border-amber-400/40 bg-amber-400/15 text-amber-200">${x.id === "elite" ? "Most video" : "Best experience"}</span>` : popular ? '<span class="badge mb-3 self-start border-accent-500/40 bg-accent-500/10 text-accent-300">Most popular</span>' : '<span class="mb-3 h-[22px]"></span>'}
       <div class="text-lg font-bold text-white">${Lt(xs(x.name))}</div>
       <div class="mb-4 mt-1"><span class="text-3xl font-extrabold tracking-tight ${champ ? "text-amber-300" : "text-white"}">${Lt(Kl(x.price, x.currency))}</span><span class="text-sm text-slate-500"> /${Lt(x.interval)}</span></div>
       <ul class="mb-6 space-y-2 text-sm text-slate-300">${feats.map((t) => `<li class="flex gap-2"><span class="${champ ? "text-amber-300" : "text-accent-400"}" aria-hidden="true">✓</span><span>${Lt(t)}</span></li>`).join("")}</ul>
@@ -27954,7 +27955,7 @@ async function qu(i) {
     const vs2 = document.createElement("section");
     vs2.className = "mt-10";
     vs2.innerHTML = `<h2 class="text-display-md text-white mb-1">Extra video minutes</h2>
-      <p class="text-slate-400 text-body-sm mb-5">More time with photoreal opponents. Used only after your monthly 45 minutes run out, and they never expire.</p>
+      <p class="text-slate-400 text-body-sm mb-5">More time with photoreal opponents. Used only after your monthly video minutes run out, and they never expire.</p>
       <div class="grid sm:grid-cols-2 gap-4" id="video-pack-grid"></div>`;
     g.appendChild(vs2);
     const vg = vs2.querySelector("#video-pack-grid");

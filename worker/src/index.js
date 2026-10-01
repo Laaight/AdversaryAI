@@ -73,7 +73,8 @@ var init_config = __esm({
       trial: { name: "Trial", debates: 15, rounds: 15, lifetime: true, price: 0 },
       debater: { name: "Debater", priceMonthly: 12, priceAnnual: 129, debatesPerMonth: 300, roundsPerMonth: 300, blurb: "All 11 practice modes, voiced 3D opponents with lip-sync, coaching scorecards, and credit rollover." },
       coach: { name: "Coach", priceMonthly: 29, priceAnnual: 315, debatesPerMonth: 750, roundsPerMonth: 750, analytics: true, blurb: "Detailed coaching analytics, scorecard rubrics, and judge feedback. Unused credits roll over." },
-      champion: { name: "Champion", priceMonthly: 49, priceAnnual: 529, debatesPerMonth: 500, roundsPerMonth: 500, premiumModel: true, photorealMinutes: 45, blurb: "Photoreal video opponents that look you in the eye, our strongest reasoning model for sharper arguments and deeper judge feedback, and priority speed." }
+      champion: { name: "Champion", priceMonthly: 49, priceAnnual: 529, debatesPerMonth: 500, roundsPerMonth: 500, premiumModel: true, photorealMinutes: 60, blurb: "Photoreal video opponents that look you in the eye, our strongest reasoning model for sharper arguments and deeper judge feedback, and priority speed." },
+      elite: { name: "Elite", priceMonthly: 100, debatesPerMonth: 1e3, roundsPerMonth: 1e3, premiumModel: true, photorealMinutes: 120, blurb: "Two hours a month of photoreal video opponents, 1,000 rounds on our strongest reasoning model, for people who practice every day." }
     };
     PACKS = [
       { id: "pack10", name: "100 Rounds", debates: 100, rounds: 100, price: 9 },
@@ -2514,7 +2515,7 @@ billingRouter.post("/api/billing/checkout", async (c) => {
   // Always bill the same Stripe customer so the portal, invoices and upgrades line up.
   if (existing?.stripe_customer_id) params["customer"] = existing.stripe_customer_id;
   else if (user.email) params["customer_email"] = user.email;
-  if (kind === "subscription" && (item === "debater" || item === "coach" || item === "champion")) {
+  if (kind === "subscription" && (item === "debater" || item === "coach" || item === "champion" || item === "elite")) {
     const annual = body.interval === "year";
     const priceId = priceIds[annual ? `${item}_annual` : item];
     if (!priceId) return c.json(annual ? { error: "annual_not_available", message: "Yearly billing isn't available for this plan yet." } : { error: "price not configured" }, annual ? 400 : 500);
@@ -2620,7 +2621,7 @@ billingRouter.get("/api/billing/prices", async (c) => {
       rounds: debates,
       credits: debates,
       description: String(t.blurb ?? ""),
-      ...id === "champion" ? { photoreal: !!c.env.LIVEAVATAR_API_KEY, photorealMinutes: videoMinutesCap(c.env) } : {}
+      ...id === "champion" || id === "elite" ? { photoreal: !!c.env.LIVEAVATAR_API_KEY, photorealMinutes: id === "elite" ? Number(TIERS.elite.photorealMinutes) : videoMinutesCap(c.env) } : {}
     };
   });
   const packs = PACKS.map((p) => ({
@@ -4363,7 +4364,7 @@ modesRouter.get("/", async (c) => {
 });
 
 // worker/src/debate.ts
-var FALLBACK_QUOTAS = { debater: 300, coach: 750, champion: 500 };
+var FALLBACK_QUOTAS = { debater: 300, coach: 750, champion: 500, elite: 1e3 };
 async function getTierQuotas() {
   const quotas = { ...FALLBACK_QUOTAS };
   try {
@@ -4512,7 +4513,7 @@ async function isPremium(c, userId, email) {
     return true;
   }
   const sub = await getSubscription(c.env.DB, userId);
-  return !!sub && isSubscriptionActive(sub) && sub.tier === "champion";
+  return !!sub && isSubscriptionActive(sub) && (sub.tier === "champion" || sub.tier === "elite");
 }
 __name(isPremium, "isPremium");
 function parseSetup(raw2) {
@@ -6455,13 +6456,14 @@ accountRouter.post("/admin/setup-stripe", async (c) => {
   const ITEMS = [
     { key: "debater", name: "AdversaryAI Debater", description: "300 sparring rounds per month across all 11 practice modes", type: "recurring", amount: 1200, interval: "month" },
     { key: "coach", name: "AdversaryAI Coach", description: "750 sparring rounds per month plus coaching analytics and rubrics", type: "recurring", amount: 2900, interval: "month" },
-    { key: "champion", name: "AdversaryAI Champion", description: "500 premium rounds per month on the Pro model, with 45 minutes of photoreal video opponents", type: "recurring", amount: 4900, interval: "month" },
+    { key: "champion", name: "AdversaryAI Champion", description: "500 premium rounds per month on the Pro model, with 60 minutes of photoreal video opponents", type: "recurring", amount: 4900, interval: "month" },
+    { key: "elite", name: "AdversaryAI Elite", description: "1,000 premium rounds per month on the Pro model, with 2 hours of photoreal video opponents", type: "recurring", amount: 10000, interval: "month" },
     { key: "pack10", name: "100 Sparring Rounds Pack", description: "100 round one-time credit top-up. Credits never expire.", type: "one_time", amount: 900 },
     { key: "pack25", name: "250 Sparring Rounds Pack", description: "250 round one-time credit top-up. Credits never expire.", type: "one_time", amount: 1900 },
     { key: "pack60", name: "600 Sparring Rounds Pack", description: "600 round one-time credit top-up. Credits never expire.", type: "one_time", amount: 3900 },
     { key: "debater_annual", productKey: "debater", name: "AdversaryAI Debater", description: "300 sparring rounds per month across all 11 practice modes", type: "recurring", amount: 12900, interval: "year" },
     { key: "coach_annual", productKey: "coach", name: "AdversaryAI Coach", description: "750 sparring rounds per month plus coaching analytics and rubrics", type: "recurring", amount: 31500, interval: "year" },
-    { key: "champion_annual", productKey: "champion", name: "AdversaryAI Champion", description: "500 premium rounds per month on the Pro model, with 45 minutes of photoreal video opponents", type: "recurring", amount: 52900, interval: "year" },
+    { key: "champion_annual", productKey: "champion", name: "AdversaryAI Champion", description: "500 premium rounds per month on the Pro model, with 60 minutes of photoreal video opponents", type: "recurring", amount: 52900, interval: "year" },
     { key: "video30", productKey: "video", name: "Photoreal Video Minutes", description: "Extra minutes of photoreal video opponents for Champion members. Never expire.", type: "one_time", amount: 1500 },
     { key: "video60", productKey: "video", name: "Photoreal Video Minutes", description: "Extra minutes of photoreal video opponents for Champion members. Never expire.", type: "one_time", amount: 2800 },
     { key: "eduSeat", name: "AdversaryAI Education Seat", description: "1 seat license with 150 pooled rounds per month for classrooms & teams", type: "recurring", amount: 600, interval: "month" }
@@ -6572,6 +6574,7 @@ function tierFromPriceId(priceIds, priceId) {
   if (priceIds.debater && priceId === priceIds.debater) return "debater";
   if (priceIds.coach && priceId === priceIds.coach) return "coach";
   if (priceIds.champion && priceId === priceIds.champion) return "champion";
+  if (priceIds.elite && priceId === priceIds.elite) return "elite";
   if (priceIds.debater_annual && priceId === priceIds.debater_annual) return "debater";
   if (priceIds.coach_annual && priceId === priceIds.coach_annual) return "coach";
   if (priceIds.champion_annual && priceId === priceIds.champion_annual) return "champion";
@@ -6624,7 +6627,7 @@ async function handleCheckoutSessionCompleted(env, session) {
     const item = metadata.item;
     const subscriptionId = typeof session.subscription === "string" ? session.subscription : session.subscription?.id ?? null;
     const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id ?? null;
-    if (!userId || item !== "debater" && item !== "coach" && item !== "champion" || !subscriptionId) return;
+    if (!userId || item !== "debater" && item !== "coach" && item !== "champion" && item !== "elite" || !subscriptionId) return;
     const existing = await db.prepare("SELECT 1 FROM subscriptions WHERE stripe_subscription_id = ?").bind(subscriptionId).first();
     if (existing) return;
     await db.prepare(
@@ -7095,8 +7098,8 @@ function avatarApiUrl(env) {
 }
 __name(avatarApiUrl, "avatarApiUrl");
 function videoMinutesCap(env) {
-  const n = Number(env.CHAMPION_VIDEO_MINUTES ?? 45);
-  return Number.isFinite(n) && n > 0 ? n : 45;
+  const n = Number(env.CHAMPION_VIDEO_MINUTES ?? 60);
+  return Number.isFinite(n) && n > 0 ? n : 60;
 }
 __name(videoMinutesCap, "videoMinutesCap");
 // Complimentary (lifetime VIP) Champions get a small monthly photoreal allowance: video is billed
@@ -7157,7 +7160,8 @@ async function avatarStatus(c, user) {
   const enabled = !!c.env.LIVEAVATAR_API_KEY && !outOfCredits;
   const eligible = await isPremium(c, user.id, user.email);
   const owner = isOwnerEmail(user.email, c.env);
-  const capMinutes = await isCompedChampion(c.env.DB, user.id) ? VIP_VIDEO_MINUTES : videoMinutesCap(c.env);
+  const subRow = await getSubscription(c.env.DB, user.id);
+  const capMinutes = subRow && isSubscriptionActive(subRow) && subRow.tier === "elite" ? Number(TIERS.elite.photorealMinutes) : await isCompedChampion(c.env.DB, user.id) ? VIP_VIDEO_MINUTES : videoMinutesCap(c.env);
   const baseCap = owner ? 24 * 3600 : capMinutes * 60;
   const extraSeconds = owner || !eligible ? 0 : await videoExtraLeft(c.env.DB, user.id, baseCap);
   const capSeconds = baseCap + extraSeconds;
