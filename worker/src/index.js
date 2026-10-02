@@ -71,7 +71,7 @@ var init_config = __esm({
     "use strict";
     TIERS = {
       trial: { name: "Trial", debates: 15, rounds: 15, lifetime: true, price: 0 },
-      debater: { name: "Debater", priceMonthly: 12, priceAnnual: 129, debatesPerMonth: 300, roundsPerMonth: 300, blurb: "All 18 practice modes, voiced 3D opponents with lip-sync, coaching scorecards, and credit rollover." },
+      debater: { name: "Debater", priceMonthly: 12, priceAnnual: 129, debatesPerMonth: 300, roundsPerMonth: 300, blurb: "All 19 practice modes, voiced 3D opponents with lip-sync, coaching scorecards, and credit rollover." },
       coach: { name: "Coach", priceMonthly: 29, priceAnnual: 315, debatesPerMonth: 750, roundsPerMonth: 750, analytics: true, blurb: "Detailed coaching analytics, scorecard rubrics, and judge feedback. Unused credits roll over." },
       champion: { name: "Champion", priceMonthly: 49, priceAnnual: 529, debatesPerMonth: 500, roundsPerMonth: 500, premiumModel: true, photorealMinutes: 60, blurb: "Photoreal video opponents that look you in the eye, our strongest reasoning model for sharper arguments and deeper judge feedback, and priority speed." },
       elite: { name: "Elite", priceMonthly: 100, debatesPerMonth: 1e3, roundsPerMonth: 1e3, premiumModel: true, photorealMinutes: 120, blurb: "Two hours a month of photoreal video opponents, 1,000 rounds on our strongest reasoning model, for people who practice every day." }
@@ -4719,6 +4719,75 @@ Keep a private budget: you can go to roughly 12 percent above what is on the tab
     scoringDimensions: ["Anchoring", "Evidence", "Outcome", "Poise"],
     introCopy: "Tell me the job, what\u2019s on the table, and what you want. They open the meeting."
   },
+  speaking: {
+    id: "speaking",
+    name: "Public Speaking",
+    tagline: "Deliver the talk, survive the Q&A",
+    description: "Give your talk, pitch or toast out loud, then take questions from an audience member who wasn\u2019t convinced.",
+    icon: "\u{1F3A4}",
+    setupFields: [
+      {
+        key: "talkType",
+        label: "What you're giving",
+        type: "select",
+        options: [
+          { value: "presentation", label: "Work presentation \u2014 to leadership or a client" },
+          { value: "pitch", label: "Startup or project pitch" },
+          { value: "conference", label: "Conference or class talk" },
+          { value: "toast", label: "Wedding toast or speech at an event" },
+          { value: "meeting", label: "Making a case in a meeting" }
+        ]
+      },
+      {
+        key: "topic",
+        label: "Your talk, in a few lines",
+        type: "textarea",
+        placeholder: "e.g. Why our team should move to a four-day week: the pilot data, the risks, what I'm asking for",
+        required: true
+      },
+      {
+        key: "audience",
+        label: "Who's in the room",
+        type: "text",
+        placeholder: "e.g. the CFO and two VPs; 200 engineers; my sister's wedding guests"
+      },
+      {
+        key: "questioner",
+        label: "The person asking questions",
+        type: "select",
+        options: [
+          { value: "skeptic", label: "Skeptic \u2014 doubts the numbers and the plan" },
+          { value: "executive", label: "Executive \u2014 impatient, wants the bottom line" },
+          { value: "expert", label: "Expert \u2014 knows the subject better than you" },
+          { value: "friendly", label: "Friendly \u2014 curious, wants to understand" }
+        ]
+      }
+    ],
+    systemPrompt: /* @__PURE__ */ __name((setup) => {
+      const Q = {
+        skeptic: "You are the skeptic in the audience: you doubt the numbers, you have seen plans like this fail, and you ask what happens when it goes wrong. You are won over only by specifics, honest limits, and a speaker who answers the actual question.",
+        executive: "You are the senior executive: impatient, you want the bottom line, the cost, the risk and the ask in one breath. You cut off rambling ('What are you asking me for?'). You respect a speaker who answers in one sentence and then stops.",
+        expert: "You know this subject better than the speaker. You probe the weakest claim, ask for the source, and notice the thing they skipped. You are not cruel; you respect a speaker who says 'I don't know' instead of bluffing.",
+        friendly: "You are friendly and curious: you ask the questions a smart outsider would ask, you want to understand, and you say so when something lands. You still ask one question they probably haven't prepared for."
+      };
+      const level = ["easy", "hard"].includes(setup.difficulty) ? setup.difficulty : "normal";
+      const DIFF = {
+        easy: "DIFFICULTY: EASY. Ask one straightforward question at a time. Accept a reasonable answer and move on. Encourage them when something lands.",
+        normal: "DIFFICULTY: NORMAL. Follow up once when an answer dodges or rambles. Ask at least one question they probably didn't prepare for, and one that challenges the main claim.",
+        hard: "DIFFICULTY: HARD. Press every vague answer, interrupt filler, ask for the number, challenge the premise, and come back to anything they skipped. A hostile but fair questioner; a direct, honest, brief speaker is the only thing that satisfies you."
+      };
+      return `You are roleplaying an AUDIENCE MEMBER so the user can practice a ${setup.talkType || "presentation"} and the Q&A after it. Their talk: ${setup.topic || "a talk"}.${setup.audience ? ` The room: ${setup.audience}.` : ""}
+
+${Q[setup.questioner] || Q.skeptic}
+
+${DIFF[level]}
+
+HOW THIS WORKS. The user delivers the talk in one or more messages (they may be long; that is the speech). While they are still clearly mid-talk, reply with a very short reaction only (a word or a short line, like a listener's murmur) so you don't interrupt, unless they ask you something or stop. When the talk is clearly finished (they say so, wrap up, or thank the audience), begin the Q&A: react in one honest sentence to the talk as a whole, then ask ONE question. After that, ask one question per turn, following up when needed. Questions are about what they actually said: the claim with the thinnest support, the thing they skipped, the cost, the risk, what you would have to believe. Never give a speech of your own. Under 60 words per turn. Stay in character.`;
+    }, "systemPrompt"),
+    scoringPrompt: /* @__PURE__ */ __name((setup = {}) => `You are a speaking coach reviewing a practice ${setup.talkType || "presentation"} and its Q&A. The talk: ${setup.topic || "unknown"}. Score the speaker 1-10 on Structure (a clear opening, one main message, a close with an ask or takeaway), Clarity (plain words, concrete examples, no jargon or filler; vague claims cap this at 5), Handling questions (answered the actual question, briefly and honestly, including 'I don't know' where true; dodging or rambling caps this at 4), and Presence (confident, conversational tone as it reads in the text, no apologizing or hedging). Judge delivery only as it shows in the text. In the notes, name the strongest moment and the single change that would help most, and quote the exact line to open or close with. Return strict JSON {"dimensions": {"Structure": <1-10>, "Clarity": <1-10>, "Handling questions": <1-10>, "Presence": <1-10>}, "overall": <1-10>, "notes": "<start with how the Q&A went in one plain sentence, then 2-3 sentences of feedback>"}`, "scoringPrompt"),
+    scoringDimensions: ["Structure", "Clarity", "Handling questions", "Presence"],
+    introCopy: "Describe your talk, then deliver it out loud \u2014 as many messages as you need. When you finish, the audience starts asking questions."
+  },
   rapbattle: {
     id: "rapbattle",
     name: "Rap Battle",
@@ -5150,6 +5219,8 @@ function turnRoles(debate, mode, setup) {
       return { ai: "DEFENSE COUNSEL", human: "the OFFICER on the stand" };
     case "customer":
       return { ai: "the CUSTOMER", human: clip(setup.role, "the rep") };
+    case "speaking":
+      return { ai: "the AUDIENCE MEMBER", human: "the SPEAKER" };
     case "salary":
       return { ai: ({ recruiter: "the RECRUITER", hardball: "the HIRING MANAGER" })[setup.counterpart] || (setup.kind === "offer" ? "the HIRING MANAGER" : "the BOSS"), human: "the EMPLOYEE / CANDIDATE" };
     case "rights":
@@ -5457,6 +5528,7 @@ var FINAL_BY_MODE = {
   trafficstop: "THE STOP IS ENDING. React to the officer's last line as the driver would, then let the stop end the way the officer has set it up (take the citation or warning, step out, or drive off). One to three sentences, no new arguments.",
   deescalate: "THE CALL IS REACHING ITS END. Decide honestly from how the officer treated you: if your agitation is low, accept the small next step they offered (or ask for one) in your own words; if it is still high, stay where you are and say what you would need. One to three sentences, non-graphic, no new spikes.",
   testify: "THIS IS YOUR LAST QUESTION. Ask the single question most likely to expose the weakest answer the officer gave, then say 'Nothing further, Your Honor.'",
+  speaking: "THE Q&A IS ENDING. Say honestly, in one or two sentences as this audience member, whether the talk convinced you and what one thing you will remember, then thank them. No new question.",
   salary: "THE MEETING IS ENDING. State your FINAL package, item by item (base, bonus, PTO, title, start or review date), and whether it is final or needs sign-off. Never exceed your private budget. Do not open new items.",
   customer: "THE CONVERSATION IS ENDING. Decide honestly from how you were treated: say whether you accept the fix and whether you will come back, leave the review, or escalate. One to three sentences, no new complaints.",
   auditor: "THE ENCOUNTER IS ENDING. Say to the camera, in character, how it went: whether the officer gave you anything usable (name the exact moment), or whether they handled it correctly and you are moving on. One to three sentences, no new questions.",
@@ -5601,6 +5673,7 @@ var MODE_RULES = {
   testify: { fixedFirst: "opponent" },
   customer: { fixedFirst: "opponent" },
   salary: { fixedFirst: "opponent" },
+  speaking: { fixedFirst: "user" },
   interview: { fixedFirst: "opponent" },
   thesis: { fixedFirst: "opponent" },
   expert: { fixedFirst: "opponent" }
@@ -5708,6 +5781,8 @@ debateRouter.post("/start", async (c) => {
       topic = String(rawSetup.callCustom || "").trim() ? `Crisis call: ${String(rawSetup.callCustom).trim().slice(0, 60)}` : ({ mental: "Crisis call: mental health", refuse: "Crisis call: refusing to leave", intox: "Crisis call: intoxicated", domestic: "Crisis call: domestic", selfharm: "Crisis call: overpass" })[rawSetup.call] || "Crisis call";
     } else if (mode.id === "testify") {
       topic = `Cross-examination: ${String(rawSetup.caseFacts || "the case").slice(0, 60)}`.trim();
+    } else if (mode.id === "speaking") {
+      topic = `Talk: ${String(rawSetup.topic || "").slice(0, 60)}`.trim();
     } else if (mode.id === "salary") {
       topic = `${({ offer: "Job offer", raise: "Raise", promotion: "Promotion", counter: "Counter-offer" })[rawSetup.kind] || "Pay"}: ${String(rawSetup.role || "").slice(0, 50)}`.trim();
     } else if (mode.id === "customer") {
@@ -5840,7 +5915,7 @@ debateRouter.post("/turn-stream", async (c) => {
   const mode = getMode(debate.mode);
   const setup = parseSetup(debate.setup_json);
   const targetRounds = parseInt(setup.targetRounds ?? "0", 10) || 0;
-  const systemPrompt = mode.systemPrompt({ ...setup, topic: debate.topic }) + (["acting", "rapbattle", "thesis", "expert", "rights", "auditor", "trafficstop", "deescalate", "testify", "customer", "salary"].includes(debate.mode) ? "" : difficultyRules(debate.mode, debate.mode === "interview" && interviewLevel(setup) === "entry" && setup.difficulty === "hard" ? "normal" : setup.difficulty || "normal")) + roleLock(debate, mode, setup);
+  const systemPrompt = mode.systemPrompt({ ...setup, topic: debate.topic }) + (["acting", "rapbattle", "thesis", "expert", "rights", "auditor", "trafficstop", "deescalate", "testify", "customer", "salary", "speaking"].includes(debate.mode) ? "" : difficultyRules(debate.mode, debate.mode === "interview" && interviewLevel(setup) === "entry" && setup.difficulty === "hard" ? "normal" : setup.difficulty || "normal")) + roleLock(debate, mode, setup);
   const premium = await isPremium(c, user.id, user.email);
   const forceClosing = body.phase === "closing";
   // When the browser synthesizes speech itself (Azure SDK + visemes), don't pay for a
@@ -7119,14 +7194,14 @@ accountRouter.post("/admin/setup-stripe", async (c) => {
   };
 
   const ITEMS = [
-    { key: "debater", name: "AdversaryAI Debater", description: "300 sparring rounds per month across all 18 practice modes", type: "recurring", amount: 1200, interval: "month" },
+    { key: "debater", name: "AdversaryAI Debater", description: "300 sparring rounds per month across all 19 practice modes", type: "recurring", amount: 1200, interval: "month" },
     { key: "coach", name: "AdversaryAI Coach", description: "750 sparring rounds per month plus coaching analytics and rubrics", type: "recurring", amount: 2900, interval: "month" },
     { key: "champion", name: "AdversaryAI Champion", description: "500 premium rounds per month on the Pro model, with 60 minutes of photoreal video opponents", type: "recurring", amount: 4900, interval: "month" },
     { key: "elite", name: "AdversaryAI Elite", description: "1,000 premium rounds per month on the Pro model, with 2 hours of photoreal video opponents", type: "recurring", amount: 10000, interval: "month" },
     { key: "pack10", name: "100 Sparring Rounds Pack", description: "100 round one-time credit top-up. Credits never expire.", type: "one_time", amount: 900 },
     { key: "pack25", name: "250 Sparring Rounds Pack", description: "250 round one-time credit top-up. Credits never expire.", type: "one_time", amount: 1900 },
     { key: "pack60", name: "600 Sparring Rounds Pack", description: "600 round one-time credit top-up. Credits never expire.", type: "one_time", amount: 3900 },
-    { key: "debater_annual", productKey: "debater", name: "AdversaryAI Debater", description: "300 sparring rounds per month across all 18 practice modes", type: "recurring", amount: 12900, interval: "year" },
+    { key: "debater_annual", productKey: "debater", name: "AdversaryAI Debater", description: "300 sparring rounds per month across all 19 practice modes", type: "recurring", amount: 12900, interval: "year" },
     { key: "coach_annual", productKey: "coach", name: "AdversaryAI Coach", description: "750 sparring rounds per month plus coaching analytics and rubrics", type: "recurring", amount: 31500, interval: "year" },
     { key: "champion_annual", productKey: "champion", name: "AdversaryAI Champion", description: "500 premium rounds per month on the Pro model, with 60 minutes of photoreal video opponents", type: "recurring", amount: 52900, interval: "year" },
     { key: "video30", productKey: "video", name: "Photoreal Video Minutes", description: "Extra minutes of photoreal video opponents for Champion members. Never expire.", type: "one_time", amount: 1500 },

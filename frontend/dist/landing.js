@@ -13,7 +13,7 @@ const PRICING = {
     cta: 'Start free',
     features: [
       '15 rounds on us',
-      'All 18 practice modes',
+      'All 19 practice modes',
       'Voice or text sessions',
       'No credit card to start'
     ]
@@ -27,7 +27,7 @@ const PRICING = {
       cta: 'Start free, upgrade in-app',
       features: [
         '300 sparring rounds per month',
-        'All 18 practice modes',
+        'All 19 practice modes',
         'Voiced 3D opponents with real lip-sync',
         'Scorecards + impartial judge verdicts',
         'Unused rounds roll over'
@@ -116,7 +116,7 @@ function adaptLivePrices(data) {
       cta: 'Start free',
       features: [
         getRounds(trial, 15) + ' sparring rounds on us',
-        'All 18 practice modes',
+        'All 19 practice modes',
         'Voice or text sessions',
         'No credit card to start'
       ]
@@ -130,7 +130,7 @@ function adaptLivePrices(data) {
       cta: 'Start free, upgrade in-app',
       features: [
         getRounds(debater, 300).toLocaleString() + ' sparring rounds per month',
-        'All 18 practice modes',
+        'All 19 practice modes',
         'Voiced 3D opponents with real lip-sync',
         'Scorecards + impartial judge verdicts',
         'Unused rounds roll over'
@@ -201,6 +201,7 @@ function loadLivePricing() {
 const MODES_FALLBACK = [
   { id: 'debate', name: 'Debate', icon: '⚔️', blurb: 'Classic argument combat. Pick a motion, argue your case, get scored like an athlete.' },
   { id: 'historical', name: 'Historical Figures', icon: '🏛️', blurb: 'Argue with the great minds of history — challenge their ideas, defend your own.' },
+  { id: 'speaking', name: 'Public Speaking', icon: '🎤', blurb: 'Deliver your talk or pitch out loud, then take questions from an audience member who wasn’t convinced.' },
   { id: 'acting', name: 'Acting Coach', icon: '🎭', blurb: 'Run lines and scenes with a partner who never misses a cue.' },
   { id: 'interview', name: 'Interview Prep', icon: '💼', blurb: 'Practice tough interview questions with instant feedback on every answer.' },
   { id: 'salary', name: 'Salary Negotiation', icon: '💰', blurb: 'Negotiate an offer or ask for a raise against a manager with a budget and a script of their own.' },
