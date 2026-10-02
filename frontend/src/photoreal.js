@@ -101,7 +101,9 @@ export class PhotorealAvatar {
     this.lastActivity = Date.now();
     // A reply is coming and this session is about to hit its cap: reopen now, not mid-reply.
     if (this.ready && this._expiring(60000) && !this.talking && voice.state === "idle") this.sleep();
-    if (!this.ready && !this.starting && !this.disposed && !this.exhausted) this.start().catch(() => {});
+    // After a failure, typing must not retry on every keystroke: errors retrying can't fix stop it for
+    // this session, and anything else waits a minute.
+    if (!this.ready && !this.starting && !this.disposed && !this.exhausted && !this.halted && Date.now() >= (this.retryAt || 0)) this.start().catch(() => {});
   }
 
   start() {
@@ -131,6 +133,8 @@ export class PhotorealAvatar {
       const e = lastErr;
       this.onStatus({ state: "error", error: e?.code || "photoreal_unavailable", detail: e?.detail || e?.message || String(e) });
       if (e?.code === "video_minutes_exhausted" || e?.code === "champion_required") this.exhausted = true;
+      if (FATAL.has(e?.code)) this.halted = true;
+      else this.retryAt = Date.now() + 60000;
     })().finally(() => {
       this.starting = null;
     });
