@@ -26653,6 +26653,7 @@ function ix(root, debateId, t, data) {
       send({ closing: closingRequested });
     };
     rec.onresult = (e) => {
+      photo?.touch(); // talking counts as activity: don't close the video mid-answer
       const finals = [],
         interims = [];
       for (let k = 0; k < e.results.length; k++) {
