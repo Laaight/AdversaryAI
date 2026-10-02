@@ -3264,11 +3264,6 @@ async function ensureEmailTables(db) {
   ]);
 }
 __name(ensureEmailTables, "ensureEmailTables");
-async function sha256Hex(text) {
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-  return Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, "0")).join("");
-}
-__name(sha256Hex, "sha256Hex");
 async function emailPrefs(db, userId) {
   await ensureEmailTables(db);
   let row = await db.prepare("SELECT unsub, token FROM email_prefs WHERE user_id = ?").bind(userId).first();
