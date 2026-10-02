@@ -27702,6 +27702,29 @@ async function qu(i) {
         </form>
         <div id="admin-pw-out" class="hidden mt-3 text-sm p-3 rounded-xl"></div>`;
     e.appendChild(_adminPw);
+
+    // A real 50-cent live charge (Stripe's minimum) to check checkout, the webhook and refunds.
+    const _adminPay = document.createElement("div");
+    _adminPay.className = "card card-lift p-6 mb-10 border border-amber-500/30 bg-amber-500/5";
+    _adminPay.innerHTML = `
+        <h2 class="font-display text-lg text-amber-300 font-semibold mb-2">Admin: Test a live payment</h2>
+        <p class="text-slate-300 text-body-sm mb-4">Charges your card $0.50 (Stripe's minimum) and adds 1 round, using the same path as a real pack. Refund it in the Stripe dashboard afterwards to check refunds too.</p>
+        <button type="button" id="admin-pay-btn" class="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm">Pay $0.50</button>
+        <div id="admin-pay-out" class="hidden mt-3 text-sm p-3 rounded-xl bg-red-500/15 border border-red-500/30 text-red-200"></div>`;
+    e.appendChild(_adminPay);
+    _adminPay.querySelector("#admin-pay-btn").addEventListener("click", async (ev) => {
+      const btn = ev.currentTarget;
+      const out = _adminPay.querySelector("#admin-pay-out");
+      btn.disabled = true;
+      try {
+        const { url } = await zt("/api/billing/checkout", { kind: "test_payment" });
+        location.href = url;
+      } catch (err) {
+        out.classList.remove("hidden");
+        out.textContent = err?.body?.error || "Could not start checkout.";
+        btn.disabled = false;
+      }
+    });
     _adminPw.querySelector("#admin-pw-form").addEventListener("submit", async (ev) => {
       ev.preventDefault();
       const em = _adminPw.querySelector("#admin-pw-email").value.trim();

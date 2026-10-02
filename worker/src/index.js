@@ -2542,6 +2542,20 @@ billingRouter.post("/api/billing/checkout", async (c) => {
     params["metadata[userId]"] = user.id;
     params["metadata[kind]"] = "pack";
     params["metadata[debates]"] = String(pack.debates);
+  } else if (kind === "test_payment") {
+    // Owner only: a real $0.50 charge (Stripe's minimum) that grants 1 round through the same
+    // pack webhook and refund path, to prove live payments end to end without risking much.
+    if (!isOwnerEmail(user.email, c.env)) return c.json({ error: "forbidden" }, 403);
+    params["mode"] = "payment";
+    params["line_items[0][price_data][currency]"] = "usd";
+    params["line_items[0][price_data][unit_amount]"] = "50";
+    params["line_items[0][price_data][product_data][name]"] = "AdversaryAI payment test (1 round)";
+    params["line_items[0][price_data][product_data][tax_code]"] = "txcd_10105001";
+    params["line_items[0][quantity]"] = "1";
+    params["metadata[userId]"] = user.id;
+    params["metadata[kind]"] = "pack";
+    params["metadata[debates]"] = "1";
+    params["metadata[test]"] = "1";
   } else if (kind === "video" && typeof item === "string") {
     const vp = VIDEO_PACKS.find((v) => v.id === item);
     if (!vp) return c.json({ error: "unknown pack" }, 400);
