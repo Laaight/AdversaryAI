@@ -9,7 +9,7 @@
  * propagate immediately; the cache only ever serves as an offline fallback.
  */
 
-const VERSION = 'adversaryai-d9770c0e74';
+const VERSION = 'adversaryai-268d7eb094';
 const HASHED_ASSETS = /\/app\/assets\//;
 // Big, rarely-changing files (3D models, vendored SDKs) live in a cache that survives deploys.
 const STABLE = 'adversaryai-stable-v1';

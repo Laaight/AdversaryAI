@@ -26530,7 +26530,11 @@ function ix(root, debateId, t, data) {
   root.addEventListener("click", holdWake); // some browsers only grant the wake lock after a tap
 
   // ---------------------------------------------------------------- voice input
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  // Brave exposes the speech API but ships no speech service behind it, so every attempt fails with
+  // "network": treat it like a browser without voice input and say so up front.
+  const isBrave = !!navigator.brave;
+  const SR = isBrave ? null : window.SpeechRecognition || window.webkitSpeechRecognition;
+  const NO_VOICE_MSG = "Voice input isn’t available in this browser (Brave and some privacy browsers block it). Use Chrome or Edge to talk, or just type.";
   function stopListening() {
     if (!listening) return;
     try {
@@ -26693,7 +26697,9 @@ function ix(root, debateId, t, data) {
                 : "Didn’t hear anything — tap the mic and try again."
               : c === "aborted"
                 ? ""
-                : "Voice input failed — try again or type instead.",
+                : c === "network"
+                  ? NO_VOICE_MSG
+                  : "Voice input failed — try again or type instead.",
       );
     };
     try {
@@ -26759,7 +26765,7 @@ function ix(root, debateId, t, data) {
     });
   } else {
     // Firefox and some in-app browsers have no speech input: say so instead of silently hiding the mic.
-    micHint.textContent = "Voice input isn’t supported in this browser. Chrome, Edge or Safari let you speak your replies — or just type.";
+    micHint.textContent = isBrave ? NO_VOICE_MSG : "Voice input isn’t supported in this browser. Chrome, Edge or Safari let you speak your replies — or just type.";
     micHint.className = "mt-2 text-xs text-slate-400";
   }
 
