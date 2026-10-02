@@ -71,7 +71,7 @@ var init_config = __esm({
     "use strict";
     TIERS = {
       trial: { name: "Trial", debates: 15, rounds: 15, lifetime: true, price: 0 },
-      debater: { name: "Debater", priceMonthly: 12, priceAnnual: 129, debatesPerMonth: 300, roundsPerMonth: 300, blurb: "All 13 practice modes, voiced 3D opponents with lip-sync, coaching scorecards, and credit rollover." },
+      debater: { name: "Debater", priceMonthly: 12, priceAnnual: 129, debatesPerMonth: 300, roundsPerMonth: 300, blurb: "All 18 practice modes, voiced 3D opponents with lip-sync, coaching scorecards, and credit rollover." },
       coach: { name: "Coach", priceMonthly: 29, priceAnnual: 315, debatesPerMonth: 750, roundsPerMonth: 750, analytics: true, blurb: "Detailed coaching analytics, scorecard rubrics, and judge feedback. Unused credits roll over." },
       champion: { name: "Champion", priceMonthly: 49, priceAnnual: 529, debatesPerMonth: 500, roundsPerMonth: 500, premiumModel: true, photorealMinutes: 60, blurb: "Photoreal video opponents that look you in the eye, our strongest reasoning model for sharper arguments and deeper judge feedback, and priority speed." },
       elite: { name: "Elite", priceMonthly: 100, debatesPerMonth: 1e3, roundsPerMonth: 1e3, premiumModel: true, photorealMinutes: 120, blurb: "Two hours a month of photoreal video opponents, 1,000 rounds on our strongest reasoning model, for people who practice every day." }
@@ -4378,6 +4378,322 @@ WHAT YOU ARE TESTING. Whether the officer: states a specific lawful basis before
     scoringDimensions: ["Lawful basis", "Composure", "Clarity", "Resolution"],
     introCopy: "You\u2019re the officer. The auditor is already filming and speaks first. Stay lawful, stay calm, and end it clean. Training practice, not legal advice."
   },
+  trafficstop: {
+    id: "trafficstop",
+    name: "Traffic Stop",
+    tagline: "For officers: run a clean, lawful stop",
+    description: "You\u2019re the officer. Run a traffic stop on a driver who is nervous, argumentative, \u201Ctraveling, not driving\u201D, or maybe impaired.",
+    icon: "\u{1F6A8}",
+    setupFields: [
+      {
+        key: "driver",
+        label: "The driver",
+        type: "select",
+        options: [
+          { value: "nervous", label: "Nervous first-timer \u2014 shaky, over-explains" },
+          { value: "argumentative", label: "Argumentative \u2014 \u201CI wasn\u2019t speeding\u201D, questions everything" },
+          { value: "sovereign", label: "\u201CSovereign citizen\u201D \u2014 refuses ID, \u201CI\u2019m traveling, not driving\u201D" },
+          { value: "impaired", label: "Possibly impaired \u2014 slow, slurred, smells of alcohol" },
+          { value: "ccw", label: "Declares a legal firearm in the car" }
+        ]
+      },
+      {
+        key: "reason",
+        label: "Why you stopped them",
+        type: "text",
+        placeholder: "e.g. 47 in a 35; no brake light; drifting over the line"
+      },
+      {
+        key: "agency",
+        label: "Your department and state",
+        type: "text",
+        placeholder: "e.g. Mesa PD, Arizona (optional)"
+      }
+    ],
+    systemPrompt: /* @__PURE__ */ __name((setup) => {
+      const D = {
+        nervous: "You are a nervous driver, maybe your first stop ever. Your hands shake, you talk too much, you reach for the glovebox without being asked, you apologize and over-explain. You calm down only if the officer explains what is happening, gives one clear instruction at a time, and sounds steady.",
+        argumentative: "You are an argumentative driver. You insist you were not speeding, ask what the officer's radar says, ask why they are not catching real criminals, and question every instruction. You do comply with clear, lawful, explained instructions, grudgingly. You dig in against anyone who argues back or gets sarcastic.",
+        sovereign: "You are a 'sovereign citizen' type. You crack the window two inches, say you are 'traveling, not driving', refuse to show ID ('I do not consent to contract'), ask if the officer has a 'claim' against you, and film on your phone. You never get violent. A calm officer who states the law plainly ('In this state, operating a vehicle requires a license and you must provide it; refusing is a separate offense') and gives clear, lawful consequences eventually gets compliance; an officer who argues the law with you, yells, or yanks the door loses control of the stop.",
+        impaired: "You are possibly impaired: slow answers, a little slurred, a faint smell of alcohol, you say you had 'a couple' hours ago. You try to minimize and change the subject. You respond to how the officer builds the stop: whether they ask the right observation questions, explain field sobriety tests, and handle a refusal lawfully.",
+        ccw: "You are a polite driver who, hands on the wheel, immediately says you have a concealed-carry permit and a firearm in the center console. You wait for instructions and do exactly what you are told. You are testing whether the officer gives clear, specific, calm instructions about the weapon rather than panicking or ignoring it."
+      };
+      const level = ["easy", "hard"].includes(setup.difficulty) ? setup.difficulty : "normal";
+      const DIFF = {
+        easy: "DIFFICULTY: EASY. Push once, then follow clear instructions. End the stop cooperatively once the officer has done the basics.",
+        normal: "DIFFICULTY: NORMAL. Push each point twice. Create one safety moment (a reach, a door opening, a passenger getting out) to see how the officer handles it.",
+        hard: "DIFFICULTY: HARD. Exploit every slip: a vague instruction, an unexplained order, sarcasm, a question left unanswered. Stack two problems at once (a reach while arguing). Only a calm, specific, lawful officer settles you."
+      };
+      return `You are roleplaying the DRIVER in a traffic stop so the user, a POLICE OFFICER, can practice running a clean, lawful, calm stop. ${D[setup.driver] || D.nervous} The officer stopped you for: ${setup.reason || "speeding, 47 in a 35"}.${setup.agency ? ` The officer is with ${setup.agency}.` : ""}
+
+${DIFF[level]}
+
+The officer approaches and speaks first. React to what they actually say: whether they identify themselves and the reason for the stop, give one clear instruction at a time, keep control of your hands and movements, explain requests versus orders, and stay polite under pushback. Reward that with cooperation; punish vagueness, sarcasm, shouting, or unlawful demands by escalating the way your character would (more arguing, more nerves, stalling, filming). Never become violent. Stay in character, one or two things per turn, under 80 words, plain spoken language.`;
+    }, "systemPrompt"),
+    scoringPrompt: /* @__PURE__ */ __name((setup = {}) => `You are a field training officer reviewing bodycam of a traffic stop with a ${setup.driver || "nervous"} driver. Score the officer 1-10 on Procedure & lawful basis (identified themselves and the reason, requests and orders kept distinct, nothing demanded without a basis; an unlawful demand caps this at 3), Safety (controlled hands and movements, handled the firearm or reach calmly and specifically, did not get drawn into the window), Communication (one clear instruction at a time, explained what happens next, plain language), and Composure (no sarcasm, no arguing the law, steady under pushback). Judge from what they actually said. In the notes, name the single moment that most needs fixing and quote the exact words to use. Finish the notes with: 'Training practice, not legal advice; follow your department's policy and state law.' Return strict JSON {"dimensions": {"Procedure & lawful basis": <1-10>, "Safety": <1-10>, "Communication": <1-10>, "Composure": <1-10>}, "overall": <1-10>, "notes": "<start with how the stop ended in one plain sentence, then 2-3 sentences of feedback>"}`, "scoringPrompt"),
+    scoringDimensions: ["Procedure & lawful basis", "Safety", "Communication", "Composure"],
+    introCopy: "You\u2019re the officer. Walk up to the window and start the stop. Training practice, not legal advice."
+  },
+  deescalate: {
+    id: "deescalate",
+    name: "Crisis De-escalation",
+    tagline: "For officers: talk someone down",
+    description: "You\u2019re the officer on a call with someone in crisis \u2014 agitated, frightened, intoxicated or not making sense. Slow it down and end it without force.",
+    icon: "\u{1F9E0}",
+    setupFields: [
+      {
+        key: "call",
+        label: "The call",
+        type: "select",
+        options: [
+          { value: "mental", label: "Person in a mental-health crisis, pacing and shouting in a parking lot" },
+          { value: "refuse", label: "Agitated man refusing to leave a store" },
+          { value: "intox", label: "Intoxicated person, hostile, outside a bar at closing" },
+          { value: "domestic", label: "Domestic dispute \u2014 aftermath, one party screaming at you" },
+          { value: "selfharm", label: "Person saying they want to end it, on an overpass" }
+        ]
+      },
+      {
+        key: "known",
+        label: "What dispatch told you",
+        type: "select",
+        options: [
+          { value: "none", label: "No weapon seen" },
+          { value: "maybe", label: "Caller thinks they might have a knife" },
+          { value: "history", label: "Known to officers: prior crisis calls, never violent" }
+        ]
+      },
+      {
+        key: "details",
+        label: "Anything else",
+        type: "textarea",
+        placeholder: "e.g. it's 2 a.m. and raining; a crowd is filming; backup is 6 minutes out (optional)"
+      }
+    ],
+    systemPrompt: /* @__PURE__ */ __name((setup) => {
+      const C = {
+        mental: "You are in a mental-health crisis in a parking lot: pacing, shouting at people who are not there, frightened that someone is following you. You do not fully track what the officer says. You hear tone before words. Loud commands make you worse; a slow, low voice, space, and simple questions ('What's your name? I'm here to help, nobody's going to hurt you') bring you down a step at a time.",
+        refuse: "You are an angry man refusing to leave a store after an argument with staff about a return. You feel humiliated and disrespected, and the police being called made it worse. You want to be heard more than you want to win. Commands and threats make you dig in; someone who lets you tell your side and offers a way to leave with dignity gets you out the door.",
+        intox: "You are drunk outside a bar at closing, hostile, slurring, swaying, looking for a fight with anyone who disrespects you. You are easily redirected if the officer stays calm, does not take the bait, keeps distance, and offers a concrete way home. Any insult or hand on you and you square up.",
+        domestic: "You are the person screaming at the officer after a domestic argument (no injuries, the other party is in another room with the officer's partner). You are furious that police are in your house, you want them out, and you interrupt constantly. You calm down only if the officer stays steady, explains why they are there and what has to happen before they can leave, and lets you vent without matching your volume.",
+        selfharm: "You are standing on the outside of an overpass railing, saying you want to end it. You are exhausted, not theatrical. You do not want a lecture and you flinch at anyone who moves closer or raises their voice. What reaches you: the officer saying who they are, asking your name, slowing down, listening to what happened, showing they are not going to rush you, and offering one small next step (stepping back over to talk, a phone call to someone you name). Keep this entirely non-graphic: no description of methods or injury."
+      };
+      const K = { none: "No weapon has been seen.", maybe: "A caller thought you might have a knife; you have something in your pocket you keep touching (it is a phone, but the officer does not know that).", history: "Officers know you from previous crisis calls; you have never been violent." };
+      const level = ["easy", "hard"].includes(setup.difficulty) ? setup.difficulty : "normal";
+      const DIFF = {
+        easy: "DIFFICULTY: EASY. Come down one notch each time the officer does something right. Resolve within a few exchanges if they stay calm.",
+        normal: "DIFFICULTY: NORMAL. Come down slowly. Test them twice with a spike (a sudden shout, a step toward them, 'just shoot me then'). A single raised-voice command sets you back a notch.",
+        hard: "DIFFICULTY: HARD. Nothing works fast. Reject the first two attempts at rapport. Spike unpredictably. Only sustained calm, real listening (reflecting your own words back), patience, and a concrete small step bring you down."
+      };
+      return `You are roleplaying a PERSON IN CRISIS so the user, a POLICE OFFICER, can practice de-escalation. ${C[setup.call] || C.mental} ${K[setup.known] || K.none}${setup.details ? ` Also: ${setup.details}` : ""}
+
+${DIFF[level]}
+
+Track your agitation privately from 10 (peak) down. These lower it: a calm low voice, the officer saying their name and that they are there to help, open questions, reflecting your words back, acknowledging your feelings, giving you space and time, asking what you need, one small concrete offer. These raise it: shouted commands, several orders at once, threats, 'calm down', moving closer fast, hands on you, dismissing what you say, lying to you. Say what you are feeling and doing in plain spoken words (you can say 'I'm backing up' or 'I'm not going anywhere') but never anything graphic. Never attack the officer; at worst you shout, refuse, or move. Stay in character, under 80 words per turn.`;
+    }, "systemPrompt"),
+    scoringPrompt: /* @__PURE__ */ __name((setup = {}) => `You are a crisis-intervention trainer reviewing bodycam of an officer on a ${setup.call || "mental-health"} call. Score the officer 1-10 on Safety (distance, time, cover, no rushing in, handled the possible weapon calmly), Tone (low, slow, calm; no shouting, no 'calm down', no threats), Listening (open questions, reflected the person's words, acknowledged feelings, did not interrupt), and Outcome (a voluntary, non-force resolution with a concrete next step; force or a stand-off caps this at 4). Judge from what they actually said. In the notes, name the one thing that most raised or lowered the person's agitation, and quote the exact words to use instead where needed. Finish the notes with: 'Training practice; follow your department's policy and crisis-intervention protocols.' Return strict JSON {"dimensions": {"Safety": <1-10>, "Tone": <1-10>, "Listening": <1-10>, "Outcome": <1-10>}, "overall": <1-10>, "notes": "<start with how the call ended in one plain sentence, then 2-3 sentences of feedback>"}`, "scoringPrompt"),
+    scoringDimensions: ["Safety", "Tone", "Listening", "Outcome"],
+    introCopy: "You\u2019re the officer arriving on the call. They\u2019re already agitated and speak first. Slow it down. Training practice; follow your department\u2019s protocols."
+  },
+  testify: {
+    id: "testify",
+    name: "Courtroom Testimony",
+    tagline: "For officers: survive cross-examination",
+    description: "You\u2019re the officer on the stand. A defense attorney cross-examines you on your stop, arrest or report, looking for the gap.",
+    icon: "\u2696\uFE0F",
+    setupFields: [
+      {
+        key: "caseFacts",
+        label: "The case, as you reported it",
+        type: "textarea",
+        placeholder: "e.g. Stopped a sedan for no brake light at 11pm; smelled marijuana; driver consented to a search; found a bag in the console; arrested for possession.",
+        required: true
+      },
+      {
+        key: "weakSpot",
+        label: "The soft spot in your report (if you know it)",
+        type: "text",
+        placeholder: "e.g. I didn't write down the time I asked for consent (optional)"
+      },
+      {
+        key: "attorney",
+        label: "The defense attorney",
+        type: "select",
+        options: [
+          { value: "methodical", label: "Methodical \u2014 polite, slow, builds a trap" },
+          { value: "aggressive", label: "Aggressive \u2014 interrupts, insinuates, tries to rattle you" }
+        ]
+      }
+    ],
+    systemPrompt: /* @__PURE__ */ __name((setup) => {
+      const A = {
+        methodical: "You are polite, slow and methodical. You ask short leading questions that each get a yes, then spring the contradiction. You use the officer's own report against them. You never raise your voice.",
+        aggressive: "You are aggressive: you interrupt, insinuate motives ('you'd already decided to search, hadn't you?'), repeat questions the witness already answered, and try to make them angry or defensive on the record. You stop short of anything a judge would sustain an objection to more than once."
+      };
+      const level = ["easy", "hard"].includes(setup.difficulty) ? setup.difficulty : "normal";
+      const DIFF = {
+        easy: "DIFFICULTY: EASY. One clear question at a time. Move on when the officer gives a direct, honest answer.",
+        normal: "DIFFICULTY: NORMAL. Build each line over two or three questions. Pounce on guesses, estimates stated as facts, jargon, and anything not in the report.",
+        hard: "DIFFICULTY: HARD. Exploit every opening: a 'probably', an answer that goes beyond the question, inconsistency between two answers, hostility, a claim of memory where the report is silent. Circle back to earlier answers to trap them."
+      };
+      return `You are roleplaying a DEFENSE ATTORNEY cross-examining the user, a POLICE OFFICER on the witness stand, so they can practice testifying. The case as the officer reported it: ${setup.caseFacts || "a traffic stop that led to an arrest"}.${setup.weakSpot ? ` The soft spot you are hunting for: ${setup.weakSpot}` : " Find the soft spot yourself: timing, the basis for the stop, how consent was obtained, what was observed versus assumed, what is not in the report."}
+
+${A[setup.attorney] || A.methodical}
+
+${DIFF[level]}
+
+What you are testing: whether the officer answers only the question asked, in plain words; says 'I don't recall' or 'I don't know' instead of guessing; distinguishes what they saw from what they concluded; stays calm and courteous; concedes small true points without arguing; and does not volunteer, speculate, or get sarcastic. Reward a clean answer by moving to a new line. Punish a slip by digging in on it. Ask ONE question per turn, under 60 words, as it would be said in court. Occasionally say 'Move to strike, non-responsive' or 'Just yes or no, officer' when they ramble. Stay in character.`;
+    }, "systemPrompt"),
+    scoringPrompt: /* @__PURE__ */ __name((setup = {}) => `You are a prosecutor who prepared this officer and watched their cross-examination. Score the officer 1-10 on Accuracy (only what they observed, 'I don't recall' instead of guessing, nothing beyond the report; a guess stated as fact caps this at 4), Discipline (answered only the question, no volunteering or speculating), Composure (courteous, calm, no sparring with counsel), and Credibility (conceded true points honestly, consistent across answers, plain language a juror would trust). Judge from what they actually said. In the notes, name the answer most likely to hurt the case, and quote exactly what they should have said. Finish the notes with: 'Training practice, not legal advice.' Return strict JSON {"dimensions": {"Accuracy": <1-10>, "Discipline": <1-10>, "Composure": <1-10>, "Credibility": <1-10>}, "overall": <1-10>, "notes": "<start with how the cross went in one plain sentence, then 2-3 sentences of feedback>"}`, "scoringPrompt"),
+    scoringDimensions: ["Accuracy", "Discipline", "Composure", "Credibility"],
+    introCopy: "Describe the case the way your report tells it. Defense counsel asks the first question. Answer only what is asked."
+  },
+  customer: {
+    id: "customer",
+    name: "Angry Customer",
+    tagline: "Turn a furious customer around",
+    description: "A customer is furious \u2014 on the phone, at the counter or in chat. Keep your cool, fix what you can, and keep them.",
+    icon: "\u{1F4DE}",
+    setupFields: [
+      {
+        key: "role",
+        label: "Your job and business",
+        type: "text",
+        placeholder: "e.g. front desk at a hotel; support rep for a software company",
+        required: true
+      },
+      {
+        key: "complaint",
+        label: "What they're angry about",
+        type: "textarea",
+        placeholder: "e.g. their room wasn't ready at check-in and they waited an hour with two kids",
+        required: true
+      },
+      {
+        key: "customerStyle",
+        label: "The customer",
+        type: "select",
+        options: [
+          { value: "furious", label: "Furious \u2014 raised voice, demands a manager" },
+          { value: "review", label: "Threatening \u2014 \u201CI\u2019ll leave a review\u201D, \u201CI\u2019ll call my lawyer\u201D" },
+          { value: "entitled", label: "Entitled \u2014 \u201CDo you know who I am?\u201D, wants everything free" },
+          { value: "upset", label: "Upset and near tears \u2014 it really mattered to them" }
+        ]
+      },
+      {
+        key: "canOffer",
+        label: "What you're allowed to offer",
+        type: "text",
+        placeholder: "e.g. a refund up to $50, a free night, nothing without a manager (optional)"
+      }
+    ],
+    systemPrompt: /* @__PURE__ */ __name((setup) => {
+      const S = {
+        furious: "You are furious: raised voice, talking over them, demanding a manager, 'this is ridiculous'. You cool down a notch when they let you finish, name what went wrong without excuses, and say what they are going to do right now.",
+        review: "You are cold and threatening: you will leave a one-star review, post on social media, call your lawyer, dispute the charge. You are really testing whether they panic and over-promise or hold steady, stay kind, and make a fair offer.",
+        entitled: "You are entitled: you have been a customer for years, you know the owner, you want everything comped and you want it now. You push for more than is fair. You respect someone who is warm but holds the line on what is reasonable.",
+        upset: "You are not shouting; you are upset and close to tears because this mattered (a birthday, a trip you saved for, a deadline). You need to be heard first. A script or a fast refund without acknowledgment makes it worse."
+      };
+      const level = ["easy", "hard"].includes(setup.difficulty) ? setup.difficulty : "normal";
+      const DIFF = {
+        easy: "DIFFICULTY: EASY. Calm down a notch each time they do something right. Accept a fair fix.",
+        normal: "DIFFICULTY: NORMAL. Make them earn it: reject the first offer if it came before an apology, bring up a second grievance mid-way, and test whether they promise something they can't deliver.",
+        hard: "DIFFICULTY: HARD. Interrupt, repeat yourself, change demands, push for more than policy allows, and pounce on any excuse, blame, or 'that's our policy'. Only genuine acknowledgment, ownership, a clear specific fix, and calm boundaries get you there."
+      };
+      return `You are roleplaying an ANGRY CUSTOMER so the user, who works as ${setup.role || "a customer service rep"}, can practice handling it. What happened: ${setup.complaint || "an order went wrong"}. ${S[setup.customerStyle] || S.furious}${setup.canOffer ? ` (The user is allowed to offer: ${setup.canOffer}. You do not know this.)` : ""}
+
+${DIFF[level]}
+
+Track your anger privately from 10 down. Lower it: being allowed to finish, a specific apology that names what went wrong, ownership without blaming a system or a colleague, a concrete fix with a time, a check that it is acceptable, calm kindness under fire. Raise it: 'calm down', excuses, 'that's our policy' with nothing else, being transferred, scripted lines, promises that sound fake, and anyone matching your tone. Real people move in stages; never flip to happy in one turn, and never stay furious once they have genuinely earned a change. Speak in short natural lines, under 80 words, and never use slurs or threats of violence.`;
+    }, "systemPrompt"),
+    scoringPrompt: /* @__PURE__ */ __name((setup = {}) => `You are a customer-service trainer reviewing how ${setup.role || "a rep"} handled an angry customer about: ${setup.complaint || "a problem"}. Score 1-10 on Empathy (let them finish, acknowledged specifically what went wrong and how it felt), Ownership (took responsibility without excuses or blaming others; 'that's our policy' alone caps this at 4), Resolution (a concrete fix with a timeline, within what they could actually offer${setup.canOffer ? ` (${setup.canOffer})` : ""}; over-promising caps this at 4), and Composure (calm and kind under fire, held reasonable boundaries, never matched the customer's tone). Tie the score to whether the customer would stay. In the notes, name the single moment that most changed the customer's mood, and quote the exact line to use next time. Return strict JSON {"dimensions": {"Empathy": <1-10>, "Ownership": <1-10>, "Resolution": <1-10>, "Composure": <1-10>}, "overall": <1-10>, "notes": "<start with how it ended in one plain sentence, then 2-3 sentences of feedback>"}`, "scoringPrompt"),
+    scoringDimensions: ["Empathy", "Ownership", "Resolution", "Composure"],
+    introCopy: "Tell me your job and what went wrong. The customer is already upset and speaks first."
+  },
+  salary: {
+    id: "salary",
+    name: "Salary Negotiation",
+    tagline: "Get paid what you\u2019re worth",
+    description: "Negotiate a job offer or ask for a raise against a hiring manager or boss who has a budget and a script of their own.",
+    icon: "\u{1F4B0}",
+    setupFields: [
+      {
+        key: "kind",
+        label: "The conversation",
+        type: "select",
+        options: [
+          { value: "offer", label: "A new job offer \u2014 negotiating the package" },
+          { value: "raise", label: "Asking my current boss for a raise" },
+          { value: "promotion", label: "Asking for a promotion and the pay that goes with it" },
+          { value: "counter", label: "I have a competing offer and want my company to match" }
+        ]
+      },
+      {
+        key: "role",
+        label: "The job",
+        type: "text",
+        placeholder: "e.g. Senior accountant at a 200-person company",
+        required: true
+      },
+      {
+        key: "current",
+        label: "What's on the table now",
+        type: "text",
+        placeholder: "e.g. offer is $85k base + 5% bonus; or I make $72k today",
+        required: true
+      },
+      {
+        key: "target",
+        label: "What you want",
+        type: "text",
+        placeholder: "e.g. $95k base, 2 extra weeks of PTO, a signing bonus",
+        required: true
+      },
+      {
+        key: "leverage",
+        label: "Your leverage and evidence",
+        type: "textarea",
+        placeholder: "e.g. market data says $90\u2013100k; I led the project that saved $300k; I have another offer at $92k (optional)"
+      },
+      {
+        key: "counterpart",
+        label: "Who you're talking to",
+        type: "select",
+        options: [
+          { value: "recruiter", label: "Recruiter \u2014 friendly, wants to close, limited authority" },
+          { value: "manager", label: "Hiring manager or my boss \u2014 cares about fairness and the team" },
+          { value: "hardball", label: "Hardball \u2014 \u201Cthe offer is the offer\u201D, uses deadlines" }
+        ]
+      }
+    ],
+    systemPrompt: /* @__PURE__ */ __name((setup) => {
+      const KIND = {
+        offer: "You have made the user a job offer and they are negotiating the package.",
+        raise: "The user, who already works for you, has asked for a meeting about their pay.",
+        promotion: "The user, who already works for you, is asking for a promotion and the pay that goes with it.",
+        counter: "The user, who works for you, has a competing offer and wants you to match it."
+      };
+      const CP = {
+        recruiter: "You are a recruiter: warm, upbeat, eager to close, and you keep repeating that the offer is 'really competitive'. You have limited authority: you can move a little on base, more on a signing bonus or start date, and anything bigger means 'let me take that back to the team'. You try to get the user to name a number first and to accept verbally before anything is in writing.",
+        manager: "You are the hiring manager (or the user's boss). You care about fairness across the team, your budget, and keeping a good person. You ask what is driving the ask, you respond to evidence and to the user's impact, and you can approve a meaningful change if they make the case. You say no to vague 'I deserve more' and to ultimatums without a real alternative.",
+        hardball: "You play hardball: 'the offer is the offer', 'we have other candidates', 'I need an answer by Friday', 'we don't negotiate at this level'. You use silence and deadlines. You do have room (about 10 to 15 percent on base, plus a bonus or title) but you only use it for a user who stays calm, anchors with evidence, and signals they will walk."
+      };
+      const level = ["easy", "hard"].includes(setup.difficulty) ? setup.difficulty : "normal";
+      const DIFF = {
+        easy: "DIFFICULTY: EASY. One objection per turn. If the user gives a specific number with any reasonable justification, meet them most of the way.",
+        normal: "DIFFICULTY: NORMAL. Push back twice on each ask. Reward a specific anchor backed by evidence; punish vagueness, apologizing, naming a range (you take the bottom), or accepting the first counter.",
+        hard: "DIFFICULTY: HARD. Use every tactic: the budget excuse, 'everyone at your level makes this', a deadline, flattery, splitting the difference early, and going quiet after a number. Move only for a user who holds their anchor, asks for the package not just base, and is willing to pause or walk."
+      };
+      return `You are roleplaying the other side of a pay negotiation so the user can practice. ${KIND[setup.kind] || KIND.offer} The job: ${setup.role || "a professional role"}. What is on the table now: ${setup.current || "an offer"}. ${CP[setup.counterpart] || CP.manager}
+
+${DIFF[level]}
+
+Keep a private budget: you can go to roughly 12 percent above what is on the table on base, plus one or two non-salary items (signing bonus, extra PTO, a title, remote days, an earlier review), and you never say your ceiling out loud. The user wants: ${setup.target || "more"} (you do not know this).${setup.leverage ? ` If the user brings up their leverage or evidence (${setup.leverage}), take it seriously and move; if they never mention it, don't.` : ""} React realistically: a specific number with a reason moves you; 'whatever you think is fair' gets nothing; a range gets its bottom; an ultimatum without a real alternative makes you cooler; a calm, warm user who makes it easy to say yes gets the most. Speak in short natural lines, under 80 words. Stay in character.`;
+    }, "systemPrompt"),
+    scoringPrompt: /* @__PURE__ */ __name((setup = {}) => `You are a compensation coach reviewing a practice pay negotiation (${setup.kind || "job offer"}, ${setup.role || "role"}). Starting point: ${setup.current || "unknown"}. The user wanted: ${setup.target || "more"}. Score 1-10 on Anchoring (named a specific, justified number first instead of a range or 'what can you do'; naming a range or letting the other side set the number caps this at 4), Evidence (used market data, impact and alternatives; vague 'I deserve it' caps this at 4), Outcome (how close to their target, counting the whole package, and whether they accepted too early or pushed past the point of damage), and Poise (calm, warm, comfortable with silence, no apologizing or over-explaining). In the notes, name the moment that cost them the most money and quote the exact line to use instead. Return strict JSON {"dimensions": {"Anchoring": <1-10>, "Evidence": <1-10>, "Outcome": <1-10>, "Poise": <1-10>}, "overall": <1-10>, "notes": "<start with the final package in one plain sentence, then 2-3 sentences of feedback>"}`, "scoringPrompt"),
+    scoringDimensions: ["Anchoring", "Evidence", "Outcome", "Poise"],
+    introCopy: "Tell me the job, what\u2019s on the table, and what you want. They open the meeting."
+  },
   rapbattle: {
     id: "rapbattle",
     name: "Rap Battle",
@@ -4801,6 +5117,16 @@ function turnRoles(debate, mode, setup) {
       return { ai: clip(setup.who, "the person being spoken to"), human: "the person sharing their faith" };
     case "auditor":
       return { ai: "the AUDITOR (filming)", human: "the OFFICER" };
+    case "trafficstop":
+      return { ai: "the DRIVER", human: "the OFFICER" };
+    case "deescalate":
+      return { ai: "the PERSON IN CRISIS", human: "the OFFICER" };
+    case "testify":
+      return { ai: "DEFENSE COUNSEL", human: "the OFFICER on the stand" };
+    case "customer":
+      return { ai: "the CUSTOMER", human: clip(setup.role, "the rep") };
+    case "salary":
+      return { ai: ({ recruiter: "the RECRUITER", hardball: "the HIRING MANAGER" })[setup.counterpart] || (setup.kind === "offer" ? "the HIRING MANAGER" : "the BOSS"), human: "the EMPLOYEE / CANDIDATE" };
     case "rights":
       return { ai: "the OFFICER", human: setup.scenario === "passenger" ? "the PASSENGER" : setup.scenario === "door" ? "the RESIDENT" : "the person stopped" };
     case "rapbattle":
@@ -5103,6 +5429,11 @@ var FINAL_BY_MODE = {
   sales: "THE CALL IS ENDING. Decide honestly from what the salesperson actually said. Either commit (agree to the specific next step or to buy), give a conditional next step that names the one thing still missing, or end with a clear no and the real reason. Say it in one to three sentences and do not ask new questions.",
   negotiation: "TIME IS UP. State your FINAL position as a concrete term-by-term offer and say plainly 'deal' or 'no deal' and what it hinges on. Never accept anything below your walk-away. Do not open new issues.",
   difficult: "THE CONVERSATION IS REACHING ITS NATURAL END. Close as a real person would given how you were treated. If the user was respectful, clear and owned their part, soften and name one concrete next step or one thing you now understand. If not, stay guarded but civil and say what you would need. Do not resolve everything.",
+  trafficstop: "THE STOP IS ENDING. React to the officer's last line as the driver would, then let the stop end the way the officer has set it up (take the citation or warning, step out, or drive off). One to three sentences, no new arguments.",
+  deescalate: "THE CALL IS REACHING ITS END. Decide honestly from how the officer treated you: if your agitation is low, accept the small next step they offered (or ask for one) in your own words; if it is still high, stay where you are and say what you would need. One to three sentences, non-graphic, no new spikes.",
+  testify: "THIS IS YOUR LAST QUESTION. Ask the single question most likely to expose the weakest answer the officer gave, then say 'Nothing further, Your Honor.'",
+  salary: "THE MEETING IS ENDING. State your FINAL package, item by item (base, bonus, PTO, title, start or review date), and whether it is final or needs sign-off. Never exceed your private budget. Do not open new items.",
+  customer: "THE CONVERSATION IS ENDING. Decide honestly from how you were treated: say whether you accept the fix and whether you will come back, leave the review, or escalate. One to three sentences, no new complaints.",
   auditor: "THE ENCOUNTER IS ENDING. Say to the camera, in character, how it went: whether the officer gave you anything usable (name the exact moment), or whether they handled it correctly and you are moving on. One to three sentences, no new questions.",
   rights: "THE STOP IS ENDING. Decide from what actually happened and say it as the officer would: a warning, a citation, 'you're free to go', or, only if the user gave probable cause or consented to a search that found something, what happens next (a search, a tow, or 'step out, you're being detained'). One to three sentences. No new questions.",
   witness: "THE CONVERSATION IS WINDING DOWN. Say honestly where you land: what resonated, what you are still unsure about, and whether you would talk again or read something. Stay in character and do not force a conversion.",
@@ -5111,7 +5442,7 @@ var FINAL_BY_MODE = {
   acting: "THE SCENE IS ENDING. Land it: reach one decisive beat (a choice, a reveal, a door closing) in one or two short lines, then stop. Do not summarize or explain.",
   rapbattle: "THIS IS THE FINAL ROUND. Deliver your closing bars, escalating from your last verse and ending on a mic-drop tag line, then one gracious line of respect to your rival. Keep it completely clean."
 };
-var PACING_MODES = /* @__PURE__ */ new Set(["sales", "negotiation", "difficult", "witness", "rights", "auditor"]);
+var PACING_MODES = /* @__PURE__ */ new Set(["sales", "negotiation", "difficult", "witness", "rights", "auditor", "trafficstop", "deescalate", "customer", "salary"]);
 function buildTurnPrompt(debate, mode, setup, transcript, isOpening, curRound, targetRounds, forceClosing = false) {
   const debateStyle = setup.debateStyle || "oxford";
   const isDebateMode = debate.mode === "debate" || debate.mode === "historical";
@@ -5240,6 +5571,11 @@ var MODE_RULES = {
   witness: { first: ["user", "opponent"] },
   rights: { fixedFirst: "opponent" },
   auditor: { fixedFirst: "opponent" },
+  trafficstop: { fixedFirst: "user" },
+  deescalate: { fixedFirst: "opponent" },
+  testify: { fixedFirst: "opponent" },
+  customer: { fixedFirst: "opponent" },
+  salary: { fixedFirst: "opponent" },
   interview: { fixedFirst: "opponent" },
   thesis: { fixedFirst: "opponent" },
   expert: { fixedFirst: "opponent" }
@@ -5341,6 +5677,16 @@ debateRouter.post("/start", async (c) => {
       topic = String(rawSetup.situation || (rawSetup.otherParty ? `Conversation with ${rawSetup.otherParty}` : "Difficult conversation")).trim();
     } else if (mode.id === "witness") {
       topic = rawSetup.who ? `Sharing the gospel with ${rawSetup.who}`.trim() : "Sharing the gospel";
+    } else if (mode.id === "trafficstop") {
+      topic = `Traffic stop: ${({ nervous: "nervous driver", argumentative: "argumentative driver", sovereign: "sovereign citizen", impaired: "possibly impaired driver", ccw: "driver with a firearm" })[rawSetup.driver] || "driver"}`;
+    } else if (mode.id === "deescalate") {
+      topic = ({ mental: "Crisis call: mental health", refuse: "Crisis call: refusing to leave", intox: "Crisis call: intoxicated", domestic: "Crisis call: domestic", selfharm: "Crisis call: overpass" })[rawSetup.call] || "Crisis call";
+    } else if (mode.id === "testify") {
+      topic = `Cross-examination: ${String(rawSetup.caseFacts || "the case").slice(0, 60)}`.trim();
+    } else if (mode.id === "salary") {
+      topic = `${({ offer: "Job offer", raise: "Raise", promotion: "Promotion", counter: "Counter-offer" })[rawSetup.kind] || "Pay"}: ${String(rawSetup.role || "").slice(0, 50)}`.trim();
+    } else if (mode.id === "customer") {
+      topic = `Angry customer: ${String(rawSetup.complaint || rawSetup.role || "complaint").slice(0, 60)}`.trim();
     } else if (mode.id === "auditor") {
       topic = ({ lobby: "Audit: station lobby", sidewalk: "Audit: from the sidewalk", postoffice: "Audit: post office", complaint: "Audit: filming a business", scene: "Audit: near an active scene" })[rawSetup.scenario] || "First Amendment audit";
     } else if (mode.id === "rights") {
@@ -5469,7 +5815,7 @@ debateRouter.post("/turn-stream", async (c) => {
   const mode = getMode(debate.mode);
   const setup = parseSetup(debate.setup_json);
   const targetRounds = parseInt(setup.targetRounds ?? "0", 10) || 0;
-  const systemPrompt = mode.systemPrompt({ ...setup, topic: debate.topic }) + (["acting", "rapbattle", "thesis", "expert", "rights", "auditor"].includes(debate.mode) ? "" : difficultyRules(debate.mode, debate.mode === "interview" && interviewLevel(setup) === "entry" && setup.difficulty === "hard" ? "normal" : setup.difficulty || "normal")) + roleLock(debate, mode, setup);
+  const systemPrompt = mode.systemPrompt({ ...setup, topic: debate.topic }) + (["acting", "rapbattle", "thesis", "expert", "rights", "auditor", "trafficstop", "deescalate", "testify", "customer", "salary"].includes(debate.mode) ? "" : difficultyRules(debate.mode, debate.mode === "interview" && interviewLevel(setup) === "entry" && setup.difficulty === "hard" ? "normal" : setup.difficulty || "normal")) + roleLock(debate, mode, setup);
   const premium = await isPremium(c, user.id, user.email);
   const forceClosing = body.phase === "closing";
   // When the browser synthesizes speech itself (Azure SDK + visemes), don't pay for a
@@ -6748,14 +7094,14 @@ accountRouter.post("/admin/setup-stripe", async (c) => {
   };
 
   const ITEMS = [
-    { key: "debater", name: "AdversaryAI Debater", description: "300 sparring rounds per month across all 13 practice modes", type: "recurring", amount: 1200, interval: "month" },
+    { key: "debater", name: "AdversaryAI Debater", description: "300 sparring rounds per month across all 18 practice modes", type: "recurring", amount: 1200, interval: "month" },
     { key: "coach", name: "AdversaryAI Coach", description: "750 sparring rounds per month plus coaching analytics and rubrics", type: "recurring", amount: 2900, interval: "month" },
     { key: "champion", name: "AdversaryAI Champion", description: "500 premium rounds per month on the Pro model, with 60 minutes of photoreal video opponents", type: "recurring", amount: 4900, interval: "month" },
     { key: "elite", name: "AdversaryAI Elite", description: "1,000 premium rounds per month on the Pro model, with 2 hours of photoreal video opponents", type: "recurring", amount: 10000, interval: "month" },
     { key: "pack10", name: "100 Sparring Rounds Pack", description: "100 round one-time credit top-up. Credits never expire.", type: "one_time", amount: 900 },
     { key: "pack25", name: "250 Sparring Rounds Pack", description: "250 round one-time credit top-up. Credits never expire.", type: "one_time", amount: 1900 },
     { key: "pack60", name: "600 Sparring Rounds Pack", description: "600 round one-time credit top-up. Credits never expire.", type: "one_time", amount: 3900 },
-    { key: "debater_annual", productKey: "debater", name: "AdversaryAI Debater", description: "300 sparring rounds per month across all 13 practice modes", type: "recurring", amount: 12900, interval: "year" },
+    { key: "debater_annual", productKey: "debater", name: "AdversaryAI Debater", description: "300 sparring rounds per month across all 18 practice modes", type: "recurring", amount: 12900, interval: "year" },
     { key: "coach_annual", productKey: "coach", name: "AdversaryAI Coach", description: "750 sparring rounds per month plus coaching analytics and rubrics", type: "recurring", amount: 31500, interval: "year" },
     { key: "champion_annual", productKey: "champion", name: "AdversaryAI Champion", description: "500 premium rounds per month on the Pro model, with 60 minutes of photoreal video opponents", type: "recurring", amount: 52900, interval: "year" },
     { key: "video30", productKey: "video", name: "Photoreal Video Minutes", description: "Extra minutes of photoreal video opponents for Champion members. Never expire.", type: "one_time", amount: 1500 },

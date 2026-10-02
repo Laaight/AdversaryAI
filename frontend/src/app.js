@@ -374,6 +374,11 @@ const ch = {
   witness: Dt('<path d="M12 2v20M5 8h14"/>', 28),
   rights: Dt('<path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5l8-3z"/>', 28),
   auditor: Dt('<rect x="3" y="7" width="13" height="10" rx="2"/><path d="M16 11l5-3v8l-5-3z"/>', 28),
+  trafficstop: Dt('<path d="M5 17h14l-2-7H7z"/><circle cx="8" cy="19" r="1.5"/><circle cx="16" cy="19" r="1.5"/><path d="M12 3v3M7 5l1.5 2M17 5l-1.5 2"/>', 28),
+  deescalate: Dt('<path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z"/>', 28),
+  testify: Dt('<path d="M12 3v18M5 7h14M5 7l-3 6h6zM19 7l-3 6h6zM8 21h8"/>', 28),
+  customer: Dt('<path d="M4 5h4l2 5-2 1a11 11 0 0 0 5 5l1-2 5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 2 7a2 2 0 0 1 2-2z"/>', 28),
+  salary: Dt('<path d="M12 2v20M17 6.5a4 4 0 0 0-4-2.5h-2a3.5 3.5 0 0 0 0 7h2a3.5 3.5 0 0 1 0 7h-2a4 4 0 0 1-4-2.5"/>', 28),
 };
 let zs = null;
 async function fa(i = !1) {
@@ -429,7 +434,7 @@ async function ld(i) {
       return;
     }
     i.innerHTML = "";
-    const ORDER = ["interview", "debate", "historical", "sales", "negotiation", "difficult", "rights", "auditor", "thesis", "expert", "acting", "rapbattle", "witness"];
+    const ORDER = ["interview", "salary", "debate", "historical", "sales", "negotiation", "difficult", "customer", "rights", "auditor", "trafficstop", "deescalate", "testify", "thesis", "expert", "acting", "rapbattle", "witness"];
     const rank = (id) => (ORDER.indexOf(id) < 0 ? 99 : ORDER.indexOf(id));
     for (const t of [...e].sort((a, b) => rank(a.id) - rank(b.id))) {
       const n = document.createElement("a");
@@ -545,6 +550,11 @@ const mh = {
     witness: "man-casual",
     rights: "man-pro",
     auditor: "man-casual",
+    trafficstop: "woman-casual",
+    deescalate: "man-casual",
+    testify: "woman-pro",
+    customer: "woman-casual",
+    salary: "woman-pro",
     expert: "man-pro",
   },
   gh = {
@@ -705,6 +715,11 @@ const MODE_UI = {
   witness: { unit: "exchange", def: 8, first: [{ v: "user", t: "You start", s: "Open the conversation" }, { v: "opponent", t: "They start", s: "They ask you first" }], defFirst: "user" },
   rights: { unit: "exchange", def: 8, fixedFirst: "opponent", fixedNote: "The officer walks up and speaks first." },
   auditor: { unit: "exchange", def: 8, fixedFirst: "opponent", fixedNote: "The auditor is already filming and speaks first." },
+  trafficstop: { unit: "exchange", def: 8, fixedFirst: "user", fixedNote: "You walk up to the window and speak first." },
+  deescalate: { unit: "exchange", def: 10, fixedFirst: "opponent", fixedNote: "They’re already agitated and speak first." },
+  testify: { unit: "question", def: 8, fixedFirst: "opponent", fixedNote: "Defense counsel asks the first question." },
+  customer: { unit: "exchange", def: 8, fixedFirst: "opponent", fixedNote: "The customer is already upset and speaks first." },
+  salary: { unit: "exchange", def: 8, fixedFirst: "opponent", fixedNote: "They open the meeting." },
   rapbattle: { unit: "bars", def: 3, first: [COIN, { v: "user", t: "You drop first", s: "Set the tone" }, { v: "opponent", t: "MC drops first", s: "Answer back" }], defFirst: "cointoss", judge: true },
 };
 const DEFAULT_UI = { unit: "exchange", def: 8, first: [{ v: "user", t: "You start", s: "" }, { v: "opponent", t: "They start", s: "" }], defFirst: "user" };
@@ -865,6 +880,16 @@ function deriveTopic(s, T, figure) {
       return cut(T.theme ? `Rap battle: ${T.theme}` : "Open rap battle");
     case "witness":
       return cut(T.who ? `Sharing the gospel with ${T.who}` : "Sharing the gospel");
+    case "trafficstop":
+      return cut(`Traffic stop: ${{ nervous: "nervous driver", argumentative: "argumentative driver", sovereign: "sovereign citizen", impaired: "possibly impaired driver", ccw: "driver with a firearm" }[T.driver] || "driver"}`);
+    case "deescalate":
+      return cut({ mental: "Crisis call: mental health", refuse: "Crisis call: refusing to leave", intox: "Crisis call: intoxicated", domestic: "Crisis call: domestic", selfharm: "Crisis call: overpass" }[T.call] || "Crisis call");
+    case "testify":
+      return cut(`Cross-examination: ${T.caseFacts || "the case"}`);
+    case "salary":
+      return cut(`${{ offer: "Job offer", raise: "Raise", promotion: "Promotion", counter: "Counter-offer" }[T.kind] || "Pay"}: ${T.role || "negotiation"}`);
+    case "customer":
+      return cut(`Angry customer: ${T.complaint || T.role || "complaint"}`);
     case "auditor":
       return cut({ lobby: "Audit: station lobby", sidewalk: "Audit: from the sidewalk", postoffice: "Audit: post office", complaint: "Audit: filming a business", scene: "Audit: near an active scene" }[T.scenario] || "First Amendment audit");
     case "rights":
@@ -1219,6 +1244,11 @@ async function Mh(i, e) {
     else if (s.id === "witness") label = String(T.who || "").trim() || s.name;
     else if (s.id === "rights") label = "Officer";
     else if (s.id === "auditor") label = "Auditor";
+    else if (s.id === "trafficstop") label = "Driver";
+    else if (s.id === "deescalate") label = "Person in crisis";
+    else if (s.id === "testify") label = "Defense counsel";
+    else if (s.id === "customer") label = "Customer";
+    else if (s.id === "salary") label = T.counterpart === "recruiter" ? "Recruiter" : T.kind === "offer" ? "Hiring manager" : "Your boss";
     else if (s.id === "interview") label = "Hiring manager";
     else if (s.id === "thesis") label = "Thesis committee";
     else if (s.id === "negotiation") label = String(T.counterpartRole || "").trim() || "Counterpart";
@@ -27888,11 +27918,11 @@ async function qu(i) {
   ((l.className = "mb-10"),
     (l.innerHTML = `
     <h2 class="font-display text-display-md text-white mb-1">Schools &amp; teams</h2>
-    <p class="text-slate-400 text-body-sm mb-5">Invite people with a link and pay centrally. Business teams (sales, support, leadership) are $15 per seat per month with 300 rounds each and a manager dashboard; schools are $6 per seat.</p>
+    <p class="text-slate-400 text-body-sm mb-5">Invite people with a link and pay centrally. Business teams and police departments (sales, support, patrol, leadership) are $15 per seat per month with 300 rounds each and a manager dashboard; schools are $6 per seat.</p>
     <div class="card card-lift p-6">
       <div data-orgs class="space-y-2 mb-4"><p class="text-body-sm text-slate-500">Loading…</p></div>
       <div class="flex flex-wrap gap-2">
-        <button class="btn-ghost px-4 py-2 text-sm" data-create-team>+ Create a business team</button>
+        <button class="btn-ghost px-4 py-2 text-sm" data-create-team>+ Create a team or department</button>
         <button class="btn-ghost px-4 py-2 text-sm" data-create-school>+ Create a school</button>
       </div>
     </div>`),
@@ -27929,10 +27959,10 @@ async function qu(i) {
     const biz = kind === "business";
     let R = null;
     const x = await uiPrompt({
-      title: biz ? "Create a business team" : "Create a school",
-      label: biz ? "Team or company name" : "School name",
+      title: biz ? "Create a team or department" : "Create a school",
+      label: biz ? "Team, company or department name" : "School name",
       autocomplete: "organization",
-      placeholder: biz ? "e.g. Acme Sales Team" : "e.g. Lincoln High Debate Team",
+      placeholder: biz ? "e.g. Acme Sales Team, Mesa PD Patrol" : "e.g. Lincoln High Debate Team",
       confirm: biz ? "Create team" : "Create school",
       validate: async (v) => {
         if (!v.trim()) return biz ? "Enter a name for your team." : "Enter a name for your school.";
@@ -27952,7 +27982,7 @@ async function qu(i) {
   const curTier = a && /active|trialing/.test(a.status || "") ? a.tier : null;
   const photoLine = photorealLive ? "Photoreal video opponents — 60 min/month" : "Photoreal video opponents (rolling out)";
   const TIER_FEATURES = {
-    debater: ["300 rounds / month", "All 13 practice modes", "Voiced 3D opponents with real lip-sync", "Scorecards + impartial judge verdicts", "Unused rounds roll over"],
+    debater: ["300 rounds / month", "All 18 practice modes", "Voiced 3D opponents with real lip-sync", "Scorecards + impartial judge verdicts", "Unused rounds roll over"],
     coach: ["750 rounds / month — 2.5× Debater", "Everything in Debater", "Best for daily practice, interview season & debate teams", "Unused rounds roll over"],
     champion: ["500 premium rounds / month", photoLine, "Strongest reasoning model — sharper opponents, deeper judge feedback", "Everything in Debater, plus the Pro coach"],
     elite: ["1,000 premium rounds / month", photorealLive ? "Photoreal video opponents — 2 hours/month" : "Photoreal video opponents (rolling out)", "Strongest reasoning model on every round", "Everything in Champion, for daily practice"],
@@ -28943,7 +28973,7 @@ async function renderPublicWatch(container, debateId) {
         <div>
           <span class="text-xs font-bold uppercase tracking-wider text-accent-400">Step Into The Arena</span>
           <h2 class="text-xl sm:text-2xl font-bold text-white mt-1">Think you have better arguments?</h2>
-          <p class="text-sm text-slate-300 mt-1 max-w-lg">Spar directly against ${Vi(personaName)} or any of our 13 practice modes. Real-time 3D voice lip-sync and instant coaching scores.</p>
+          <p class="text-sm text-slate-300 mt-1 max-w-lg">Spar directly against ${Vi(personaName)} or any of our 18 practice modes. Real-time 3D voice lip-sync and instant coaching scores.</p>
         </div>
         <div class="flex flex-col sm:flex-row items-center gap-3 shrink-0 w-full sm:w-auto">
           <a href="#/setup/${encodeURIComponent(debate.mode || "debate")}" class="btn-primary w-full py-3 text-sm sm:w-auto">
