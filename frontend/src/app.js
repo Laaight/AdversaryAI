@@ -27808,7 +27808,7 @@ async function qu(i) {
         try {
           const res = await zt("/api/account/admin/selftest", { mode: m, exchanges: 5 });
           const sc = res.scores || {};
-          const dims = sc.dimensions ? Object.entries(sc.dimensions).map(([k, v]) => `${Lt(k)} ${v}`).join(" · ") : "";
+          const dims = Array.isArray(sc.dimensions) ? sc.dimensions.map((d) => `${Lt(d.label || d.name || "")} ${d.score ?? ""}`).join(" · ") : sc.dimensions ? Object.entries(sc.dimensions).map(([k, v]) => `${Lt(k)} ${typeof v === "object" ? v?.score ?? "" : v}`).join(" · ") : "";
           box.innerHTML = `<div class="font-semibold text-white">${Lt(res.name)} <span class="text-slate-500 font-normal">${Math.round(res.ms / 1000)}s · AI = ${Lt(res.roles.ai)} · user = ${Lt(res.roles.human)}</span></div>
             <div class="mt-2 space-y-2">${res.turns.map((t) => `<div class="${t.role === "user" ? "text-accent-200" : "text-slate-200"}"><b>${t.role === "user" ? "USER" : "AI"}:</b> ${Lt(t.text)}</div>`).join("")}</div>
             <div class="mt-3 pt-3 border-t border-ink-700 text-slate-300"><b>Scorecard:</b> ${sc.overall != null ? `${sc.overall}/10 · ` : ""}${dims}<div class="mt-1 text-slate-400">${Lt(sc.notes || sc.headline || "")}</div></div>`;
