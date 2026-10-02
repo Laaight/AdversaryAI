@@ -260,7 +260,7 @@ function rd(i, e, t, n) {
         <label class="block text-body-sm font-medium text-slate-300 mb-1.5" for="auth-password">Password</label>
         <input id="auth-password" type="password" required autocomplete="${isSignup ? "new-password" : "current-password"}" minlength="8" placeholder="Minimum 8 characters"
           class="field mb-6" />
-        ${isSignup ? "" : `<div class="-mt-4 mb-6 flex flex-wrap items-center justify-between gap-2"><a href="#" data-billing-login class="link text-body-sm hidden" target="_blank" rel="noopener">Manage or cancel billing by email</a><a href="mailto:support@getadversaryai.com?subject=Password%20reset" class="link text-body-sm ml-auto">Forgot password?</a></div>`}
+        ${isSignup ? "" : `<div class="-mt-4 mb-6 flex flex-wrap items-center justify-between gap-2"><a href="#" data-billing-login class="link text-body-sm hidden" target="_blank" rel="noopener">Manage or cancel billing by email</a><a href="#/forgot" class="link text-body-sm ml-auto">Forgot password?</a></div>`}
         <button type="submit" class="btn-primary w-full py-3">
           ${i}
         </button>
@@ -27882,6 +27882,26 @@ async function qu(i) {
       _adminQa.querySelectorAll("[data-run]").forEach((x) => (x.disabled = false));
     });
 
+    // Coaching emails (trial follow-ups, Monday digest) go out when this is pressed.
+    const _adminMail = document.createElement("div");
+    _adminMail.className = "card card-lift p-6 mb-10 border border-amber-500/30 bg-amber-500/5";
+    _adminMail.innerHTML = `<h2 class="font-display text-lg text-amber-300 font-semibold mb-2">Admin: Send coaching emails</h2><p class="text-slate-300 text-body-sm mb-4">Sends today's trial follow-ups (day 3: locked plan; day 7: quiet) and, on a Monday, the weekly digest. Each person gets each email once. Needs the RESEND_API_KEY secret.</p><button type="button" class="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm" data-send>Send now</button><div data-out class="hidden mt-3 text-sm"></div>`;
+    e.appendChild(_adminMail);
+    _adminMail.querySelector("[data-send]").addEventListener("click", async (ev) => {
+      const out = _adminMail.querySelector("[data-out]");
+      ev.currentTarget.disabled = true;
+      try {
+        const r = await zt("/api/account/admin/run-emails", {});
+        out.className = "mt-3 text-sm text-emerald-200 block";
+        out.textContent = `Sent: ${r.trialFollowUps} trial follow-ups, ${r.quietNudges} quiet nudges.`;
+      } catch (err) {
+        out.className = "mt-3 text-sm text-red-200 block";
+        out.textContent = err?.body?.error === "email_not_configured" ? "Email isn't configured yet: add the RESEND_API_KEY secret first." : "Couldn't send.";
+      } finally {
+        ev.currentTarget.disabled = false;
+      }
+    });
+
     const _adminFb = document.createElement("div");
     _adminFb.className = "card card-lift p-6 mb-10 border border-amber-500/30 bg-amber-500/5";
     _adminFb.innerHTML = `<h2 class="font-display text-lg text-amber-300 font-semibold mb-2">Admin: Feedback</h2><div data-list class="text-sm text-slate-400">Loading…</div>`;
@@ -28291,6 +28311,33 @@ async function qu(i) {
   const S = e.querySelector("#portal-btn");
   S &&
     S.addEventListener("click", async () => {
+      // A subscriber heading for the portal is probably cancelling: offer the cheaper exits first.
+      if (curTier && !lifetime) {
+        const choice = await uiModal({
+          title: "Before you go",
+          body: `<p class="text-sm text-slate-300">Taking a break? You can pause for a month (no charge, your rounds and history wait for you)${curTier !== "debater" ? ", or switch to Debater at $12" : ""}. Or go to billing to cancel.</p>`,
+          actions: [
+            { label: "Pause for a month", value: "pause", kind: "primary" },
+            ...(curTier !== "debater" ? [{ label: "Switch to Debater — $12/mo", value: "down" }] : []),
+            { label: "Go to billing", value: "portal" },
+            { label: "Never mind", value: 0 }
+          ]
+        });
+        if (!choice) return;
+        if (choice === "pause" || choice === "down") {
+          S.disabled = !0;
+          try {
+            await zt(choice === "pause" ? "/api/billing/pause" : "/api/billing/downgrade", { months: 1 });
+            okModal(choice === "pause" ? "Paused for a month" : "Switched to Debater", choice === "pause" ? "No charge next month. Your plan resumes by itself after that; come back any time." : "Your plan is now Debater. The difference is prorated on your next invoice.");
+            setTimeout(() => location.reload(), 1200);
+          } catch {
+            S.disabled = !1;
+            okModal("That didn’t go through", "Use Manage billing instead — the portal can do the same thing.");
+          }
+          return;
+        }
+        zt("/api/billing/cancel-reason", { reason: "portal" }).catch(() => {});
+      }
       ((S.disabled = !0), (S.innerHTML = '<span class="spinner" aria-hidden="true"></span><span>Opening…</span>'));
       try {
         const { url: x } = await zt("/api/billing/portal");
@@ -28753,7 +28800,7 @@ function fx(i) {
         <a href="#/history" class="px-3 py-1.5 rounded-lg hover:bg-ink-800 text-slate-300 hover:text-white">History</a>
         <a href="#/account" class="px-3 py-1.5 rounded-lg hover:bg-ink-800 text-slate-300 hover:text-white">Account</a>
         <a href="#" data-feedback class="px-3 py-1.5 rounded-lg hover:bg-ink-800 text-slate-300 hover:text-white">Feedback</a>
-        ${typeof i?.remainingRounds === "number" && i.remainingRounds < 1e5 ? `<a href="#/account?plans=1" title="Rounds left" class="ml-1 badge ${i.remainingRounds <= 3 ? "border-accent-500/50 bg-accent-500/15 text-accent-200" : "border-ink-700 bg-ink-800 text-slate-300"}">${i.remainingRounds} round${i.remainingRounds === 1 ? "" : "s"}</a>` : ""}
+        ${typeof Gi?.remainingRounds === "number" && Gi.remainingRounds < 1e5 ? `<a href="#/account?plans=1" title="Rounds left" class="ml-1 badge ${Gi.remainingRounds <= 3 ? "border-accent-500/50 bg-accent-500/15 text-accent-200" : "border-ink-700 bg-ink-800 text-slate-300"}">${Gi.remainingRounds} round${Gi.remainingRounds === 1 ? "" : "s"}</a>` : ""}
         <span id="theme-toggle-slot" class="ml-1"></span><span id="admin-mode-slot" class="ml-1.5"></span>
         <button id="logout-btn" class="ml-1 px-3 py-1.5 rounded-lg border border-ink-700 text-slate-400 hover:text-white hover:border-slate-500">Log out</button>
       </nav>
@@ -28764,6 +28811,7 @@ function fx(i) {
         </button>
       </div>
     </div>
+    ${Gi?.billingIssue ? `<div class="border-t border-amber-500/40 bg-amber-500/10 px-4 py-2 text-center text-sm text-amber-200">Your last payment didn’t go through. <a href="#/account" class="underline font-semibold">Update your card</a> to keep your plan.</div>` : ""}
     <div id="mobile-menu" class="hidden md:hidden border-t border-ink-700 bg-ink-900 px-4 py-2 text-sm">
       <a href="#/" class="block px-3 py-2.5 rounded-lg text-slate-300 hover:text-white hover:bg-ink-800">Practice</a>
       <a href="#/arena" class="block px-3 py-2.5 rounded-lg text-slate-300 hover:text-white hover:bg-ink-800 font-medium">🔥 Community Arena</a>
@@ -28854,6 +28902,41 @@ function fx(i) {
     Yi.appendChild(e));
   const r = document.createElement("main");
   ((r.className = "flex-1 w-full"), r.appendChild(i), Yi.appendChild(r));
+}
+// #/forgot asks for the email; #/reset?token=… sets the new password.
+function renderPasswordReset(root, route, token) {
+  const isReset = route === "/reset";
+  const box = document.createElement("div");
+  box.className = "w-full max-w-md animate-fade-up";
+  box.innerHTML = `
+    <div class="text-center mb-8"><h1 class="font-display text-display-lg text-white">${isReset ? "Choose a new password" : "Reset your password"}</h1><p class="text-slate-400 mt-2 text-body-md">${isReset ? "At least 8 characters." : "We’ll email you a link that works for 30 minutes."}</p></div>
+    <form class="card p-6 space-y-4">
+      <div class="error-box hidden" data-err></div>
+      ${isReset ? `<input type="password" name="password" class="field w-full" placeholder="New password" autocomplete="new-password" minlength="8" required />` : `<input type="email" name="email" class="field w-full" placeholder="you@example.com" autocomplete="email" required />`}
+      <button type="submit" class="btn-primary w-full">${isReset ? "Set password" : "Send reset link"}</button>
+      <p class="text-center text-body-sm"><a href="#/login" class="link">Back to log in</a></p>
+    </form>`;
+  root.appendChild(box);
+  const form = box.querySelector("form"), err = box.querySelector("[data-err]");
+  form.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const btn = form.querySelector("button");
+    btn.disabled = true;
+    err.classList.add("hidden");
+    try {
+      if (isReset) {
+        await zt("/api/auth/reset", { token, password: form.password.value });
+        form.innerHTML = `<p class="text-center text-slate-200">Done. Your password is changed and every other device is signed out.</p><p class="text-center mt-3"><a href="#/login" class="btn-primary inline-flex">Log in</a></p>`;
+      } else {
+        await zt("/api/auth/forgot", { email: form.email.value.trim() });
+        form.innerHTML = `<p class="text-center text-slate-200">If that email has an account, a reset link is on its way. Check spam if it isn’t there in a minute.</p>`;
+      }
+    } catch (e) {
+      err.textContent = e?.body?.message || (e?.body?.error === "email_not_configured" ? "Email isn’t set up yet — write to support@getadversaryai.com and we’ll reset it for you." : "That didn’t work. Try again.");
+      err.classList.remove("hidden");
+      btn.disabled = false;
+    }
+  });
 }
 function Jl(i) {
   Yi.innerHTML = "";
@@ -29435,6 +29518,12 @@ async function Yu() {
       renderGuestNav(d);
     }
     await renderArenaFeed(d);
+    return;
+  }
+  if (e === "/forgot" || e === "/reset") {
+    const d = document.createElement("div");
+    Jl(d);
+    renderPasswordReset(d, e, new URLSearchParams(i.split("?")[1] || "").get("token") || "");
     return;
   }
   if (e === "/login" || e === "/signup") {

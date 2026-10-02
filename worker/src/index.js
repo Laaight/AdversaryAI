@@ -2589,6 +2589,73 @@ billingRouter.post("/api/billing/checkout", async (c) => {
     return c.json({ error: "checkout failed" }, 502);
   }
 });
+// A cancel-saver: pause for a month or two (Stripe keeps the subscription, bills nothing), or drop
+// to the cheapest plan, instead of leaving. Either way the reason is kept: it is the first churn data.
+billingRouter.post("/api/billing/pause", async (c) => {
+  const user = await requireUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  const body = await c.req.json().catch(() => ({}));
+  const months = Math.min(2, Math.max(1, parseInt(body.months ?? "1", 10) || 1));
+  const sub = await getSubscription(c.env.DB, user.id);
+  if (!sub?.stripe_subscription_id || !isSubscriptionActive(sub)) return c.json({ error: "no_subscription" }, 400);
+  try {
+    const resumes = Math.floor(Date.now() / 1e3) + months * 30 * 86400;
+    await stripePost(c.env, `/subscriptions/${sub.stripe_subscription_id}`, { "pause_collection[behavior]": "void", "pause_collection[resumes_at]": String(resumes) });
+    await recordCancelReason(c.env.DB, user.id, `paused_${months}m`, body.reason);
+    return c.json({ ok: true, resumesAt: resumes });
+  } catch (e) {
+    console.error("pause", e?.message || e);
+    return c.json({ error: "pause_failed" }, 502);
+  }
+});
+billingRouter.post("/api/billing/resume", async (c) => {
+  const user = await requireUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  const sub = await getSubscription(c.env.DB, user.id);
+  if (!sub?.stripe_subscription_id) return c.json({ error: "no_subscription" }, 400);
+  try {
+    await stripePost(c.env, `/subscriptions/${sub.stripe_subscription_id}`, { "pause_collection": "" });
+    return c.json({ ok: true });
+  } catch (e) {
+    return c.json({ error: "resume_failed" }, 502);
+  }
+});
+billingRouter.post("/api/billing/downgrade", async (c) => {
+  const user = await requireUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  const body = await c.req.json().catch(() => ({}));
+  const sub = await getSubscription(c.env.DB, user.id);
+  if (!sub?.stripe_subscription_id || !isSubscriptionActive(sub)) return c.json({ error: "no_subscription" }, 400);
+  if (sub.tier === "debater") return c.json({ error: "already_debater" }, 400);
+  try {
+    const priceIds = await getStripePriceIdsAsync(c.env);
+    const live = await stripeGet(c.env, `/subscriptions/${sub.stripe_subscription_id}`);
+    const itemId = live.items?.data?.[0]?.id;
+    if (!itemId || !priceIds.debater) return c.json({ error: "downgrade_failed" }, 502);
+    await stripePost(c.env, `/subscriptions/${sub.stripe_subscription_id}`, { "items[0][id]": itemId, "items[0][price]": priceIds.debater, proration_behavior: "create_prorations" });
+    await c.env.DB.prepare("UPDATE subscriptions SET tier = 'debater' WHERE user_id = ?").bind(user.id).run();
+    await recordCancelReason(c.env.DB, user.id, "downgraded_debater", body.reason);
+    return c.json({ ok: true });
+  } catch (e) {
+    console.error("downgrade", e?.message || e);
+    return c.json({ error: "downgrade_failed" }, 502);
+  }
+});
+billingRouter.post("/api/billing/cancel-reason", async (c) => {
+  const user = await requireUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  const body = await c.req.json().catch(() => ({}));
+  await recordCancelReason(c.env.DB, user.id, "portal", body.reason);
+  return c.json({ ok: true });
+});
+async function recordCancelReason(db, userId, outcome, reason) {
+  try {
+    await db.prepare("CREATE TABLE IF NOT EXISTS cancel_reasons (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, outcome TEXT NOT NULL, reason TEXT, created_at TEXT NOT NULL)").run();
+    await db.prepare("INSERT INTO cancel_reasons (user_id, outcome, reason, created_at) VALUES (?, ?, ?, ?)").bind(userId, outcome, String(reason || "").slice(0, 300) || null, nowIso()).run();
+  } catch {
+  }
+}
+__name(recordCancelReason, "recordCancelReason");
 billingRouter.post("/api/billing/portal", async (c) => {
   const user = await requireUser(c);
   if (!user) return c.json({ error: "unauthorized" }, 401);
@@ -3186,6 +3253,96 @@ authRouter.post("/signup", async (c) => {
   const org = orgs[0] ? { id: orgs[0].org.id, name: orgs[0].org.name, role: orgs[0].role } : null;
   return c.json({ ok: true, user: { id, email, plan: "trial", org } }, 201);
 });
+// ---------------------------------------------------------------- Email (Resend)
+// Nothing is sent until RESEND_API_KEY exists; every send is logged once per (user, kind, period).
+var EMAIL_FROM = "AdversaryAI <coach@getadversaryai.com>";
+async function ensureEmailTables(db) {
+  await db.batch([
+    db.prepare("CREATE TABLE IF NOT EXISTS email_log (user_id TEXT NOT NULL, kind TEXT NOT NULL, period TEXT NOT NULL, sent_at TEXT NOT NULL, PRIMARY KEY (user_id, kind, period))"),
+    db.prepare("CREATE TABLE IF NOT EXISTS email_prefs (user_id TEXT PRIMARY KEY, unsub INTEGER NOT NULL DEFAULT 0, token TEXT NOT NULL)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS password_resets (token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at TEXT NOT NULL, used_at TEXT)")
+  ]);
+}
+__name(ensureEmailTables, "ensureEmailTables");
+async function sha256Hex(text) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+__name(sha256Hex, "sha256Hex");
+async function emailPrefs(db, userId) {
+  await ensureEmailTables(db);
+  let row = await db.prepare("SELECT unsub, token FROM email_prefs WHERE user_id = ?").bind(userId).first();
+  if (!row) {
+    row = { unsub: 0, token: newId(16) };
+    await db.prepare("INSERT OR IGNORE INTO email_prefs (user_id, unsub, token) VALUES (?, 0, ?)").bind(userId, row.token).run();
+  }
+  return row;
+}
+__name(emailPrefs, "emailPrefs");
+function emailShell(env, title, bodyHtml, unsubToken) {
+  const base = env.APP_URL || "https://getadversaryai.com";
+  return `<!doctype html><html><body style="margin:0;background:#0d0f14;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#e5e7eb"><div style="max-width:560px;margin:0 auto;padding:32px 20px"><div style="font-weight:800;font-size:18px;margin-bottom:20px">Adversary<span style="color:#e8392e">AI</span></div><h1 style="font-size:22px;line-height:1.3;margin:0 0 14px;color:#fff">${title}</h1><div style="font-size:15px;line-height:1.55;color:#cbd5e1">${bodyHtml}</div><p style="margin-top:32px;font-size:12px;color:#64748b">AdversaryAI is made by Tech Shepherd LLC. ${unsubToken ? `<a href="${base}/api/email/unsubscribe/${unsubToken}" style="color:#64748b">Unsubscribe from coaching emails</a>` : ""}</p></div></body></html>`;
+}
+__name(emailShell, "emailShell");
+async function sendEmail(env, { to, subject, html, kind, userId, period }) {
+  if (!env.RESEND_API_KEY || !to) return false;
+  const db = env.DB;
+  try {
+    if (userId && kind) {
+      await ensureEmailTables(db);
+      const ins = await db.prepare("INSERT OR IGNORE INTO email_log (user_id, kind, period, sent_at) VALUES (?, ?, ?, ?)").bind(userId, kind, period || "once", nowIso()).run();
+      if (ins?.meta?.changes === 0) return false;
+    }
+    const r = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from: EMAIL_FROM, to: [to], reply_to: "support@getadversaryai.com", subject, html })
+    });
+    if (!r.ok) console.error("resend", r.status, (await r.text().catch(() => "")).slice(0, 200));
+    return r.ok;
+  } catch (e) {
+    console.error("sendEmail", e?.message || e);
+    return false;
+  }
+}
+__name(sendEmail, "sendEmail");
+// Self-serve password reset: a one-time link that lives 30 minutes. The response never says whether
+// the address has an account.
+authRouter.post("/forgot", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const email = String(body.email ?? "").trim().toLowerCase();
+  if (!EMAIL_RE.test(email)) return c.json({ error: "invalid_email" }, 400);
+  if (!(await rateLimit(c.env.DB, `forgot:${clientIp(c)}`, 10, 3600)) || !(await rateLimit(c.env.DB, `forgot:${email}`, 3, 3600))) return c.json({ ok: true });
+  if (!c.env.RESEND_API_KEY) return c.json({ error: "email_not_configured", message: "Email isn't set up yet. Write to support@getadversaryai.com and we'll reset it for you." }, 503);
+  const user = await getUserByEmail(c.env.DB, email);
+  if (user) {
+    await ensureEmailTables(c.env.DB);
+    const token = newId(24);
+    await c.env.DB.prepare("INSERT INTO password_resets (token_hash, user_id, expires_at) VALUES (?, ?, ?)").bind(await sha256Hex(token), user.id, new Date(Date.now() + 30 * 60e3).toISOString()).run();
+    const link = `${c.env.APP_URL}/app/#/reset?token=${token}`;
+    await sendEmail(c.env, { to: email, subject: "Reset your AdversaryAI password", html: emailShell(c.env, "Reset your password", `<p>Someone (hopefully you) asked to reset the password for this account.</p><p><a href="${link}" style="display:inline-block;background:#e8392e;color:#fff;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:10px">Choose a new password</a></p><p>The link works for 30 minutes. If you didn't ask for this, ignore this email; your password stays the same.</p>`) });
+  }
+  return c.json({ ok: true });
+});
+authRouter.post("/reset", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const token = String(body.token ?? "").trim();
+  const password = String(body.password ?? "");
+  if (!token) return c.json({ error: "invalid_token" }, 400);
+  if (password.length < 8) return c.json({ error: "password_too_short" }, 400);
+  if (!(await rateLimit(c.env.DB, `reset:${clientIp(c)}`, 20, 3600))) return c.json({ error: "rate_limited" }, 429);
+  await ensureEmailTables(c.env.DB);
+  const row = await c.env.DB.prepare("SELECT user_id, expires_at, used_at FROM password_resets WHERE token_hash = ?").bind(await sha256Hex(token)).first();
+  if (!row || row.used_at || row.expires_at < nowIso()) return c.json({ error: "invalid_token", message: "That link has expired or was already used. Request a new one." }, 400);
+  const salt = newId(SALT_BYTES);
+  const hash = await hashPassword(password, salt);
+  await c.env.DB.batch([
+    c.env.DB.prepare("UPDATE users SET password_hash = ?, salt = ? WHERE id = ?").bind(hash, salt, row.user_id),
+    c.env.DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(row.user_id),
+    c.env.DB.prepare("UPDATE password_resets SET used_at = ? WHERE token_hash = ?").bind(nowIso(), await sha256Hex(token))
+  ]);
+  return c.json({ ok: true });
+});
 authRouter.post("/login", async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const email = String(body.email ?? "").trim().toLowerCase();
@@ -3300,7 +3457,8 @@ authRouter.get("/me", async (c) => {
     remainingRounds = Number.isFinite(avail?.remaining) ? avail.remaining : null;
   } catch {
   }
-  return c.json({ id: user.id, email: user.email, plan: resolvePlan(sub), org, isOwner, adminMode, champion, remainingRounds, photoreal: !!c.env.LIVEAVATAR_API_KEY });
+  const billingIssue = !!sub && sub.tier !== "none" && (sub.status === "past_due" || sub.status === "unpaid");
+  return c.json({ id: user.id, email: user.email, plan: resolvePlan(sub), tier: sub?.tier || null, org, isOwner, adminMode, champion, remainingRounds, billingIssue, photoreal: !!c.env.LIVEAVATAR_API_KEY });
 });
 
 // worker/src/model.ts
@@ -5836,9 +5994,44 @@ async function countUserTurns(db, debateId) {
 }
 __name(countUserTurns, "countUserTurns");
 var debateRouter = new Hono2();
+// A user turn with no reply after five minutes means the generation died after the round was
+// charged (isolate evicted, deploy mid-stream). It is removed from the transcript and the round
+// handed back, from whatever pool paid for it.
+var turnChargeReady = false;
+async function ensureTurnChargeColumn(db) {
+  if (turnChargeReady) return;
+  try {
+    await db.prepare("ALTER TABLE turns ADD COLUMN charge_source TEXT").run();
+  } catch {
+  }
+  turnChargeReady = true;
+}
+__name(ensureTurnChargeColumn, "ensureTurnChargeColumn");
+async function sweepUnansweredTurns(c, userId) {
+  try {
+    await ensureTurnChargeColumn(c.env.DB);
+    const cutoff = new Date(Date.now() - 5 * 60e3).toISOString();
+    const rows = (await c.env.DB.prepare(
+      `SELECT t.id, t.charge_source FROM turns t JOIN debates d ON d.id = t.debate_id
+        WHERE d.user_id = ? AND d.ended_at IS NULL AND t.role = 'user' AND t.created_at < ?
+          AND NOT EXISTS (SELECT 1 FROM turns a WHERE a.debate_id = t.debate_id AND a.id > t.id)
+        LIMIT 5`
+    ).bind(userId, cutoff).all())?.results ?? [];
+    for (const r of rows) {
+      await c.env.DB.prepare("DELETE FROM turns WHERE id = ?").bind(r.id).run();
+      const src = String(r.charge_source || "credit");
+      await refundRound(c, userId, src.startsWith("org:") ? { source: "org", orgId: src.slice(4) } : { source: src });
+      console.log("[sweep] refunded unanswered turn", r.id, src);
+    }
+  } catch (e) {
+    console.error("sweepUnansweredTurns", e?.message || e);
+  }
+}
+__name(sweepUnansweredTurns, "sweepUnansweredTurns");
 debateRouter.post("/start", async (c) => {
   const user = await getSessionUser(c);
   if (!user) return c.json({ error: "unauthorized" }, 401);
+  await sweepUnansweredTurns(c, user.id);
   const body = await c.req.json().catch(() => ({}));
   const rawMode = String(body.mode ?? "");
   const legacyPersonality = String(body.personality ?? "");
@@ -6018,6 +6211,7 @@ debateRouter.post("/turn-stream", async (c) => {
   const clientTts = body.clientTts === true;
   const figureId = debate.mode === "historical" ? figureById(setup.figureId)?.id : void 0;
   const personaVisualId = typeof setup.personaVisual === "string" ? setup.personaVisual : void 0;
+  await sweepUnansweredTurns(c, user.id);
   const consumption = await consumeRound(c, user.id, user.email);
   if (!consumption.allowed) return c.json({ error: "quota_exhausted", message: "You have used all rounds in your wallet." }, 402);
   // From here the round is charged: every failure path must undo the stored turn and the charge.
@@ -6036,7 +6230,8 @@ debateRouter.post("/turn-stream", async (c) => {
   let userInput, voiceInfo, scriptReply = null;
   try {
     if (!isOpening) {
-      const ins = await c.env.DB.prepare("INSERT INTO turns (debate_id, role, text, created_at) VALUES (?, ?, ?, ?)").bind(debateId, "user", text, nowIso()).run();
+      await ensureTurnChargeColumn(c.env.DB);
+      const ins = await c.env.DB.prepare("INSERT INTO turns (debate_id, role, text, created_at, charge_source) VALUES (?, ?, ?, ?, ?)").bind(debateId, "user", text, nowIso(), consumption.source === "org" ? `org:${consumption.orgId || ""}` : consumption.source || null).run();
       userTurnId = ins?.meta?.last_row_id ?? null;
     }
     const history = await c.env.DB.prepare(
@@ -6159,6 +6354,11 @@ debateRouter.post("/turn-stream", async (c) => {
       if (debate.mode === "rapbattle") full = stripStageDirections(full) || full;
       await c.env.DB.prepare("INSERT INTO turns (debate_id, role, text, created_at) VALUES (?, ?, ?, ?)").bind(debateId, "assistant", full, nowIso()).run();
       let tts = { audioBase64: null, timings: [], timingsEstimated: true };
+      // While a talk is being delivered, the audience only murmurs; that costs nothing.
+      if (debate.mode === "speaking" && !isOpening && consumption.source !== "owner" && full.split(/\s+/).filter(Boolean).length <= 12 && !/\?/.test(full)) {
+        await refundRound(c, user.id, consumption);
+        consumption.remaining = Number(consumption.remaining || 0) + 1;
+      }
       let audioFailed = false;
       if (!clientTts && !gone) {
         try {
@@ -7598,6 +7798,15 @@ __name(handleSubscriptionDeleted, "handleSubscriptionDeleted");
 async function handleInvoicePaymentFailed(env, invoice) {
   const subscriptionId = typeof invoice.subscription === "string" ? invoice.subscription : invoice.subscription?.id ?? null;
   if (!subscriptionId) return;
+  try {
+    const owner = await env.DB.prepare("SELECT s.user_id, u.email FROM subscriptions s JOIN users u ON u.id = s.user_id WHERE s.stripe_subscription_id = ?").bind(subscriptionId).first();
+    if (owner?.email) {
+      const portal = await appConfigValue(env, "stripe_portal_login_url") || `${env.APP_URL}/app/#/account`;
+      await sendEmail(env, { to: owner.email, userId: owner.user_id, kind: "dunning", period: nowIso().slice(0, 10), subject: "Your AdversaryAI payment didn't go through", html: emailShell(env, "Your payment didn't go through", `<p>We couldn't charge the card on your AdversaryAI plan. Nothing is lost yet: update your card and the plan carries on.</p><p><a href="${portal}" style="display:inline-block;background:#e8392e;color:#fff;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:10px">Update my card</a></p><p>If you meant to cancel, no action is needed; the plan ends after the retries.</p>`) });
+    }
+  } catch (e) {
+    console.error("dunning email", e?.message || e);
+  }
   await env.DB.prepare(
     `UPDATE subscriptions SET status = 'past_due' WHERE stripe_subscription_id = ?`
   ).bind(subscriptionId).run();
@@ -7701,6 +7910,14 @@ webhookRouter.post("/api/webhooks/stripe", async (c) => {
     event = JSON.parse(payload);
   } catch {
     return c.json({ error: "invalid json" }, 400);
+  }
+  // Stripe retries and can deliver the same event twice; the event id makes processing exactly-once.
+  try {
+    await c.env.DB.prepare("CREATE TABLE IF NOT EXISTS stripe_events (id TEXT PRIMARY KEY, type TEXT, created_at TEXT NOT NULL)").run();
+    const seen = await c.env.DB.prepare("INSERT OR IGNORE INTO stripe_events (id, type, created_at) VALUES (?, ?, ?)").bind(String(event.id || ""), String(event.type || ""), nowIso()).run();
+    if (event.id && seen?.meta?.changes === 0) return c.json({ received: true, duplicate: true });
+  } catch (e) {
+    console.error("stripe_events", e?.message || e);
   }
   try {
     await handleEvent(c.env, event);
@@ -8384,6 +8601,83 @@ app.route("/api/avatar", avatarRouter);
 app.route("/api/orgs", orgsRouter);
 app.route("/", billingRouter);
 app.route("/", webhookRouter);
+app.get("/api/email/unsubscribe/:token", async (c) => {
+  const token = c.req.param("token");
+  await ensureEmailTables(c.env.DB);
+  const r = await c.env.DB.prepare("UPDATE email_prefs SET unsub = 1 WHERE token = ?").bind(token).run();
+  const ok = r?.meta?.changes > 0;
+  return c.html(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><body style="background:#0d0f14;color:#e5e7eb;font-family:system-ui,sans-serif;padding:48px 20px;text-align:center"><h1 style="font-size:22px">${ok ? "You're unsubscribed" : "Link not recognized"}</h1><p style="color:#94a3b8">${ok ? "No more coaching emails. Password-reset and billing emails still arrive when you ask for them." : "This unsubscribe link isn't valid."}</p><p><a href="/" style="color:#e8392e">Back to AdversaryAI</a></p></body>`);
+});
+// Browsers post CSP violations here while the policy runs in report-only mode.
+app.post("/api/csp-report", async (c) => {
+  try {
+    const body = await c.req.text();
+    console.log("[csp]", body.slice(0, 600));
+  } catch {
+  }
+  return c.body(null, 204);
+});
+// Coaching emails that bring people back. Run from the owner's Account page (Admin: Send coaching emails).
+async function runCron(env, cron) {
+  if (!env.RESEND_API_KEY) return;
+  const db = env.DB;
+  await ensureEmailTables(db);
+  await ensureScorecardTable(db);
+  const base = env.APP_URL || "https://getadversaryai.com";
+  const today = nowIso().slice(0, 10);
+  const day = (n) => new Date(Date.now() - n * 864e5).toISOString();
+  // Day 3: a trial user with a scorecard and no purchase gets the locked coaching plan pitched once.
+  const d3 = (await db.prepare(
+    `SELECT u.id, u.email FROM users u
+      WHERE u.created_at < ? AND u.created_at > ?
+        AND EXISTS (SELECT 1 FROM debates d JOIN scorecards sc ON sc.debate_id = d.id WHERE d.user_id = u.id)
+        AND NOT EXISTS (SELECT 1 FROM subscriptions s WHERE s.user_id = u.id AND s.tier != 'none' AND s.status IN ('active','trialing','past_due'))
+        AND NOT EXISTS (SELECT 1 FROM credit_ledger l WHERE l.user_id = u.id AND l.reason = 'pack_purchase')
+        AND NOT EXISTS (SELECT 1 FROM email_prefs p WHERE p.user_id = u.id AND p.unsub = 1)
+      LIMIT 300`
+  ).bind(day(3), day(5)).all())?.results ?? [];
+  for (const u of d3) {
+    const prefs = await emailPrefs(db, u.id);
+    await sendEmail(env, { to: u.email, userId: u.id, kind: "trial_d3", period: "once", subject: "Your coaching plan is waiting", html: emailShell(env, "Your coaching plan is waiting", `<p>You've already got a scorecard. The part that makes people better is the rest of it: every missed moment quoted, the better line for each, and a five-minute drill for next time.</p><p>Any plan or a $9 round pack unlocks it for every session you've done and every one you do next.</p><p><a href="${base}/app/#/account?plans=1" style="display:inline-block;background:#e8392e;color:#fff;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:10px">See my full scorecard</a></p>`, prefs.token) });
+  }
+  // Day 7 quiet: last session a week ago, nothing since.
+  const d7 = (await db.prepare(
+    `SELECT u.id, u.email, (SELECT MAX(d.created_at) FROM debates d WHERE d.user_id = u.id) AS last_at FROM users u
+      WHERE last_at < ? AND last_at > ?
+        AND NOT EXISTS (SELECT 1 FROM email_prefs p WHERE p.user_id = u.id AND p.unsub = 1)
+      LIMIT 300`
+  ).bind(day(7), day(9)).all())?.results ?? [];
+  for (const u of d7) {
+    const prefs = await emailPrefs(db, u.id);
+    await sendEmail(env, { to: u.email, userId: u.id, kind: "quiet_d7", period: String(u.last_at).slice(0, 10), subject: "One round, five minutes", html: emailShell(env, "One round, five minutes", `<p>It's been a week. Practice works when it's small and regular: one five-minute session today beats an hour next month.</p><p>Your opponents are where you left them.</p><p><a href="${base}/app/#/" style="display:inline-block;background:#e8392e;color:#fff;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:10px">Practice now</a></p>`, prefs.token) });
+  }
+  // Monday: last week's numbers for anyone who practiced.
+  if (new Date().getUTCDay() === 1) {
+    const week = (await db.prepare(
+      `SELECT u.id, u.email, COUNT(sc.debate_id) AS n, MAX(sc.overall) AS best, ROUND(AVG(sc.overall), 1) AS avg FROM users u
+         JOIN debates d ON d.user_id = u.id AND d.created_at > ?
+         JOIN scorecards sc ON sc.debate_id = d.id
+        WHERE NOT EXISTS (SELECT 1 FROM email_prefs p WHERE p.user_id = u.id AND p.unsub = 1)
+        GROUP BY u.id LIMIT 500`
+    ).bind(day(7)).all())?.results ?? [];
+    for (const u of week) {
+      const prefs = await emailPrefs(db, u.id);
+      await sendEmail(env, { to: u.email, userId: u.id, kind: "digest", period: today, subject: `Your week: ${u.n} session${u.n === 1 ? "" : "s"}, best ${u.best}/10`, html: emailShell(env, "Your week in the ring", `<p><b>${u.n}</b> scored session${u.n === 1 ? "" : "s"}, best <b>${u.best}/10</b>, average <b>${u.avg}</b>.</p><p>The fastest way up is to replay your lowest dimension once more this week.</p><p><a href="${base}/app/#/history" style="display:inline-block;background:#e8392e;color:#fff;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:10px">See my scorecards</a></p>`, prefs.token) });
+    }
+  }
+  console.log("[emails]", cron, { d3: d3.length, d7: d7.length });
+  return { trialFollowUps: d3.length, quietNudges: d7.length };
+}
+__name(runCron, "runCron");
+// Owner: send today's coaching emails (trial follow-ups; the digest when run on a Monday).
+accountRouter.post("/admin/run-emails", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  if (!isOwnerEmail(user.email, c.env)) return c.json({ error: "forbidden" }, 403);
+  if (!c.env.RESEND_API_KEY) return c.json({ error: "email_not_configured" }, 503);
+  const r = await runCron(c.env, "manual");
+  return c.json({ ok: true, ...r });
+});
 var index_default = app;
 export {
   index_default as default
