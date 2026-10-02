@@ -69,6 +69,11 @@ export class PhotorealAvatar {
     this.video.setAttribute("playsinline", "");
     this.video.className = "photoreal-video";
     stage.appendChild(this.video);
+    // LiveAvatar streams some actors on a green screen and leaves removing it to the app: when the
+    // frame edges are green, the video is drawn through a GPU chroma key onto this canvas instead.
+    this.key = document.createElement("canvas");
+    this.key.className = "photoreal-video photoreal-key";
+    stage.appendChild(this.key);
     this.idleTimer = setInterval(() => {
       if (!this.ready || this.talking || voice.state !== "idle") return;
       // Idle for a while, or close to LiveAvatar's per-session cap: close between replies so
@@ -236,7 +241,104 @@ export class PhotorealAvatar {
     this.beat = setInterval(() => this._heartbeat(), HEARTBEAT_MS);
     this.keep = setInterval(() => this._send({ type: "session.keep_alive" }), 60000);
     this._startAvSync();
+    this._startKeying();
     this.onStatus({ state: "live", remainingSeconds: this.remaining });
+  }
+
+  /** Green-screen removal. Decides from the frame edges, so actors with a real background are untouched. */
+  _startKeying() {
+    this._stopKeying();
+    const v = this.video;
+    const probe = document.createElement("canvas");
+    probe.width = probe.height = 16;
+    const pctx = probe.getContext("2d", { willReadFrequently: true });
+    let gl = null,
+      tex = null,
+      decided = false,
+      checks = 0;
+    const isGreen = () => {
+      if (!v.videoWidth) return null;
+      pctx.drawImage(v, 0, 0, 16, 16);
+      const d = pctx.getImageData(0, 0, 16, 16).data;
+      // The four corners and the top edge: an actor never covers all of them.
+      const spots = [0, 15, 7, 8, 240, 255];
+      let g = 0;
+      for (const i of spots) {
+        const r = d[i * 4], gg = d[i * 4 + 1], b = d[i * 4 + 2];
+        if (gg > 90 && gg > r * 1.6 && gg > b * 1.6) g++;
+      }
+      return g >= 4;
+    };
+    const setup = () => {
+      gl = this.key.getContext("webgl", { premultipliedAlpha: true, alpha: true, antialias: false });
+      if (!gl) return false;
+      const sh = (type, src) => {
+        const o = gl.createShader(type);
+        gl.shaderSource(o, src);
+        gl.compileShader(o);
+        return o;
+      };
+      const prog = gl.createProgram();
+      gl.attachShader(prog, sh(gl.VERTEX_SHADER, "attribute vec2 p;varying vec2 t;void main(){t=vec2(p.x*0.5+0.5,0.5-p.y*0.5);gl_Position=vec4(p,0.,1.);}"));
+      gl.attachShader(
+        prog,
+        sh(
+          gl.FRAGMENT_SHADER,
+          "precision mediump float;varying vec2 t;uniform sampler2D s;" +
+            "void main(){vec4 c=texture2D(s,t);float m=max(c.r,c.b);float g=c.g-m;" +
+            "float a=1.0-smoothstep(0.04,0.22,g);" + // how green beyond the other channels
+            "c.g=min(c.g,m+0.06);" + // kill the green spill on hair and shoulders
+            "gl_FragColor=vec4(c.rgb*a,a);}"
+        )
+      );
+      gl.linkProgram(prog);
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return false;
+      gl.useProgram(prog);
+      const buf = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+      const loc = gl.getAttribLocation(prog, "p");
+      gl.enableVertexAttribArray(loc);
+      gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+      tex = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+      return true;
+    };
+    const draw = () => {
+      if (!gl || this.disposed || !this.ready) return;
+      if (this.key.width !== v.videoWidth || this.key.height !== v.videoHeight) {
+        this.key.width = v.videoWidth;
+        this.key.height = v.videoHeight;
+        gl.viewport(0, 0, v.videoWidth, v.videoHeight);
+      }
+      try {
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, v);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      } catch {}
+      this.keyRaf = requestAnimationFrame(draw);
+    };
+    const check = () => {
+      if (this.disposed || !this.ready) return;
+      const g = isGreen();
+      if (g === null || (g === false && ++checks < 5)) return void (this.keyT = setTimeout(check, 700));
+      decided = true;
+      if (g && setup()) {
+        this.stage.classList.add("photoreal-keyed");
+        draw();
+      }
+    };
+    this.keyT = setTimeout(check, 400);
+  }
+
+  _stopKeying() {
+    clearTimeout(this.keyT);
+    cancelAnimationFrame(this.keyRaf);
+    this.stage.classList.remove("photoreal-keyed");
   }
 
   _onEvent(m) {
@@ -389,6 +491,7 @@ export class PhotorealAvatar {
       }
     } catch {}
     this.ws = null;
+    this._stopKeying();
     try {
       this.room?.removeAllListeners?.();
       this.room?.disconnect();
@@ -415,5 +518,6 @@ export class PhotorealAvatar {
     document.removeEventListener("visibilitychange", this.onVis);
     this._teardown(true);
     this.video.remove();
+    this.key.remove();
   }
 }

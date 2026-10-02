@@ -765,6 +765,20 @@
 .photoreal-live .photoreal-video {
   opacity: 1;
 }
+/* Green-screen actors: the keyed canvas replaces the raw video, over the stage's own backdrop. */
+.photoreal-key {
+  z-index: 1;
+  background: radial-gradient(120% 90% at 50% 20%, #1a1d26, #07080b);
+}
+.photoreal-live .photoreal-key {
+  opacity: 0;
+}
+.photoreal-live.photoreal-keyed .photoreal-key {
+  opacity: 1;
+}
+.photoreal-live.photoreal-keyed video.photoreal-video {
+  opacity: 0;
+}
 .photoreal-live #avatar-loading {
   display: none;
 }
