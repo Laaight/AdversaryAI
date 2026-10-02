@@ -15,7 +15,7 @@ import { voice } from "./voice.js";
 
 const LK_LOCAL = "/app/vendor/livekit-client.umd.js";
 const LK_CDN = "https://cdn.jsdelivr.net/npm/livekit-client@2.15.7/dist/livekit-client.umd.js";
-const IDLE_MS = 120000;
+const IDLE_MS = 60000;
 const HEARTBEAT_MS = 30000;
 
 let lkPromise = null;
