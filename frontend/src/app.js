@@ -383,6 +383,12 @@ const ch = {
   deescalate: Dt('<path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z"/>', 28),
   testify: Dt('<path d="M12 3v18M5 7h14M5 7l-3 6h6zM19 7l-3 6h6zM8 21h8"/>', 28),
   customer: Dt('<path d="M4 5h4l2 5-2 1a11 11 0 0 0 5 5l1-2 5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 2 7a2 2 0 0 1 2-2z"/>', 28),
+  osce: Dt('<path d="M5 3v6a5 5 0 0 0 10 0V3M10 14v3a4 4 0 0 0 8 0v-3"/><circle cx="18" cy="12" r="2"/>', 28),
+  visa: Dt('<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="11" r="2.5"/><path d="M5 18c0-2.2 1.8-4 4-4s4 1.8 4 4M15 9h4M15 13h4"/>', 28),
+  pitch: Dt('<path d="M3 17l6-6 4 4 8-8M15 7h6v6"/>', 28),
+  manager: Dt('<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 3v2h6V3M8 10h8M8 14h5"/>', 28),
+  media: Dt('<circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4M19.1 4.9a10 10 0 0 1 0 14.2M4.9 19.1a10 10 0 0 1 0-14.2"/>', 28),
+  deposition: Dt('<path d="M6 3h9l5 5v13H6zM15 3v5h5M9 12h8M9 16h8M9 20h5"/>', 28),
   speaking: Dt('<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/>', 28),
   salary: Dt('<path d="M12 2v20M17 6.5a4 4 0 0 0-4-2.5h-2a3.5 3.5 0 0 0 0 7h2a3.5 3.5 0 0 1 0 7h-2a4 4 0 0 1-4-2.5"/>', 28),
 };
@@ -422,7 +428,7 @@ async function lh(i) {
       <p class="text-slate-400 mt-2 max-w-xl mx-auto text-sm sm:text-base">Pick an arena. A live AI opponent meets you there — with voice, pushback, and a scorecard when you’re done.</p>
     </div>
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4" id="mode-grid">
-      ${cd(19)}
+      ${cd(25)}
     </div>
   </div>`;
   const e = i.querySelector("#mode-grid");
@@ -457,12 +463,13 @@ async function ld(i) {
     i.innerHTML = "";
     // Modes are shown in groups, so a cop and a job-seeker each find their own shelf.
     const GROUPS = [
-      { title: "Career", blurb: "Interviews, raises and the conversations that decide them.", ids: ["interview", "salary", "difficult"] },
-      { title: "Business & sales", blurb: "Buyers, customers and the deal.", ids: ["sales", "customer", "negotiation"] },
+      { title: "Career", blurb: "Interviews, raises, reviews and the conversations that decide them.", ids: ["interview", "salary", "manager", "difficult"] },
+      { title: "Business & sales", blurb: "Investors, buyers, customers and the deal.", ids: ["pitch", "sales", "customer", "negotiation"] },
       { title: "Police training", blurb: "For officers: the encounters that end up on bodycam and in court.", ids: ["trafficstop", "deescalate", "auditor", "testify"] },
-      { title: "Know your rights", blurb: "For everyone else: handle a police encounter calmly.", ids: ["rights"] },
+      { title: "Rights, legal & visas", blurb: "Stay calm and consistent when it counts: police stops, depositions, visa interviews.", ids: ["rights", "deposition", "visa"] },
+      { title: "Exams & licensing", blurb: "Oral and practical exams, rehearsed out loud.", ids: ["osce"] },
       { title: "Debate & argument", blurb: "Hold a position under fire.", ids: ["debate", "historical", "thesis", "expert"] },
-      { title: "Performance & faith", blurb: "Talks, scenes, bars and the hardest conversations of all.", ids: ["speaking", "acting", "rapbattle", "witness"] }
+      { title: "Performance & faith", blurb: "Talks, press, scenes, bars and the hardest conversations of all.", ids: ["speaking", "media", "acting", "rapbattle", "witness"] }
     ];
     const byId = Object.fromEntries(e.map((m) => [m.id, m]));
     const placed = new Set(GROUPS.flatMap((g) => g.ids));
@@ -595,6 +602,12 @@ const mh = {
     testify: "woman-pro",
     customer: "woman-casual",
     salary: "woman-pro",
+    osce: "older-man",
+    visa: "man-pro",
+    pitch: "woman-pro",
+    manager: "man-casual",
+    media: "woman-pro",
+    deposition: "woman-pro",
     speaking: "man-pro",
     expert: "man-pro",
   },
@@ -761,6 +774,12 @@ const MODE_UI = {
   testify: { unit: "question", def: 8, fixedFirst: "opponent", fixedNote: "Defense counsel asks the first question." },
   customer: { unit: "exchange", def: 8, fixedFirst: "opponent", fixedNote: "The customer is already upset and speaks first." },
   salary: { unit: "exchange", def: 8, fixedFirst: "opponent", fixedNote: "They open the meeting." },
+  osce: { unit: "exchange", def: 10, fixedFirst: "opponent", fixedNote: "The patient is already in the room and speaks first." },
+  visa: { unit: "question", def: 10, fixedFirst: "opponent", fixedNote: "The officer asks the first question." },
+  pitch: { unit: "exchange", def: 8, fixedFirst: "user", fixedNote: "You have the floor. Pitch, then take the questions." },
+  manager: { unit: "exchange", def: 8, fixedFirst: "user", fixedNote: "You called the meeting. You open." },
+  media: { unit: "question", def: 8, fixedFirst: "opponent", fixedNote: "Mic is live. The reporter asks first." }, // worker MODE_RULES also needs: media: { fixedFirst: "opponent" }, and "media" goes into the NO_DIFF list
+  deposition: { unit: "question", def: 10, fixedFirst: "opponent", fixedNote: "You are sworn in. Counsel asks the first question." },
   speaking: { unit: "exchange", def: 8, fixedFirst: "user", fixedNote: "You have the floor. Deliver the talk, then take questions." },
   rapbattle: { unit: "bars", def: 3, first: [COIN, { v: "user", t: "You drop first", s: "Set the tone" }, { v: "opponent", t: "MC drops first", s: "Answer back" }], defFirst: "cointoss", judge: true },
 };
@@ -928,6 +947,18 @@ function deriveTopic(s, T, figure) {
       return cut({ mental: "Crisis call: mental health", refuse: "Crisis call: refusing to leave", intox: "Crisis call: intoxicated", domestic: "Crisis call: domestic", selfharm: "Crisis call: overpass" }[T.call] || "Crisis call");
     case "testify":
       return cut(`Cross-examination: ${T.caseFacts || "the case"}`);
+    case "osce":
+      return cut(`Station: ${T.stationCustom || { chestpain: "chest pain history", abdopain: "abdominal pain history", headache: "headache", lowmood: "low mood history", explain: "explaining a diagnosis", badnews: "breaking bad news", counsel: "medication counselling", angry: "angry patient", consent: "consent for a procedure" }[T.station] || "patient encounter"}`);
+    case "visa":
+      return cut(`${{ f1: "F-1 student visa", b2: "Visitor visa", h1b: "H-1B visa", k1: "K-1 / spouse visa", n400: "Naturalization", cbp: "Port of entry" }[T.interviewType] || "Visa"} interview${T.country ? `: ${T.country}` : ""}`);
+    case "pitch":
+      return cut(`Investor pitch: ${T.company || "your startup"}`);
+    case "manager":
+      return cut(`${{ review: "Low rating", pip: "PIP", termination: "Termination", layoff: "Layoff", behaviour: "Behaviour feedback", declining: "Declining a raise" }[T.conversation] || "Hard talk"}: ${T.employee || "employee"}`);
+    case "media":
+      return cut(`Media interview: ${T.story || "the story"}`);
+    case "deposition":
+      return cut(`Deposition: ${T.facts || "the case"}`);
     case "speaking":
       return cut(`Talk: ${T.topic || "public speaking"}`);
     case "salary":
@@ -1299,6 +1330,12 @@ async function Mh(i, e) {
     else if (s.id === "deescalate") label = "Person in crisis";
     else if (s.id === "testify") label = "Defense counsel";
     else if (s.id === "customer") label = "Customer";
+    else if (s.id === "osce") label = "Patient";
+    else if (s.id === "visa") label = "Officer";
+    else if (s.id === "pitch") label = "Investor";
+    else if (s.id === "manager") label = "Employee";
+    else if (s.id === "media") label = "Reporter";
+    else if (s.id === "deposition") label = "Opposing counsel";
     else if (s.id === "speaking") label = "Audience member";
     else if (s.id === "salary") label = T.counterpart === "recruiter" ? "Recruiter" : T.kind === "offer" ? "Hiring manager" : "Your boss";
     else if (s.id === "interview") label = "Hiring manager";
@@ -27853,7 +27890,7 @@ async function qu(i) {
       <div class="flex flex-wrap gap-2 mb-3">
         <button type="button" data-run="all" class="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm">Run all new modes</button>
         <button type="button" data-run="old" class="btn-ghost px-4 py-2.5 text-sm">Run the original modes</button>
-        ${["rights", "auditor", "trafficstop", "deescalate", "testify", "customer", "salary", "speaking", "interview", "debate", "historical", "acting", "negotiation", "sales", "difficult", "thesis", "expert", "rapbattle", "witness"].map((m) => `<button type="button" data-run="${m}" class="btn-ghost px-3 py-2 text-xs">${m}</button>`).join("")}
+        ${["rights", "auditor", "trafficstop", "deescalate", "testify", "customer", "salary", "speaking", "interview", "osce", "visa", "pitch", "manager", "media", "deposition", "debate", "historical", "acting", "negotiation", "sales", "difficult", "thesis", "expert", "rapbattle", "witness"].map((m) => `<button type="button" data-run="${m}" class="btn-ghost px-3 py-2 text-xs">${m}</button>`).join("")}
       </div>
       <div data-out class="space-y-4 text-sm"></div>`;
     e.appendChild(_adminQa);
@@ -27861,7 +27898,7 @@ async function qu(i) {
       const b = ev.target.closest("[data-run]");
       if (!b) return;
       const out = _adminQa.querySelector("[data-out]");
-      const list = b.dataset.run === "all" ? ["rights", "auditor", "trafficstop", "deescalate", "testify", "customer", "salary", "speaking"] : b.dataset.run === "old" ? ["interview", "debate", "historical", "acting", "negotiation", "sales", "difficult", "thesis", "expert", "rapbattle", "witness"] : [b.dataset.run];
+      const list = b.dataset.run === "all" ? ["rights", "auditor", "trafficstop", "deescalate", "testify", "customer", "salary", "speaking", "osce", "visa", "pitch", "manager", "media", "deposition"] : b.dataset.run === "old" ? ["interview", "debate", "historical", "acting", "negotiation", "sales", "difficult", "thesis", "expert", "rapbattle", "witness"] : [b.dataset.run];
       _adminQa.querySelectorAll("[data-run]").forEach((x) => (x.disabled = true));
       for (const m of list) {
         const box = document.createElement("div");
@@ -28126,7 +28163,7 @@ async function qu(i) {
   const curTier = a && /active|trialing/.test(a.status || "") ? a.tier : null;
   const photoLine = photorealLive ? "Photoreal video opponents — 60 min/month" : "Photoreal video opponents (rolling out)";
   const TIER_FEATURES = {
-    debater: ["300 rounds / month", "All 19 practice modes", "Voiced 3D opponents with real lip-sync", "Scorecards + impartial judge verdicts", "Unused rounds roll over"],
+    debater: ["300 rounds / month", "All 25 practice modes", "Voiced 3D opponents with real lip-sync", "Scorecards + impartial judge verdicts", "Unused rounds roll over"],
     coach: ["750 rounds / month — 2.5× Debater", "Everything in Debater", "Best for daily practice, interview season & debate teams", "Unused rounds roll over"],
     champion: ["500 premium rounds / month", photoLine, "Strongest reasoning model — sharper opponents, deeper judge feedback", "Everything in Debater, plus the Pro coach"],
     elite: ["1,000 premium rounds / month", photorealLive ? "Photoreal video opponents — 2 hours/month" : "Photoreal video opponents (rolling out)", "Strongest reasoning model on every round", "Everything in Champion, for daily practice"],
@@ -28161,7 +28198,7 @@ async function qu(i) {
           <tr><td class="py-2.5 pr-4 text-slate-400">Opponent on screen</td><td>3D, lip-synced</td><td>3D, lip-synced</td><td class="font-semibold text-white">Photoreal video${photorealLive ? " (60 min)" : " (rolling out)"}</td><td class="font-semibold text-white">Photoreal video${photorealLive ? " (2 hours)" : " (rolling out)"}</td></tr>
           <tr><td class="py-2.5 pr-4 text-slate-400">Reasoning model</td><td>Standard</td><td>Standard</td><td class="font-semibold text-white">Pro</td><td class="font-semibold text-white">Pro</td></tr>
           <tr><td class="py-2.5 pr-4 text-slate-400">Judge & coach feedback</td><td>✓</td><td>✓</td><td class="font-semibold text-white">✓ Pro-level detail</td><td class="font-semibold text-white">✓ Pro-level detail</td></tr>
-          <tr><td class="py-2.5 pr-4 text-slate-400">All 19 modes · unused rounds roll over</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+          <tr><td class="py-2.5 pr-4 text-slate-400">All 25 modes · unused rounds roll over</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
         </tbody></table></div>
     </details>`;
   e.appendChild(p);
@@ -29193,7 +29230,7 @@ async function renderPublicWatch(container, debateId) {
         <div>
           <span class="text-xs font-bold uppercase tracking-wider text-accent-400">Step Into The Arena</span>
           <h2 class="text-xl sm:text-2xl font-bold text-white mt-1">Think you have better arguments?</h2>
-          <p class="text-sm text-slate-300 mt-1 max-w-lg">Spar directly against ${Vi(personaName)} or any of our 19 practice modes. Real-time 3D voice lip-sync and instant coaching scores.</p>
+          <p class="text-sm text-slate-300 mt-1 max-w-lg">Spar directly against ${Vi(personaName)} or any of our 25 practice modes. Real-time 3D voice lip-sync and instant coaching scores.</p>
         </div>
         <div class="flex flex-col sm:flex-row items-center gap-3 shrink-0 w-full sm:w-auto">
           <a href="#/setup/${encodeURIComponent(debate.mode || "debate")}" class="btn-primary w-full py-3 text-sm sm:w-auto">

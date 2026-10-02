@@ -71,7 +71,7 @@ var init_config = __esm({
     "use strict";
     TIERS = {
       trial: { name: "Trial", debates: 15, rounds: 15, lifetime: true, price: 0 },
-      debater: { name: "Debater", priceMonthly: 12, priceAnnual: 129, debatesPerMonth: 300, roundsPerMonth: 300, blurb: "All 19 practice modes, voiced 3D opponents with lip-sync, coaching scorecards, and credit rollover." },
+      debater: { name: "Debater", priceMonthly: 12, priceAnnual: 129, debatesPerMonth: 300, roundsPerMonth: 300, blurb: "All 25 practice modes, voiced 3D opponents with lip-sync, coaching scorecards, and credit rollover." },
       coach: { name: "Coach", priceMonthly: 29, priceAnnual: 315, debatesPerMonth: 750, roundsPerMonth: 750, analytics: true, blurb: "Detailed coaching analytics, scorecard rubrics, and judge feedback. Unused credits roll over." },
       champion: { name: "Champion", priceMonthly: 49, priceAnnual: 529, debatesPerMonth: 500, roundsPerMonth: 500, premiumModel: true, photorealMinutes: 60, blurb: "Photoreal video opponents that look you in the eye, our strongest reasoning model for sharper arguments and deeper judge feedback, and priority speed." },
       elite: { name: "Elite", priceMonthly: 100, debatesPerMonth: 1e3, roundsPerMonth: 1e3, premiumModel: true, photorealMinutes: 120, blurb: "Two hours a month of photoreal video opponents, 1,000 rounds on our strongest reasoning model, for people who practice every day." }
@@ -4992,6 +4992,525 @@ HOW THIS WORKS. The user delivers the talk in one or more messages (they may be 
     scoringDimensions: ["Structure", "Clarity", "Handling questions", "Presence"],
     introCopy: "Describe your talk, then deliver it out loud \u2014 as many messages as you need. When you finish, the audience starts asking questions."
   },
+  osce: {
+    id: "osce",
+    name: "Clinical Skills Exam",
+    tagline: "Rehearse a graded patient encounter",
+    description: "The patient is in the room and the clock is running. Take the history, find what they’re really worried about, and safety-net before the bell.",
+    icon: "\u{1FA7A}",
+    setupFields: [
+      {
+        key: "examLevel",
+        label: "Your exam",
+        type: "select",
+        options: [
+          { value: "med", label: "Medical school OSCE" },
+          { value: "nursing", label: "Nursing OSCE" },
+          { value: "pa", label: "PA program" },
+          { value: "plab", label: "PLAB 2 / UK" },
+          { value: "residency", label: "Residency / mock oral case" }
+        ]
+      },
+      {
+        key: "station",
+        label: "The station",
+        type: "select",
+        options: [
+          { value: "chestpain", label: "History taking — chest pain" },
+          { value: "abdopain", label: "History taking — abdominal pain" },
+          { value: "headache", label: "Headache" },
+          { value: "lowmood", label: "Low mood / psychiatric history" },
+          { value: "explain", label: "Explaining a diagnosis" },
+          { value: "badnews", label: "Breaking bad news (SPIKES)" },
+          { value: "counsel", label: "Medication counselling" },
+          { value: "angry", label: "Angry patient / complaint" },
+          { value: "consent", label: "Consent for a procedure" }
+        ]
+      },
+      {
+        key: "stationCustom",
+        label: "Or describe the station yourself",
+        type: "textarea",
+        placeholder: "e.g. 62-year-old with a three-week cough and weight loss, take a focused history (overrides the pick above)"
+      },
+      {
+        key: "patientStyle",
+        label: "The patient",
+        type: "select",
+        options: [
+          { value: "cooperative", label: "Cooperative" },
+          { value: "vague", label: "Vague and rambling" },
+          { value: "anxious", label: "Anxious, asks lots of questions" },
+          { value: "minimizes", label: "Minimizes symptoms" },
+          { value: "hostile", label: "Hostile / distrustful" }
+        ]
+      },
+      {
+        key: "hiddenAgenda",
+        label: "Hidden agenda",
+        type: "text",
+        placeholder: "e.g. secretly worried it is cancer; won't say unless asked about concerns (optional)"
+      }
+    ],
+    systemPrompt: /* @__PURE__ */ __name((setup) => {
+      const EXAM = {
+        med: "medical school OSCE",
+        nursing: "nursing OSCE",
+        pa: "PA program OSCE",
+        plab: "PLAB 2 style station",
+        residency: "residency mock oral case"
+      };
+      const STATION = {
+        chestpain: "History taking: you have been having chest pain.",
+        abdopain: "History taking: you have been having abdominal pain.",
+        headache: "History taking: you have been getting headaches.",
+        lowmood: "Psychiatric history: you have felt low for weeks. If asked about thoughts of self-harm, answer honestly in one plain sentence and never describe methods or injuries.",
+        explain: "Explaining a diagnosis: you were just told you have a common new condition (pick one and keep it) and the clinician must explain it. You know nothing yet and want plain words.",
+        badnews: "Breaking bad news: you came for test results and they are bad. React in stages as a real person would, and shut down if it is rushed or wrapped in jargon.",
+        counsel: "Medication counselling: you are starting a new medicine. Ask what it is for, side effects and what to do if you miss a dose, but only where the clinician leaves gaps.",
+        angry: "Angry patient: you waited three hours, or something went wrong with your care, and you want it acknowledged before anything else.",
+        consent: "Consent for a procedure: the clinician must explain a procedure and get your consent. You have one worry about it that you reveal only when asked."
+      };
+      const STYLE = {
+        cooperative: "You are cooperative and clear, and you still only answer what is asked.",
+        vague: "You are vague and rambling: you drift into side stories unless the clinician signposts and gently brings you back.",
+        anxious: "You are anxious and ask lots of questions, including 'is it serious?' before they have finished. Reassurance without an explanation does not settle you.",
+        minimizes: "You minimize: 'it's probably nothing', you understate symptoms, and you only give the full picture when asked directly and kindly.",
+        hostile: "You are hostile and distrustful: short answers, 'why do you need to know that?', and you warm only to a clinician who explains why they are asking and listens."
+      };
+      const level = ["easy", "hard"].includes(setup.difficulty) ? setup.difficulty : "normal";
+      const DIFF = {
+        easy: "DIFFICULTY: EASY. Give fuller answers readily and share your concern after a small prompt.",
+        normal: "DIFFICULTY: NORMAL. Answer only what is asked. Share your concern only to an open question. Get confused by jargon.",
+        hard: "DIFFICULTY: HARD. One-word answers to closed questions, a red flag you mention only if asked for it exactly, a second concern underneath the first, and visible frustration at jargon, leading questions or being talked over."
+      };
+      return `You are roleplaying a PATIENT in a ${EXAM[setup.examLevel] || EXAM.med} practice station so the user, the CLINICIAN, can rehearse a graded patient encounter. The station: ${setup.stationCustom || STATION[setup.station] || STATION.chestpain}${setup.hiddenAgenda ? ` Your hidden agenda: ${setup.hiddenAgenda}.` : ""}
+
+Before your first line, privately fix a full case script and keep it consistent: presenting complaint, timeline, red flags present or absent, past medical history, medicines, allergies, social history, and your ICE (ideas, concerns, expectations), which you reveal only when asked an open question. Open with your presenting complaint in one or two sentences and nothing more.
+
+${STYLE[setup.patientStyle] || STYLE.cooperative}
+
+${DIFF[level]}
+
+RULES. Answer only what is asked; volunteer nothing except the opening complaint. A closed question gets a one-word answer. Open questions, signposting and summarising earn fuller answers; jargon and leading questions get confusion or a wrong-footed yes. Show emotion that fits who you are. If the clinician never asks what worries you, raise it unprompted near the end. Never give medical facts a patient would not know, never name your own diagnosis, and never describe self-harm methods or injuries graphically. Plain spoken sentences, under 80 words, one thing per turn, no lists. Stay in character.`;
+    }, "systemPrompt"),
+    scoringPrompt: /* @__PURE__ */ __name((setup = {}) => `You are an OSCE examiner who watched this practice station: ${setup.stationCustom || ({ chestpain: "chest pain history", abdopain: "abdominal pain history", headache: "headache history", lowmood: "low mood history", explain: "explaining a diagnosis", badnews: "breaking bad news", counsel: "medication counselling", angry: "angry patient", consent: "consent for a procedure" })[setup.station] || "a patient encounter"}. Score the clinician 1-10 on Data gathering (opened with an open question, then covered the history systematically: timeline, red flags, past history, medicines, allergies, social history; never asking about red flags caps this at 4), Communication (signposting, summarising, plain words, one question at a time; jargon or stacked questions caps this at 5), Empathy & ICE (asked what the patient thinks is going on, what worries them and what they expect, and acknowledged feelings; never asking about concerns caps this at 4), and Clinical reasoning & safety-netting (a sensible next step explained plainly, checked understanding, said what to do if things get worse; no safety-net caps this at 5). Score the process, whether they asked, more than whether the diagnosis was right. Judge only from what they actually said. In the notes, name the one question they most needed to ask and quote exactly how to ask it. Finish the notes with: 'Practice simulation for communication skills, not medical advice.' Return strict JSON {"dimensions": {"Data gathering": <1-10>, "Communication": <1-10>, "Empathy & ICE": <1-10>, "Clinical reasoning & safety-netting": <1-10>}, "overall": <1-10>, "notes": "<start with how the station went in one plain sentence, then 2-3 sentences of feedback>"}`, "scoringPrompt"),
+    scoringDimensions: ["Data gathering", "Communication", "Empathy & ICE", "Clinical reasoning & safety-netting"],
+    introCopy: "Pick your station. The patient is already in the room and speaks first. Open wide, listen, signpost, and ask what worries them before the bell. Practice simulation for communication skills, not medical advice."
+  },
+  visa: {
+    id: "visa",
+    name: "Visa Interview",
+    tagline: "Two minutes at the window, no rambling",
+    description: "Rehearse a US visa, naturalization or port-of-entry interview with an officer who asks short questions fast and decides on your answers.",
+    icon: "\u{1F6C2}",
+    setupFields: [
+      {
+        key: "interviewType",
+        label: "The interview",
+        type: "select",
+        options: [
+          { value: "f1", label: "F-1 student visa" },
+          { value: "b2", label: "B-1/B-2 visitor" },
+          { value: "h1b", label: "H-1B / work visa" },
+          { value: "k1", label: "K-1 / spouse visa (marriage interview)" },
+          { value: "n400", label: "N-400 naturalization (civics + English)" },
+          { value: "cbp", label: "Port of entry / CBP secondary questioning" }
+        ]
+      },
+      {
+        key: "country",
+        label: "Your country of citizenship",
+        type: "text",
+        placeholder: "e.g. India, Nigeria, Brazil"
+      },
+      {
+        key: "yourStory",
+        label: "Your story",
+        type: "textarea",
+        placeholder: "e.g. Purpose of travel, your ties to home (job, family, property), how it's funded, who is sponsoring you",
+        required: true
+      },
+      {
+        key: "officerStyle",
+        label: "The officer",
+        type: "select",
+        options: [
+          { value: "brisk", label: "Brisk — two minutes, decides fast" },
+          { value: "suspicious", label: "Suspicious — probes ties to home and funding" },
+          { value: "friendly", label: "Friendly — chatty, still testing" }
+        ]
+      },
+      {
+        key: "weakSpot",
+        label: "The weak spot in your case (if you know it)",
+        type: "text",
+        placeholder: "e.g. a gap in my funding; my brother overstayed a visa; we married after three months (optional)"
+      }
+    ],
+    systemPrompt: /* @__PURE__ */ __name((setup) => {
+      const T = {
+        f1: "an F-1 student visa interview at a US consulate: the school and program, why the US, who pays, and plans after graduation.",
+        b2: "a B-1/B-2 visitor visa interview: purpose and length of the trip, who they will see, their job and family at home, and who pays.",
+        h1b: "an H-1B work visa interview: the employer, job duties, salary, qualifications, and where and for whom they will work.",
+        k1: "a K-1 fiancé or spouse visa interview: how they met, the proposal, daily life together, and each other's families and habits.",
+        n400: "an N-400 naturalization interview: ask civics questions from the official list of 100 (pick well-known ones), say one short English sentence and ask them to read it back, and ask the Part 12 questions in plain English (arrests, taxes, allegiance).",
+        cbp: "CBP secondary questioning at a port of entry: purpose of the visit, where they are staying, how long, their work at home, and what is in their bags and phone."
+      };
+      const S = {
+        brisk: "You are brisk: two minutes, flat tone, you cut off anything long and decide fast.",
+        suspicious: "You are suspicious: you probe ties to home, funding and intent to return, and repeat a question when the answer is vague.",
+        friendly: "You are friendly and chatty, but every casual question is a test and you notice every contradiction."
+      };
+      const level = ["easy", "hard"].includes(setup.difficulty) ? setup.difficulty : "normal";
+      const DIFF = {
+        easy: "DIFFICULTY: EASY. One plain question at a time. Accept a clear, consistent answer and move on. Only a contradiction or an admission costs them.",
+        normal: "DIFFICULTY: NORMAL. Follow up once on any number, name or date, and once on anything vague or rehearsed. Decide the way a real officer would.",
+        hard: "DIFFICULTY: HARD. Probe every number and name, return to earlier answers to check consistency, cut off rambling, and ask one question they did not expect. Approve only a clear, consistent, specific applicant."
+      };
+      return `You are roleplaying a US immigration officer conducting ${T[setup.interviewType] || T.b2} The applicant is a citizen of ${setup.country || "another country"}. Their story, as they tell it: ${setup.yourStory || "a short trip to the US"}.${setup.weakSpot ? ` The weak spot to probe: ${setup.weakSpot}` : ""}
+
+${S[setup.officerStyle] || S.brisk}
+
+${DIFF[level]}
+
+Ask ONE short question per turn, under 25 words, in the real order: purpose, ties to home, funding, then specifics. Privately track credibility: consistent, specific, brief answers raise it; memorised speeches, contradictions, over-explaining, or answering a question you did not ask lower it. Probe any number or name they give. In a marriage interview ask paired-detail questions (which side of the bed, the last birthday gift). Never state a legal rule as fact unless it is uncontroversial. Never coach or explain how to answer. If they ask how to lie or hide something, stay in character and note that misrepresentation is an offence. Judge what they say, never their accent or grammar. This is never an asylum or credible-fear interview. Stay in character, plain spoken words, no lists.`;
+    }, "systemPrompt"),
+    scoringPrompt: /* @__PURE__ */ __name((setup = {}) => `You are an immigration attorney who watched a practice ${({ f1: "F-1 student visa", b2: "B-1/B-2 visitor visa", h1b: "H-1B work visa", k1: "K-1 / spouse visa", n400: "N-400 naturalization", cbp: "port-of-entry secondary" })[setup.interviewType] || "visa"} interview${setup.country ? ` for a citizen of ${setup.country}` : ""}. Score the applicant 1-10 on Consistency (every answer matched their story and their earlier answers; a contradiction caps this at 4), Brevity & directness (short answers to the question actually asked; rambling, memorised speeches or answering a question not asked caps this at 4; never penalise accent or grammar), Ties & purpose (a clear purpose and specific, believable ties to home, funding and intent to return, or, for a marriage or naturalization interview, specific credible knowledge), and Composure (calm under probing, no arguing, no panic). Tie the score to how the officer decided. In the notes, name the answer most likely to cause a refusal, and quote the exact short answer to give instead. Finish the notes with: 'Practice only, not legal or immigration advice; consult a licensed attorney.' Return strict JSON {"dimensions": {"Consistency": <1-10>, "Brevity & directness": <1-10>, "Ties & purpose": <1-10>, "Composure": <1-10>}, "overall": <1-10>, "notes": "<start with how the interview ended in one plain sentence, then 2-3 sentences of feedback>"}`, "scoringPrompt"),
+    scoringDimensions: ["Consistency", "Brevity & directness", "Ties & purpose", "Composure"],
+    introCopy: "Pick the interview and tell your story the way you'd tell the officer. The officer asks the first question. Answer briefly and only what is asked. Practice only, not legal or immigration advice."
+  },
+  pitch: {
+    id: "pitch",
+    name: "Investor Pitch",
+    tagline: "Raise the round, survive the questions",
+    description: "Pitch an investor who keeps a private conviction score and asks the question you hoped they wouldn’t. Pre-seed to Series A, accelerator interviews and pitch competitions.",
+    icon: "\u{1F4C8}",
+    setupFields: [
+      {
+        key: "stage",
+        label: "The round",
+        type: "select",
+        options: [
+          { value: "preseed", label: "Pre-seed / angel" },
+          { value: "seed", label: "Seed" },
+          { value: "seriesA", label: "Series A" },
+          { value: "accelerator", label: "Accelerator interview (10 minutes, rapid fire)" },
+          { value: "competition", label: "Pitch competition judge" }
+        ]
+      },
+      {
+        key: "company",
+        label: "Your company: what you do, traction, the ask",
+        type: "textarea",
+        placeholder: "e.g. Scheduling software for dental offices; 42 paying practices, $8k MRR growing 15% a month; raising to hire two engineers and a sales rep",
+        required: true
+      },
+      {
+        key: "investorStyle",
+        label: "The investor",
+        type: "select",
+        options: [
+          { value: "numbers", label: "Numbers-first — unit economics and burn" },
+          { value: "market", label: "Market skeptic — why now, why you, who else" },
+          { value: "operator", label: "Operator — product and go-to-market details" },
+          { value: "friendly", label: "Friendly partner — wants to say yes, needs a reason" }
+        ]
+      },
+      {
+        key: "ask",
+        label: "The ask",
+        type: "text",
+        placeholder: "e.g. $1.5M at $10M post"
+      },
+      {
+        key: "weakSpot",
+        label: "The weak spot in your pitch (if you know it)",
+        type: "text",
+        placeholder: "e.g. churn is 6% a month and I don't have a fix yet (optional)"
+      }
+    ],
+    systemPrompt: /* @__PURE__ */ __name((setup) => {
+      const ST = {
+        preseed: "This is a pre-seed or angel check: you are betting on the founder and the insight. You care about why them, what real users taught them, and how far the money goes.",
+        seed: "This is a seed round: you want early traction, a credible wedge, and a plan to the numbers a Series A needs.",
+        seriesA: "This is a Series A: you want repeatable growth, unit economics, retention and a path to the next round.",
+        accelerator: "This is a ten-minute accelerator interview: rapid fire, blunt, one short question at a time, and you cut off anything that runs long.",
+        competition: "You are a pitch competition judge: you score clarity, market, traction and team, and you ask the question the whole room is thinking."
+      };
+      const IS = {
+        numbers: "You are numbers-first: CAC, payback, margin, burn and runway. You ask for the number and lose interest when you get a story instead.",
+        market: "You are a market skeptic: why now, why this team, who else is doing it, and what happens when a bigger player notices.",
+        operator: "You are an operator: how the product actually works, who the first customers were, how they were won, and what the sales motion costs.",
+        friendly: "You are a friendly partner who wants to say yes but needs one reason you can defend to your partners on Monday. Warm, but you still need the number."
+      };
+      const level = ["easy", "hard"].includes(setup.difficulty) ? setup.difficulty : "normal";
+      const DIFF = {
+        easy: "DIFFICULTY: EASY. One plain question at a time. Accept a reasonable answer with a number in it and move on. Say so when something lands.",
+        normal: "DIFFICULTY: NORMAL. Follow up once on any vague answer. Ask at least one question about the ask and one about the thing they skipped.",
+        hard: "DIFFICULTY: HARD. Press every soft claim, ask for the source, interrupt filler, challenge the premise and the valuation, and return to anything left unanswered. Only a direct founder with real numbers moves you."
+      };
+      return `You are roleplaying an INVESTOR so the user, a FOUNDER, can practice their pitch. ${ST[setup.stage] || ST.seed} Their company, traction and ask, in their words: ${setup.company || "an early-stage startup"}.${setup.ask ? ` The ask: ${setup.ask}.` : ""}${setup.weakSpot ? ` The soft spot to probe: ${setup.weakSpot}.` : ""}
+
+${IS[setup.investorStyle] || IS.numbers}
+
+${DIFF[level]}
+
+HOW THIS WORKS. The founder pitches first, possibly over several messages. While they are clearly mid-pitch, reply with a very short reaction only. Once the pitch is done, ask ONE question per turn, under 40 words, starting with the weakest claim. Keep a private conviction score from 1 to 10: specific numbers with a source raise it; 'we have no competitors', a top-down market size, and dodged questions lower it. Interrupt rambling ('give me the number') and come back to any question they did not answer. Push on the ask: valuation, use of funds, runway, milestones. Never give operating advice or lecture, and never invent facts about real named companies. Stay in character.`;
+    }, "systemPrompt"),
+    scoringPrompt: /* @__PURE__ */ __name((setup = {}) => `You are a venture partner who sat in on this ${({ preseed: "pre-seed", seed: "seed", seriesA: "Series A", accelerator: "accelerator interview", competition: "pitch competition" })[setup.stage] || "seed"} pitch and its Q&A. The company: ${setup.company || "unknown"}.${setup.ask ? ` The ask: ${setup.ask}.` : ""} Score the founder 1-10 on Clarity of story (what it is, for whom, why now, in plain words a partner could repeat), Numbers & evidence (specific traction, unit economics and sources; unsourced claims cap this at 4), Handling objections (answered the actual question, conceded what was true, came back with evidence; dodging or rambling caps this at 4), and Investability (would this investor write the check from what was said; a dodged runway question caps this at 5; if the investor passed, Investability cannot exceed 5). Judge only what was actually said. In the notes, name the question that most changed the investor's mind, and quote the exact answer that should have been given. Finish the notes with: 'Practice feedback, not investment advice.' Return strict JSON {"dimensions": {"Clarity of story": <1-10>, "Numbers & evidence": <1-10>, "Handling objections": <1-10>, "Investability": <1-10>}, "overall": <1-10>, "notes": "<start with the investor's decision in one plain sentence, then 2-3 sentences of feedback>"}`, "scoringPrompt"),
+    scoringDimensions: ["Clarity of story", "Numbers & evidence", "Handling objections", "Investability"],
+    introCopy: "Tell me what you do, your traction and your ask. Then pitch — you have the floor. The investor starts asking questions when you finish."
+  },
+  manager: {
+    id: "manager",
+    name: "Manager’s Hard Talks",
+    tagline: "Deliver the news every manager dreads",
+    description: "You’re the manager. Deliver a low rating, a PIP, a layoff or a termination to an employee who pushes back, cries, threatens HR or bargains.",
+    icon: "\u{1F4CB}",
+    setupFields: [
+      {
+        key: "conversation",
+        label: "The conversation",
+        type: "select",
+        options: [
+          { value: "review", label: "Annual review — rating lower than they expect" },
+          { value: "pip", label: "Putting them on a PIP" },
+          { value: "termination", label: "Termination for performance" },
+          { value: "layoff", label: "Layoff — not their fault" },
+          { value: "behaviour", label: "Feedback on behaviour (attitude, lateness, conflict with a teammate)" },
+          { value: "declining", label: "Declining their raise or promotion request" }
+        ]
+      },
+      {
+        key: "employee",
+        label: "The employee",
+        type: "textarea",
+        placeholder: "e.g. Sales coordinator, 3 years; missed quota four quarters running; two documented coaching sessions and a written warning in March",
+        required: true
+      },
+      {
+        key: "reaction",
+        label: "How they react",
+        type: "select",
+        options: [
+          { value: "defensive", label: "Defensive — disputes every point" },
+          { value: "tearful", label: "Tearful — devastated" },
+          { value: "angry", label: "Angry — threatens HR or a lawyer" },
+          { value: "silent", label: "Silent — one-word answers" },
+          { value: "negotiator", label: "Negotiator — bargains for severance, references, timing" }
+        ]
+      },
+      {
+        key: "constraints",
+        label: "Your constraints",
+        type: "text",
+        placeholder: "e.g. HR said no severance beyond 2 weeks (optional)"
+      }
+    ],
+    systemPrompt: /* @__PURE__ */ __name((setup) => {
+      const C = {
+        review: "your annual review, and the rating is lower than you expect",
+        pip: "putting you on a performance improvement plan",
+        termination: "ending your employment for performance",
+        layoff: "a layoff that is not your fault",
+        behaviour: "your behaviour at work (attitude, lateness or conflict with a teammate)",
+        declining: "your request for a raise or promotion, which is being declined"
+      };
+      const R = {
+        defensive: "You are defensive: you dispute every point, demand the examples, and compare yourself to teammates who did worse.",
+        tearful: "You are devastated: your voice breaks, you ask what you did wrong, you go quiet, then you ask about money and what you will tell your family.",
+        angry: "You are angry: you say this is unfair, you will go to HR, you will talk to a lawyer, and you ask who signed off on it.",
+        silent: "You are silent: one-word answers, long pauses, 'okay', 'fine', 'whatever you say'. Only a direct, patient question gets more out of you.",
+        negotiator: "You are a negotiator: you push for severance, a reference, resigning instead of being terminated, more time and a later end date, and you test whether the manager over-promises."
+      };
+      const level = ["easy", "hard"].includes(setup.difficulty) ? setup.difficulty : "normal";
+      const DIFF = {
+        easy: "DIFFICULTY: EASY. One reaction per turn. Accept the decision once the manager states it clearly and gives one specific example.",
+        normal: "DIFFICULTY: NORMAL. Ask the hard questions one at a time and press on anything vague. Move toward acceptance only after specifics, a calm tone and concrete next steps.",
+        hard: "DIFFICULTY: HARD. Pounce on every softened phrase, apology for the decision, 'HR decided', or reason that drifts from the documented one. Circle back to earlier answers to catch inconsistency. Accept nothing until the decision, the evidence and the logistics are all clear."
+      };
+      return `You are roleplaying an EMPLOYEE whose manager, the user, has called a meeting about ${C[setup.conversation] || C.review}. Who you are and what the manager has documented: ${setup.employee || "a mid-level employee with a documented performance problem"}.${setup.constraints ? ` The manager's limits, which you do not know but push against: ${setup.constraints}.` : ""} ${R[setup.reaction] || R.defensive}
+
+${DIFF[level]}
+
+React in stages: shock first, then pushback, then acceptance or escalation depending on how you are treated. Test the manager with questions like 'is this because I took medical leave?', 'why wasn't I told before?', 'who else knows?', 'can I get that in writing?'. Pounce on vagueness, softened language, or a reason that drifts from what was documented. Reward a clear decision stated early, specific examples, a calm tone, and concrete next steps with dates, pay and benefits. Punish sandwiching, apologising for the decision, blaming HR, and over-promising. Never threaten violence and never express self-harm. If the manager says anything discriminatory or about a protected characteristic, leave, age or health, react as a real employee would and remember it. Speak in short natural lines, under 80 words, one question or reaction per turn. Stay in character.`;
+    }, "systemPrompt"),
+    scoringPrompt: /* @__PURE__ */ __name((setup = {}) => `You are an experienced HR business partner who sat in on a manager's meeting with an employee about ${({ review: "a lower-than-expected annual review rating", pip: "a performance improvement plan", termination: "a termination for performance", layoff: "a layoff", behaviour: "behaviour feedback", declining: "a declined raise or promotion request" })[setup.conversation] || "a hard decision"}. The documented situation: ${setup.employee || "a performance problem"}.${setup.constraints ? ` The manager's constraints: ${setup.constraints}.` : ""} Score the manager 1-10 on Clarity of the decision (stated plainly in the first minute, no sandwiching; burying the decision caps this at 4), Evidence & consistency (specific documented examples, and the reason stayed the same under pressure), Legal & policy safety (nothing the employee could use against the company; a risky statement about protected characteristics, leave, age or health caps this at 2, and you must quote it), and Humanity & next steps (calm and respectful, no blaming HR or apologising for the decision, concrete next steps with dates, pay and benefits, no over-promising). Judge from what the manager actually said. In the notes, name the riskiest line and quote exactly what they should have said instead. Finish the notes with: 'Training practice, not legal or HR advice; follow your company's policy.' Return strict JSON {"dimensions": {"Clarity of the decision": <1-10>, "Evidence & consistency": <1-10>, "Legal & policy safety": <1-10>, "Humanity & next steps": <1-10>}, "overall": <1-10>, "notes": "<start with how the meeting ended in one plain sentence, then 2-3 sentences of feedback>"}`, "scoringPrompt"),
+    scoringDimensions: ["Clarity of the decision", "Evidence & consistency", "Legal & policy safety", "Humanity & next steps"],
+    introCopy: "Describe the employee and what you’ve documented. You called the meeting. You open."
+  },
+  media: {
+    id: "media",
+    name: "Media Interview",
+    tagline: "Hold your message under a reporter’s questions",
+    description: "A reporter is hunting for a headline. Land your three messages, answer the question, and never hand them the quote.",
+    icon: "\u{1F399}️",
+    setupFields: [
+      {
+        key: "format",
+        label: "The format",
+        type: "select",
+        options: [
+          { value: "livetv", label: "Live TV — 3 minutes, no edits" },
+          { value: "print", label: "Print / podcast — long, probing" },
+          { value: "ambush", label: "Ambush / doorstep — 30 seconds" },
+          { value: "presser", label: "Crisis presser — hostile room" },
+          { value: "local", label: "Local news — friendly but fishing" }
+        ]
+      },
+      {
+        key: "story",
+        label: "The story and your three key messages",
+        type: "textarea",
+        placeholder: "e.g. Our plant had a chemical leak Tuesday night. Messages: nobody was hurt; the line was shut down in 20 minutes; an outside review starts Monday.",
+        required: true
+      },
+      {
+        key: "reporter",
+        label: "The reporter",
+        type: "select",
+        options: [
+          { value: "gotcha", label: "Gotcha — wants a headline" },
+          { value: "investigative", label: "Investigative — has documents, knows the timeline" },
+          { value: "sympathetic", label: "Sympathetic — lulls you into over-sharing" },
+          { value: "confrontational", label: "Confrontational — interrupts, loaded premises" }
+        ]
+      },
+      {
+        key: "offLimits",
+        label: "What you can't discuss",
+        type: "text",
+        placeholder: "e.g. the pending lawsuit; employee names (optional)"
+      },
+      {
+        key: "weakSpot",
+        label: "The question you're dreading",
+        type: "text",
+        placeholder: "e.g. why neighbors weren't told until the next morning (optional)"
+      }
+    ],
+    systemPrompt: /* @__PURE__ */ __name((setup) => {
+      const F = {
+        livetv: "FORMAT: live TV, three minutes, no edits. Fast, short questions; every word they say goes to air.",
+        print: "FORMAT: a long print or podcast interview. Slow and probing; you circle back and let silence work.",
+        ambush: "FORMAT: an ambush at their car or door. Thirty seconds, rapid shouted questions, no pleasantries.",
+        presser: "FORMAT: a crisis press conference with a hostile room. You are one of several reporters; the mood is accusatory.",
+        local: "FORMAT: local news. Warm and chatty, but you are fishing for the thing they did not mean to say."
+      };
+      const R = {
+        gotcha: "You want a headline. You build questions so any answer sounds bad, and you pounce on the first slip.",
+        investigative: "You have documents and know the timeline. You ask precise, dated questions and check answers against what you already have.",
+        sympathetic: "You are warm and sympathetic. You nod along and lull them into oversharing, then quote the overshare back.",
+        confrontational: "You interrupt, you load your premises ('why did you hide this?'), and you talk over bridging."
+      };
+      const level = ["easy", "hard"].includes(setup.difficulty) ? setup.difficulty : "normal";
+      const DIFF = {
+        easy: "DIFFICULTY: EASY. One fair question at a time. Accept a direct answer and move on.",
+        normal: "DIFFICULTY: NORMAL. Follow up once on anything hedged. Use one loaded premise and one hypothetical over the session.",
+        hard: "DIFFICULTY: HARD. Interrupt, repeat any question they dodged, build a false premise into every third question, and return to the weak spot until they handle it cleanly."
+      };
+      return `You are roleplaying a REPORTER interviewing the user, a spokesperson, so they can practice staying on message. The story and their key messages: ${setup.story || "a story about their organization"}.${setup.offLimits ? ` They say they cannot discuss: ${setup.offLimits}. Ask about it once anyway, as a reporter would.` : ""}${setup.weakSpot ? ` The question they are dreading: ${setup.weakSpot}. Work toward it.` : " Find the weak spot yourself: the timeline, who knew what, the number they will not give, what changed."}
+
+${F[setup.format] || F.livetv}
+
+${R[setup.reporter] || R.gotcha}
+
+${DIFF[level]}
+
+RULES. Ask ONE question per turn, under 35 words, loaded with a premise where your style calls for it. Hunt for the headline: a speculative answer, 'no comment', an accepted false premise, hostility, or a number they cannot back. When you get one, repeat it back as a quote ('So you're saying...'). Interrupt bridging that does not first answer the question; reward answer-then-bridge by moving on. Follow up on anything hedged. Ask the hypothetical trap ('What if it turns out...') once per session. Never invent specific facts about real named people or organizations; use only what the user supplied or generic plausible pressure. Stay in character.`;
+    }, "systemPrompt"),
+    scoringPrompt: /* @__PURE__ */ __name((setup = {}) => `You are a media trainer who prepped this spokesperson and watched the interview. The story and their key messages: ${setup.story || "unknown"}. Score them 1-10 on Message discipline (each key message landed at least once, in plain words, without sounding forced), Answering the question (answered what was asked before bridging; 'no comment' or dodging caps this at 3), Composure under hostility (calm and courteous, no sparring, no getting defensive, no accepting a loaded premise), and Quotability (nothing they said would make a damaging headline; a damaging quote caps this at 3 and must be quoted word for word in the notes). Judge only from what they actually said. In the notes, state the headline this reporter would write, name the single answer that hurt most, and give the exact line they should have said instead. Finish the notes with: 'Training practice, not media or legal advice.' Return strict JSON {"dimensions": {"Message discipline": <1-10>, "Answering the question": <1-10>, "Composure under hostility": <1-10>, "Quotability": <1-10>}, "overall": <1-10>, "notes": "<start with how the interview went in one plain sentence, then 2-3 sentences of feedback>"}`, "scoringPrompt"),
+    scoringDimensions: ["Message discipline", "Answering the question", "Composure under hostility", "Quotability"],
+    introCopy: "Describe the story and your three key messages. Mic is live. The reporter asks first. Answer the question, then bridge."
+  },
+  deposition: {
+    id: "deposition",
+    name: "Deposition Prep",
+    tagline: "Deposition coming? Rehearse it tonight",
+    description: "You’re the witness under oath. Opposing counsel questions you on your own case, hunting for the guess, the slip and the contradiction. Practice only, not legal advice.",
+    icon: "\u{1F4DC}",
+    setupFields: [
+      {
+        key: "role",
+        label: "Who you are in the case",
+        type: "select",
+        options: [
+          { value: "pi", label: "Plaintiff — personal injury" },
+          { value: "employment", label: "Plaintiff — employment / discrimination" },
+          { value: "defendant", label: "Defendant — small business or landlord" },
+          { value: "family", label: "Divorce / custody party" },
+          { value: "fact", label: "Fact witness (saw it happen)" },
+          { value: "expert", label: "Expert witness" }
+        ]
+      },
+      {
+        key: "facts",
+        label: "The case, as you would tell it, and what you said in any statement so far",
+        type: "textarea",
+        placeholder: "e.g. Rear-ended at a red light in March; neck and back pain since; missed six weeks of work. I told the insurance adjuster the next day I was 'a little sore'.",
+        required: true
+      },
+      {
+        key: "weakSpot",
+        label: "The soft spot (if you know it)",
+        type: "text",
+        placeholder: "e.g. I posted gym photos after the accident (optional)"
+      },
+      {
+        key: "attorney",
+        label: "Opposing counsel",
+        type: "select",
+        options: [
+          { value: "methodical", label: "Methodical — polite, builds the trap" },
+          { value: "aggressive", label: "Aggressive — interrupts, insinuates" },
+          { value: "friendly", label: "Friendly — gets you talking" }
+        ]
+      },
+      {
+        key: "hasCounsel",
+        label: "Your lawyer",
+        type: "select",
+        options: [
+          { value: "yes", label: "My lawyer is with me and will object" },
+          { value: "no", label: "I am representing myself" }
+        ]
+      }
+    ],
+    systemPrompt: /* @__PURE__ */ __name((setup) => {
+      const R = {
+        pi: "the PLAINTIFF in a personal-injury case",
+        employment: "the PLAINTIFF in an employment or discrimination case",
+        defendant: "the DEFENDANT, a small-business owner or landlord",
+        family: "a PARTY in a divorce or custody case",
+        fact: "a FACT WITNESS who saw what happened",
+        expert: "an EXPERT WITNESS retained in the case"
+      };
+      const A = {
+        methodical: "You are polite, slow and methodical: short leading questions that each get a yes, then the contradiction. You never raise your voice.",
+        aggressive: "You are aggressive: you interrupt, insinuate motives ('you wanted the money, didn't you?'), repeat questions already answered, and try to make the witness angry on the record.",
+        friendly: "You are warm and chatty. You use small talk and 'help me understand' questions to get the witness talking, volunteering and guessing, then use what they volunteered."
+      };
+      const level = ["easy", "hard"].includes(setup.difficulty) ? setup.difficulty : "normal";
+      const DIFF = {
+        easy: "DIFFICULTY: EASY. One clear question at a time. Move on when the witness gives a direct, honest answer.",
+        normal: "DIFFICULTY: NORMAL. Build each line over three questions. Pounce on guesses, estimates stated as fact, volunteering, and anything beyond what they said before.",
+        hard: "DIFFICULTY: HARD. Exploit every opening: a 'probably', an answer past the question, two answers that differ, a joke, anger, a claim of memory where their account is silent. Circle back to earlier answers to trap them."
+      };
+      return `You are roleplaying OPPOSING COUNSEL taking the deposition of the user, ${R[setup.role] || R.pi}, so they can practice testifying under oath. The case as the witness tells it, including any statement they gave so far: ${setup.facts || "a dispute now in litigation"}.${setup.weakSpot ? ` The soft spot you are hunting for: ${setup.weakSpot}` : " Find the soft spot yourself: timeline gaps, prior statements, social media, money."} Return to it twice during the session.
+
+${A[setup.attorney] || A.methodical}
+
+${DIFF[level]}
+
+${setup.hasCounsel === "no" ? "The witness is representing themselves; no lawyer is present to object." : "The witness's own lawyer is present. Occasionally, after your question, add: 'Your lawyer says: Objection, form. You can answer.' so the witness practices waiting, then let them answer."}
+
+Build lines in threes: lock in one fact, lock in a second, then spring the contradiction using the facts they supplied. Reward 'I don't recall', 'I don't know', pauses, and answers that stop, by moving to a new line. Punish guessing, estimates stated as fact, volunteering, jokes, and anger by digging in. Never invent documents as real exhibits; you may ask whether something exists. Ask ONE question per turn, under 50 words, in plain spoken words. Occasionally say 'Just yes or no.' Never depict an abusive person's real threats or coercive control in graphic detail. Stay in character.`;
+    }, "systemPrompt"),
+    scoringPrompt: /* @__PURE__ */ __name((setup = {}) => `You are the witness's own attorney, who prepared them and watched the deposition (${({ pi: "personal-injury plaintiff", employment: "employment plaintiff", defendant: "defendant", family: "divorce or custody party", fact: "fact witness", expert: "expert witness" })[setup.role] || "witness"}). Score the witness 1-10 on Truthful precision (answered only from memory, said 'I don't recall' or 'I don't know' instead of guessing, separated what they saw from what they assume; a guess stated as fact caps this at 4), Discipline (answered only the question asked and stopped, no volunteering, waited after an objection), Composure (calm and courteous, no jokes, sarcasm or anger, not rattled by insinuation), and Consistency (answers agree with each other and with the facts they gave; if two answers contradict, quote both in the notes). Judge honesty and precision from what they actually said: never reward 'better' facts and never suggest changing the facts. In the notes, name the answer most likely to hurt them and quote exactly what they should have said. Finish the notes with: 'Practice only, not legal advice; prepare with your attorney.' Return strict JSON {"dimensions": {"Truthful precision": <1-10>, "Discipline": <1-10>, "Composure": <1-10>, "Consistency": <1-10>}, "overall": <1-10>, "notes": "<start with how the deposition went in one plain sentence, then 2-3 sentences of feedback>"}`, "scoringPrompt"),
+    scoringDimensions: ["Truthful precision", "Discipline", "Composure", "Consistency"],
+    introCopy: "Tell the case the way you would tell it, and what you said in any statement so far. You are sworn in. Counsel asks the first question. Answer only what is asked. Practice only, not legal advice; prepare with your attorney."
+  },
   rapbattle: {
     id: "rapbattle",
     name: "Rap Battle",
@@ -5440,6 +5959,18 @@ function turnRoles(debate, mode, setup) {
       return { ai: "DEFENSE COUNSEL", human: "the OFFICER on the stand" };
     case "customer":
       return { ai: "the CUSTOMER", human: clip(setup.role, "the rep") };
+    case "osce":
+      return { ai: "the PATIENT", human: "the CLINICIAN" };
+    case "visa":
+      return { ai: "the OFFICER", human: "the APPLICANT" };
+    case "pitch":
+      return { ai: "the INVESTOR", human: "the FOUNDER" };
+    case "manager":
+      return { ai: "the EMPLOYEE", human: "the MANAGER" };
+    case "media":
+      return { ai: "the REPORTER", human: "the SPOKESPERSON" };
+    case "deposition":
+      return { ai: "OPPOSING COUNSEL", human: "the WITNESS under oath" };
     case "speaking":
       return { ai: "the AUDIENCE MEMBER", human: "the SPEAKER" };
     case "salary":
@@ -5584,7 +6115,7 @@ CALIBRATION: 1-2 = barely engaged; 3-4 = beginner with major gaps; 5 = competent
 COACHING FIELDS: in the SAME JSON object, also include "headline" (at most 10 words, your verdict on THIS session), "topPriority" ({"skill": "<one of the scored dimensions>", "why": "<one sentence>"}), "strength" (the one thing to keep doing), "nextDrill" (one concrete five-minute exercise for the next session, e.g. answer every objection in two sentences and then ask a question), and "moments": exactly 1 strength and 2 misses, each {"type": "strength" or "miss", "quote": "<copied word for word from a HUMAN turn, 25 words or fewer>", "what": "<what happened, one sentence>", "insteadSay": "<for a miss: a better line they could have said>"}. Quotes MUST be copied exactly from the transcript; never invent one. Never write generic praise such as "good job"; cite something specific or say nothing. Keep "notes" as two or three plain sentences.`;
 // Deterministic backstop: a handful of words can't earn a good grade, whatever the model says.
 // Not for the modes that teach short answers (the witness stand, a police stop).
-var SHORT_ANSWER_MODES = /* @__PURE__ */ new Set(["testify", "rights", "trafficstop"]);
+var SHORT_ANSWER_MODES = /* @__PURE__ */ new Set(["testify", "rights", "trafficstop", "deposition", "visa"]);
 function capLowEffortScores(scores, turnRows, modeId) {
   if (SHORT_ANSWER_MODES.has(modeId)) return scores;
   const users = turnRows.filter((t) => t.role === "user");
@@ -5605,6 +6136,8 @@ var VERDICT_CAPS = {
   thesis: [[/\bnot passed\b/i, 3], [/\bmajor revisions\b/i, 5], [/\bminor revisions\b/i, 6]],
   sales: [[/\b(no next step|did not (agree|commit|buy)|declined|no sale|not (buying|interested)|walked away)/i, 6]],
   salary: [[/\b(no (deal|agreement|change)|rejected|withdrew|offer stands|nothing changed)/i, 6]],
+  visa: [[/\b(refus|denied|not approved|cannot (approve|issue)|221\(g\))/i, 5]],
+  media: [[/(?<!\b(?:not|no|nothing|never|nor) )\bdamaging\b/i, 5]],
   pitch: [[/\b(pass(ed)?|not investing|no term sheet)\b/i, 5]]
 };
 function clampToVerdict(scores, modeId) {
@@ -5776,6 +6309,12 @@ var FINAL_BY_MODE = {
   trafficstop: "THE STOP IS ENDING. React to the officer's last line as the driver would, then let the stop end the way the officer has set it up (take the citation or warning, step out, or drive off). One to three sentences, no new arguments.",
   deescalate: "THE CALL IS REACHING ITS END. Decide honestly from how the officer treated you: if your agitation is low, accept the small next step they offered (or ask for one) in your own words; if it is still high, stay where you are and say what you would need. One to three sentences, non-graphic, no new spikes.",
   testify: "THIS IS YOUR LAST QUESTION. Ask the single question most likely to expose the weakest answer the officer gave, then say 'Nothing further, Your Honor.'",
+  osce: "THE STATION BELL IS ABOUT TO RING. As the patient, respond to their last line, then ask the one question a real patient would still be worried about if they never addressed your concern; otherwise thank them and say what you understood the plan to be. One to three sentences, no new symptoms.",
+  visa: "THE INTERVIEW IS ENDING. Decide honestly from the applicant's answers and say it as the officer would: approved, administrative processing / more documents (name exactly what), or refused in plain words with the real reason. One to three sentences, no new questions.",
+  pitch: "TIME IS UP. Decide as this investor would from what was actually said: a term sheet or lead (name the amount), a second meeting conditional on one specific thing, or a pass with the real reason. One to three sentences, no new questions.",
+  manager: "THE MEETING IS ENDING. React as the employee would given how you were treated: accept and ask one logistics question, leave angry and say what you will do (HR, a lawyer, a review), or bargain one last time. If the manager said anything you could use against the company, mention that you will remember it. One to three sentences, no new topics.",
+  media: "THE INTERVIEW IS WRAPPING. Say, as this reporter, what the headline and pull-quote of this piece will be, quoting the user's actual words, and whether it is fair to them or damaging. One to three sentences, then thank them. No new question.",
+  deposition: "THIS IS YOUR LAST LINE OF QUESTIONS. Ask the single question most likely to expose the weakest answer the witness gave, then say 'No further questions at this time.'",
   speaking: "THE Q&A IS ENDING. Say honestly, in one or two sentences as this audience member, whether the talk convinced you and what one thing you will remember, then thank them. No new question.",
   salary: "THE MEETING IS ENDING. State your FINAL package, item by item (base, bonus, PTO, title, start or review date), and whether it is final or needs sign-off. Never exceed your private budget. Do not open new items.",
   customer: "THE CONVERSATION IS ENDING. Decide honestly from how you were treated: say whether you accept the fix and whether you will come back, leave the review, or escalate. One to three sentences, no new complaints.",
@@ -5787,7 +6326,7 @@ var FINAL_BY_MODE = {
   acting: "THE SCENE IS ENDING. Land it: reach one decisive beat (a choice, a reveal, a door closing) in one or two short lines, then stop. Do not summarize or explain.",
   rapbattle: "THIS IS THE FINAL ROUND. Deliver your closing bars, escalating from your last verse and ending on a mic-drop tag line, then one gracious line of respect to your rival. Keep it completely clean."
 };
-var PACING_MODES = /* @__PURE__ */ new Set(["sales", "negotiation", "difficult", "witness", "rights", "auditor", "trafficstop", "deescalate", "customer", "salary"]);
+var PACING_MODES = /* @__PURE__ */ new Set(["sales", "negotiation", "difficult", "witness", "rights", "auditor", "trafficstop", "deescalate", "customer", "salary", "visa", "pitch", "manager", "media"]);
 function buildTurnPrompt(debate, mode, setup, transcript, isOpening, curRound, targetRounds, forceClosing = false) {
   const debateStyle = setup.debateStyle || "oxford";
   const isDebateMode = debate.mode === "debate" || debate.mode === "historical";
@@ -5922,6 +6461,12 @@ var MODE_RULES = {
   customer: { fixedFirst: "opponent" },
   salary: { fixedFirst: "opponent" },
   speaking: { fixedFirst: "user" },
+  osce: { fixedFirst: "opponent" },
+  visa: { fixedFirst: "opponent" },
+  pitch: { fixedFirst: "user" },
+  manager: { fixedFirst: "user" },
+  media: { fixedFirst: "opponent" },
+  deposition: { fixedFirst: "opponent" },
   interview: { fixedFirst: "opponent" },
   thesis: { fixedFirst: "opponent" },
   expert: { fixedFirst: "opponent" }
@@ -6064,6 +6609,18 @@ debateRouter.post("/start", async (c) => {
       topic = String(rawSetup.callCustom || "").trim() ? `Crisis call: ${String(rawSetup.callCustom).trim().slice(0, 60)}` : ({ mental: "Crisis call: mental health", refuse: "Crisis call: refusing to leave", intox: "Crisis call: intoxicated", domestic: "Crisis call: domestic", selfharm: "Crisis call: overpass" })[rawSetup.call] || "Crisis call";
     } else if (mode.id === "testify") {
       topic = `Cross-examination: ${String(rawSetup.caseFacts || "the case").slice(0, 60)}`.trim();
+    } else if (mode.id === "osce") {
+      topic = String(rawSetup.stationCustom || "").trim() ? `Station: ${String(rawSetup.stationCustom).trim().slice(0, 60)}` : `Station: ${({ chestpain: "chest pain history", abdopain: "abdominal pain history", headache: "headache", lowmood: "low mood history", explain: "explaining a diagnosis", badnews: "breaking bad news", counsel: "medication counselling", angry: "angry patient", consent: "consent for a procedure" })[rawSetup.station] || "patient encounter"}`;
+    } else if (mode.id === "visa") {
+      topic = `${({ f1: "F-1 student visa", b2: "Visitor visa", h1b: "H-1B visa", k1: "K-1 / spouse visa", n400: "Naturalization", cbp: "Port of entry" })[rawSetup.interviewType] || "Visa"} interview${rawSetup.country ? `: ${String(rawSetup.country).slice(0, 40)}` : ""}`.trim();
+    } else if (mode.id === "pitch") {
+      topic = `Investor pitch: ${String(rawSetup.company || "startup").slice(0, 60)}`.trim();
+    } else if (mode.id === "manager") {
+      topic = `${({ review: "Low rating", pip: "PIP", termination: "Termination", layoff: "Layoff", behaviour: "Behaviour feedback", declining: "Declining a raise" })[rawSetup.conversation] || "Hard talk"}: ${String(rawSetup.employee || "").slice(0, 50)}`.trim();
+    } else if (mode.id === "media") {
+      topic = `Media interview: ${String(rawSetup.story || "the story").slice(0, 60)}`.trim();
+    } else if (mode.id === "deposition") {
+      topic = `Deposition: ${String(rawSetup.facts || "the case").slice(0, 60)}`.trim();
     } else if (mode.id === "speaking") {
       topic = `Talk: ${String(rawSetup.topic || "").slice(0, 60)}`.trim();
     } else if (mode.id === "salary") {
@@ -6198,7 +6755,7 @@ debateRouter.post("/turn-stream", async (c) => {
   const mode = getMode(debate.mode);
   const setup = parseSetup(debate.setup_json);
   const targetRounds = parseInt(setup.targetRounds ?? "0", 10) || 0;
-  const systemPrompt = mode.systemPrompt({ ...setup, topic: debate.topic }) + (["acting", "rapbattle", "thesis", "expert", "rights", "auditor", "trafficstop", "deescalate", "testify", "customer", "salary", "speaking"].includes(debate.mode) ? "" : debate.mode === "interview" ? INTERVIEW_DIFF[interviewLevel(setup) === "entry" && setup.difficulty === "hard" ? "normal" : ["easy", "hard"].includes(setup.difficulty) ? setup.difficulty : "normal"] : difficultyRules(debate.mode, setup.difficulty || "normal")) + roleLock(debate, mode, setup);
+  const systemPrompt = mode.systemPrompt({ ...setup, topic: debate.topic }) + (["acting", "rapbattle", "thesis", "expert", "rights", "auditor", "trafficstop", "deescalate", "testify", "customer", "salary", "speaking", "osce", "visa", "pitch", "manager", "media", "deposition"].includes(debate.mode) ? "" : debate.mode === "interview" ? INTERVIEW_DIFF[interviewLevel(setup) === "entry" && setup.difficulty === "hard" ? "normal" : ["easy", "hard"].includes(setup.difficulty) ? setup.difficulty : "normal"] : difficultyRules(debate.mode, setup.difficulty || "normal")) + roleLock(debate, mode, setup);
   const premium = await isPremium(c, user.id, user.email);
   const forceClosing = body.phase === "closing";
   // When the browser synthesizes speech itself (Azure SDK + visemes), don't pay for a
@@ -7386,6 +7943,12 @@ var SELFTEST_SETUPS = {
   customer: { role: "front desk at a hotel", complaint: "their room wasn't ready at check-in and they waited an hour with two kids", customerStyle: "furious", canOffer: "a free breakfast or up to $50 off", difficulty: "normal", user: "a front-desk agent who lets the guest finish, apologizes specifically, owns it, and offers a concrete fix within policy" },
   salary: { kind: "offer", role: "Senior accountant at a 200-person company", current: "offer is $85k base + 5% bonus", target: "$95k base and a $5k signing bonus", leverage: "market data says $90-100k; I have another offer at $92k", counterpart: "hardball", difficulty: "normal", user: "a candidate who anchors at a specific number with evidence, stays warm, and is comfortable with silence" },
   speaking: { talkType: "presentation", topic: "Why our team should move to a four-day week: pilot data showed output up 4% and sick days down 30%; risks are client coverage; asking for a 6-month trial", audience: "the CFO and two VPs", questioner: "executive", difficulty: "normal", user: "a speaker who delivers a 150-word talk in one message, says 'that's my proposal, happy to take questions', then answers each question in two sentences" },
+  osce: { examLevel: "med", station: "chestpain", patientStyle: "cooperative", hiddenAgenda: "secretly worried it is a heart attack like their father's; won't say unless asked about concerns", difficulty: "normal", user: "a clinician who opens with an open question, takes a structured history including red flags, medicines and allergies, asks what the patient is worried about, summarises, and safety-nets" },
+  visa: { interviewType: "f1", country: "India", yourStory: "Admitted to a master's in computer science at Arizona State; my father, who owns a textile business in Surat, is paying the first year and I have a bank statement; my parents and younger sister are at home and I plan to return to join the family business", officerStyle: "suspicious", difficulty: "normal", user: "a nervous but well-prepared student applicant who answers each question in one or two short sentences, gives specific names and numbers, and stops talking when the answer is done" },
+  pitch: { stage: "seed", company: "Lumen, scheduling software for independent dental offices: 42 paying practices at $199 a month, $8.4k MRR growing 15% month over month, 3% monthly churn; raising to hire two engineers and a first sales rep", investorStyle: "numbers", ask: "$1.5M at $10M post", weakSpot: "CAC is still mostly founder-led sales", difficulty: "normal", user: "a founder who pitches in one 150-word message, says 'that's the pitch, happy to take questions', then answers each question with a specific number and its source" },
+  manager: { conversation: "pip", employee: "Sales coordinator, 3 years; missed quota four quarters running; two documented coaching sessions and a written warning in March", reaction: "negotiator", constraints: "HR said no severance beyond 2 weeks", difficulty: "normal", user: "a manager who states the decision in the first two sentences, cites the documented examples, stays calm, and lays out dates, pay and next steps without over-promising" },
+  media: { format: "livetv", story: "Our plant had a chemical leak Tuesday night. Messages: nobody was hurt; the line was shut down in 20 minutes; an outside review starts Monday.", reporter: "gotcha", weakSpot: "why neighbors weren't told until the next morning", difficulty: "normal", user: "a company spokesperson who answers each question in one sentence, then bridges to one of the three messages, never says 'no comment' and never accepts a loaded premise" },
+  deposition: { role: "pi", facts: "Rear-ended at a red light in March; neck and back pain since; missed six weeks of work; told the insurance adjuster the next day I was 'a little sore'.", weakSpot: "I posted gym photos two weeks after the accident", attorney: "methodical", hasCounsel: "yes", difficulty: "normal", user: "a personal-injury plaintiff who answers only the question asked, says 'I don't recall' instead of guessing, waits after an objection, and stays calm" },
   interview: { jobTitle: "Warehouse associate", seniority: "entry", difficulty: "normal", user: "a nervous first-time job seeker who gives short, honest answers" },
   debate: { persona: "prosecutor", userSide: "for", debateStyle: "oxford", _topic: "Social media does more harm than good", _personality: "prosecutor", difficulty: "normal", user: "a college debater arguing FOR the motion with one clear argument per turn and a direct rebuttal of the last point" },
   historical: { figureId: "lincoln", userSide: "for", debateStyle: "freeform", _topic: "Should a nation ever compromise with injustice to preserve unity?", _personality: "lincoln", difficulty: "normal", user: "a thoughtful student arguing FOR compromise, who tries to pin Lincoln down on his own record" },
@@ -7411,7 +7974,7 @@ accountRouter.post("/admin/selftest", async (c) => {
   const exchanges = Math.min(8, Math.max(2, parseInt(body.exchanges ?? "5", 10) || 5));
   const setup = { ...setupIn, targetRounds: String(exchanges) };
   const debate = { mode: modeId, topic: _topic || `${mode.name} self-test`, personality: _personality || null, setup_json: JSON.stringify(setup) };
-  const NO_DIFF = ["acting", "rapbattle", "thesis", "expert", "rights", "auditor", "trafficstop", "deescalate", "testify", "customer", "salary", "speaking"];
+  const NO_DIFF = ["acting", "rapbattle", "thesis", "expert", "rights", "auditor", "trafficstop", "deescalate", "testify", "customer", "salary", "speaking", "osce", "visa", "pitch", "manager", "media", "deposition"];
   const systemPrompt = mode.systemPrompt({ ...setup, topic: debate.topic }) + (NO_DIFF.includes(modeId) ? "" : difficultyRules(modeId, setup.difficulty || "normal")) + roleLock(debate, mode, setup);
   const r = turnRoles(debate, mode, setup);
   const turns = [];
@@ -7550,14 +8113,14 @@ accountRouter.post("/admin/setup-stripe", async (c) => {
   };
 
   const ITEMS = [
-    { key: "debater", name: "AdversaryAI Debater", description: "300 sparring rounds per month across all 19 practice modes", type: "recurring", amount: 1200, interval: "month" },
+    { key: "debater", name: "AdversaryAI Debater", description: "300 sparring rounds per month across all 25 practice modes", type: "recurring", amount: 1200, interval: "month" },
     { key: "coach", name: "AdversaryAI Coach", description: "750 sparring rounds per month plus coaching analytics and rubrics", type: "recurring", amount: 2900, interval: "month" },
     { key: "champion", name: "AdversaryAI Champion", description: "500 premium rounds per month on the Pro model, with 60 minutes of photoreal video opponents", type: "recurring", amount: 4900, interval: "month" },
     { key: "elite", name: "AdversaryAI Elite", description: "1,000 premium rounds per month on the Pro model, with 2 hours of photoreal video opponents", type: "recurring", amount: 10000, interval: "month" },
     { key: "pack10", name: "100 Sparring Rounds Pack", description: "100 round one-time credit top-up. Credits never expire.", type: "one_time", amount: 900 },
     { key: "pack25", name: "250 Sparring Rounds Pack", description: "250 round one-time credit top-up. Credits never expire.", type: "one_time", amount: 1900 },
     { key: "pack60", name: "600 Sparring Rounds Pack", description: "600 round one-time credit top-up. Credits never expire.", type: "one_time", amount: 3900 },
-    { key: "debater_annual", productKey: "debater", name: "AdversaryAI Debater", description: "300 sparring rounds per month across all 19 practice modes", type: "recurring", amount: 12900, interval: "year" },
+    { key: "debater_annual", productKey: "debater", name: "AdversaryAI Debater", description: "300 sparring rounds per month across all 25 practice modes", type: "recurring", amount: 12900, interval: "year" },
     { key: "coach_annual", productKey: "coach", name: "AdversaryAI Coach", description: "750 sparring rounds per month plus coaching analytics and rubrics", type: "recurring", amount: 31500, interval: "year" },
     { key: "champion_annual", productKey: "champion", name: "AdversaryAI Champion", description: "500 premium rounds per month on the Pro model, with 60 minutes of photoreal video opponents", type: "recurring", amount: 52900, interval: "year" },
     { key: "video30", productKey: "video", name: "Photoreal Video Minutes", description: "Extra minutes of photoreal video opponents for Champion members. Never expire.", type: "one_time", amount: 1500 },

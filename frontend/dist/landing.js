@@ -13,7 +13,7 @@ const PRICING = {
     cta: 'Start free',
     features: [
       '15 rounds on us',
-      'All 19 practice modes',
+      'All 25 practice modes',
       'Voice or text sessions',
       'No credit card to start'
     ]
@@ -27,7 +27,7 @@ const PRICING = {
       cta: 'Start free, upgrade in-app',
       features: [
         '300 sparring rounds per month',
-        'All 19 practice modes',
+        'All 25 practice modes',
         'Voiced 3D opponents with real lip-sync',
         'Scorecards + impartial judge verdicts',
         'Unused rounds roll over'
@@ -116,7 +116,7 @@ function adaptLivePrices(data) {
       cta: 'Start free',
       features: [
         getRounds(trial, 15) + ' sparring rounds on us',
-        'All 19 practice modes',
+        'All 25 practice modes',
         'Voice or text sessions',
         'No credit card to start'
       ]
@@ -130,7 +130,7 @@ function adaptLivePrices(data) {
       cta: 'Start free, upgrade in-app',
       features: [
         getRounds(debater, 300).toLocaleString() + ' sparring rounds per month',
-        'All 19 practice modes',
+        'All 25 practice modes',
         'Voiced 3D opponents with real lip-sync',
         'Scorecards + impartial judge verdicts',
         'Unused rounds roll over'
@@ -201,6 +201,12 @@ function loadLivePricing() {
 const MODES_FALLBACK = [
   { id: 'debate', name: 'Debate', icon: '⚔️', blurb: 'Classic argument combat. Pick a motion, argue your case, get scored like an athlete.' },
   { id: 'historical', name: 'Historical Figures', icon: '🏛️', blurb: 'Argue with the great minds of history — challenge their ideas, defend your own.' },
+  { id: 'osce', name: 'Clinical Skills Exam', icon: '🩺', blurb: 'Rehearse a graded patient encounter out loud: take the history, find what the patient is really worried about, and safety-net before the bell.' },
+  { id: 'visa', name: 'Visa Interview', icon: '🛂', blurb: 'Rehearse a US visa, naturalization or port-of-entry interview with an officer who asks fast and decides on your answers.' },
+  { id: 'pitch', name: 'Investor Pitch', icon: '📈', blurb: 'Pitch an investor who keeps a private conviction score and pushes on your numbers, your market and your ask.' },
+  { id: 'manager', name: 'Manager’s Hard Talks', icon: '📋', blurb: 'For managers: deliver a low rating, a PIP, a layoff or a termination to an employee who pushes back, cries, threatens HR or bargains.' },
+  { id: 'media', name: 'Media Interview', icon: '🎙️', blurb: 'A reporter hunting for a headline. Land your three messages, answer the question, and never hand them the quote.' },
+  { id: 'deposition', name: 'Deposition Prep', icon: '📜', blurb: 'Your deposition is coming. Rehearse it against opposing counsel hunting for the guess, the slip and the contradiction.' },
   { id: 'speaking', name: 'Public Speaking', icon: '🎤', blurb: 'Deliver your talk or pitch out loud, then take questions from an audience member who wasn’t convinced.' },
   { id: 'acting', name: 'Acting Coach', icon: '🎭', blurb: 'Run lines and scenes with a partner who never misses a cue.' },
   { id: 'interview', name: 'Interview Prep', icon: '💼', blurb: 'Practice tough interview questions with instant feedback on every answer.' },
