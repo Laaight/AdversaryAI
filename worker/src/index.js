@@ -2634,7 +2634,8 @@ billingRouter.get("/api/billing/prices", async (c) => {
     debates: p.debates
   }));
   const videoPacks = c.env.LIVEAVATAR_API_KEY ? VIDEO_PACKS.filter((v) => priceIds[v.id]).map((v) => ({ id: v.id, minutes: v.minutes, price: Math.round(v.price * 100), currency: "usd" })) : [];
-  return c.json({ tiers, packs, videoPacks });
+  const portalLoginUrl = await appConfigValue(c.env, "stripe_portal_login_url");
+  return c.json({ tiers, packs, videoPacks, ...portalLoginUrl ? { portalLoginUrl } : {} });
 });
 
 // worker/src/orgs.ts
@@ -2994,9 +2995,11 @@ orgsRouter.post("/:id/portal", async (c) => {
   if (!org) return c.json({ error: "not_found" }, 404);
   if (!org.stripe_customer_id) return c.json({ error: "no_subscription" }, 400);
   try {
+    const orgPortalConfig = await appConfigValue(c.env, "stripe_portal_config_org");
     const portal = await stripePost(c.env, "/billing_portal/sessions", {
       customer: org.stripe_customer_id,
-      return_url: `${c.env.APP_URL}/app/#/org/${orgId}`
+      return_url: `${c.env.APP_URL}/app/#/org/${orgId}`,
+      ...orgPortalConfig ? { configuration: orgPortalConfig } : {}
     });
     if (!portal.url) return c.json({ error: "portal session missing url" }, 502);
     return c.json({ url: portal.url });
@@ -5090,6 +5093,15 @@ async function getScorecard(db, debateId) {
   }
 }
 __name(getScorecard, "getScorecard");
+async function appConfigValue(env, key) {
+  try {
+    const row = await env.DB.prepare("SELECT value FROM app_config WHERE key = ?").bind(key).first();
+    return row?.value || null;
+  } catch {
+    return null;
+  }
+}
+__name(appConfigValue, "appConfigValue");
 // Free users see the score, the bars, the headline, the #1 priority and ONE missed moment; a plan or
 // any round pack unlocks the rest. The full card is always stored, so upgrading unlocks it at once.
 async function hasPaid(c, userId, email) {

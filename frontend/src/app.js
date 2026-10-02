@@ -255,7 +255,7 @@ function rd(i, e, t, n) {
         <label class="block text-body-sm font-medium text-slate-300 mb-1.5" for="auth-password">Password</label>
         <input id="auth-password" type="password" required autocomplete="${isSignup ? "new-password" : "current-password"}" minlength="8" placeholder="Minimum 8 characters"
           class="field mb-6" />
-        ${isSignup ? "" : `<div class="-mt-4 mb-6 text-right"><a href="mailto:support@getadversaryai.com?subject=Password%20reset" class="link text-body-sm">Forgot password?</a></div>`}
+        ${isSignup ? "" : `<div class="-mt-4 mb-6 flex flex-wrap items-center justify-between gap-2"><a href="#" data-billing-login class="link text-body-sm hidden" target="_blank" rel="noopener">Manage or cancel billing by email</a><a href="mailto:support@getadversaryai.com?subject=Password%20reset" class="link text-body-sm ml-auto">Forgot password?</a></div>`}
         <button type="submit" class="btn-primary w-full py-3">
           ${i}
         </button>
@@ -267,6 +267,17 @@ function rd(i, e, t, n) {
     </p>`));
   const r = s.querySelector("form"),
     a = s.querySelector("[data-error]");
+  // Locked out? Stripe's hosted portal lets a subscriber manage or cancel with just their email.
+  const bl = s.querySelector("[data-billing-login]");
+  if (bl)
+    Ut("/api/billing/prices")
+      .then((pr) => {
+        if (pr?.portalLoginUrl) {
+          bl.href = pr.portalLoginUrl;
+          bl.classList.remove("hidden");
+        }
+      })
+      .catch(() => {});
   return { el: s, form: r, errorBox: a };
 }
 function os(i, e) {
