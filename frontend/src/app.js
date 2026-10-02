@@ -27795,7 +27795,8 @@ async function qu(i) {
       <p class="text-slate-300 text-body-sm mb-4">The AI plays a believable user against each mode's real prompts for 5 exchanges, then the real scorer grades it. Nothing is stored and no rounds are charged. Takes a few minutes.</p>
       <div class="flex flex-wrap gap-2 mb-3">
         <button type="button" data-run="all" class="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm">Run all new modes</button>
-        ${["rights", "auditor", "trafficstop", "deescalate", "testify", "customer", "salary", "speaking", "interview"].map((m) => `<button type="button" data-run="${m}" class="btn-ghost px-3 py-2 text-xs">${m}</button>`).join("")}
+        <button type="button" data-run="old" class="btn-ghost px-4 py-2.5 text-sm">Run the original modes</button>
+        ${["rights", "auditor", "trafficstop", "deescalate", "testify", "customer", "salary", "speaking", "interview", "debate", "historical", "acting", "negotiation", "sales", "difficult", "thesis", "expert", "rapbattle", "witness"].map((m) => `<button type="button" data-run="${m}" class="btn-ghost px-3 py-2 text-xs">${m}</button>`).join("")}
       </div>
       <div data-out class="space-y-4 text-sm"></div>`;
     e.appendChild(_adminQa);
@@ -27803,7 +27804,7 @@ async function qu(i) {
       const b = ev.target.closest("[data-run]");
       if (!b) return;
       const out = _adminQa.querySelector("[data-out]");
-      const list = b.dataset.run === "all" ? ["rights", "auditor", "trafficstop", "deescalate", "testify", "customer", "salary", "speaking"] : [b.dataset.run];
+      const list = b.dataset.run === "all" ? ["rights", "auditor", "trafficstop", "deescalate", "testify", "customer", "salary", "speaking"] : b.dataset.run === "old" ? ["interview", "debate", "historical", "acting", "negotiation", "sales", "difficult", "thesis", "expert", "rapbattle", "witness"] : [b.dataset.run];
       _adminQa.querySelectorAll("[data-run]").forEach((x) => (x.disabled = true));
       for (const m of list) {
         const box = document.createElement("div");

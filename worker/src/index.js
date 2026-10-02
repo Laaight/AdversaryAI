@@ -7093,7 +7093,17 @@ var SELFTEST_SETUPS = {
   customer: { role: "front desk at a hotel", complaint: "their room wasn't ready at check-in and they waited an hour with two kids", customerStyle: "furious", canOffer: "a free breakfast or up to $50 off", difficulty: "normal", user: "a front-desk agent who lets the guest finish, apologizes specifically, owns it, and offers a concrete fix within policy" },
   salary: { kind: "offer", role: "Senior accountant at a 200-person company", current: "offer is $85k base + 5% bonus", target: "$95k base and a $5k signing bonus", leverage: "market data says $90-100k; I have another offer at $92k", counterpart: "hardball", difficulty: "normal", user: "a candidate who anchors at a specific number with evidence, stays warm, and is comfortable with silence" },
   speaking: { talkType: "presentation", topic: "Why our team should move to a four-day week: pilot data showed output up 4% and sick days down 30%; risks are client coverage; asking for a 6-month trial", audience: "the CFO and two VPs", questioner: "executive", difficulty: "normal", user: "a speaker who delivers a 150-word talk in one message, says 'that's my proposal, happy to take questions', then answers each question in two sentences" },
-  interview: { jobTitle: "Warehouse associate", seniority: "entry", difficulty: "normal", user: "a nervous first-time job seeker who gives short, honest answers" }
+  interview: { jobTitle: "Warehouse associate", seniority: "entry", difficulty: "normal", user: "a nervous first-time job seeker who gives short, honest answers" },
+  debate: { persona: "prosecutor", userSide: "for", debateStyle: "oxford", _topic: "Social media does more harm than good", _personality: "prosecutor", difficulty: "normal", user: "a college debater arguing FOR the motion with one clear argument per turn and a direct rebuttal of the last point" },
+  historical: { figureId: "lincoln", userSide: "for", debateStyle: "freeform", _topic: "Should a nation ever compromise with injustice to preserve unity?", _personality: "lincoln", difficulty: "normal", user: "a thoughtful student arguing FOR compromise, who tries to pin Lincoln down on his own record" },
+  acting: { yourRole: "Nora", sceneContext: "A kitchen at midnight. Nora is about to tell her husband she is leaving.", partnerRole: "Torvald, her husband, who has no idea", difficulty: "normal", user: "an actor playing Nora, improvising short charged lines and reacting to the partner" },
+  negotiation: { scenario: "Buying a used 2019 pickup from a private seller listed at $24,000", yourGoal: "$21,000 with the new tires included", yourWalkAway: "$22,500", stakes: "I need a truck this week", counterpartRole: "the seller", difficulty: "normal", user: "a buyer who anchors low with a reason, asks questions, trades concessions and never reveals the walk-away" },
+  sales: { product: "a scheduling app for dental offices, $199 a month", stage: "discovery", buyerPersona: "office manager at a 3-dentist practice, burned by the last software switch", topObjection: "we just switched systems a year ago", difficulty: "normal", user: "a rep who asks discovery questions, listens, and ties the product to what the buyer actually said" },
+  difficult: { situation: "I need to tell my co-founder I want to step back from the company", otherParty: "my co-founder, who is also my friend", theirReaction: "hurt", desiredOutcome: "part ways without destroying the friendship", difficulty: "normal", user: "a founder who says the hard thing plainly, names the other person's feelings, and owns their part" },
+  thesis: { thesisStatement: "Remote work increases productivity for knowledge workers but reduces junior employees' skill growth", field: "Organizational psychology", difficulty: "normal", user: "a PhD candidate who answers with specifics from their study, admits limits, and does not get defensive" },
+  expert: { profession: "Cybersecurity consultant", topic: "Why the company should adopt passkeys instead of passwords", audience: "executive", difficulty: "normal", user: "a consultant who explains in plain words, leads with cost and risk, and answers the question asked" },
+  rapbattle: { theme: "who really runs this city", mcName: "Verse Vice", aboutYou: "a nurse from Ohio obsessed with fantasy football, lives with two cats", difficulty: "normal", user: "a clean amateur rapper who drops a 6-line verse each turn with rhymes and a comeback" },
+  witness: { who: "my skeptical coworker Jake", theirView: "thinks faith is a crutch, had a bad experience at church as a kid", setting: "lunch break at work", difficulty: "normal", user: "a Christian who asks questions, listens, shares their own story briefly, and never pressures" }
 };
 accountRouter.post("/admin/selftest", async (c) => {
   const user = await getSessionUser(c);
@@ -7104,16 +7114,17 @@ accountRouter.post("/admin/selftest", async (c) => {
   const mode = getMode(modeId);
   const preset = SELFTEST_SETUPS[modeId];
   if (!mode || !preset) return c.json({ error: "unknown mode" }, 400);
-  const { user: userPersona, ...setupIn } = preset;
+  const { user: userPersona, _topic, _personality, ...setupIn } = preset;
   const exchanges = Math.min(8, Math.max(2, parseInt(body.exchanges ?? "5", 10) || 5));
   const setup = { ...setupIn, targetRounds: String(exchanges) };
-  const debate = { mode: modeId, topic: `${mode.name} self-test`, setup_json: JSON.stringify(setup) };
-  const systemPrompt = mode.systemPrompt({ ...setup, topic: debate.topic }) + roleLock(debate, mode, setup);
+  const debate = { mode: modeId, topic: _topic || `${mode.name} self-test`, personality: _personality || null, setup_json: JSON.stringify(setup) };
+  const NO_DIFF = ["acting", "rapbattle", "thesis", "expert", "rights", "auditor", "trafficstop", "deescalate", "testify", "customer", "salary", "speaking"];
+  const systemPrompt = mode.systemPrompt({ ...setup, topic: debate.topic }) + (NO_DIFF.includes(modeId) ? "" : difficultyRules(modeId, setup.difficulty || "normal")) + roleLock(debate, mode, setup);
   const r = turnRoles(debate, mode, setup);
   const turns = [];
   const transcriptText = () => turns.map((t) => `${t.role === "user" ? `USER (${r.human})` : `YOU (${r.ai})`}: ${t.text}`).join("\n\n");
   const userSystem = `You are simulating a HUMAN using a practice app, for a quality test. Play ${userPersona}. Reply with only what that person would say next, in plain spoken words, under 90 words (a speech or talk may be longer). Never add labels, notes or explanations. Stay consistent with everything you already said.`;
-  const first = MODE_RULES[modeId]?.fixedFirst || "user";
+  const first = MODE_RULES[modeId]?.fixedFirst || (modeId === "debate" || modeId === "historical" ? "opponent" : "user");
   const t0 = Date.now();
   try {
     for (let i = 0; i < exchanges; i++) {
