@@ -20,7 +20,7 @@
     GTM_ID: '',
     META_ID: '',
     TIKTOK_ID: '',
-    GADS: { id: '', signup: '', purchase: '' }
+    GADS: { id: 'AW-18489049594', signup: '', purchase: '' }
   };
   window.ADV_TRACK_CFG = CFG;
 
