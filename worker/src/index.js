@@ -6459,6 +6459,25 @@ accountRouter.post("/promo/redeem", handlePromoRedeem);
 accountRouter.post("/admin/grant-vip", handleAdminGrantVip);
 // Until there's a self-serve reset (needs an email sender): the owner sets a temporary password for
 // someone who wrote to support, signs them out everywhere, and emails it to them.
+// Feedback from anyone (logged in or not): what's broken, confusing or missing. Read on the
+// owner's Account page.
+var feedbackTableReady = false;
+async function ensureFeedbackTable(db) {
+  if (feedbackTableReady) return;
+  await db.prepare("CREATE TABLE IF NOT EXISTS feedback (id TEXT PRIMARY KEY, user_id TEXT, email TEXT, message TEXT NOT NULL, page TEXT, ua TEXT, created_at TEXT NOT NULL)").run();
+  feedbackTableReady = true;
+}
+__name(ensureFeedbackTable, "ensureFeedbackTable");
+accountRouter.get("/admin/feedback", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  if (!isOwnerEmail(user.email, c.env)) return c.json({ error: "forbidden" }, 403);
+  await ensureFeedbackTable(c.env.DB);
+  const rows = (await c.env.DB.prepare(
+    "SELECT f.id, f.message, f.page, f.ua, f.created_at, COALESCE(u.email, f.email) AS email FROM feedback f LEFT JOIN users u ON u.id = f.user_id ORDER BY f.created_at DESC LIMIT 100"
+  ).all())?.results ?? [];
+  return c.json({ feedback: rows });
+});
 accountRouter.post("/admin/reset-password", async (c) => {
   const user = await getSessionUser(c);
   if (!user) return c.json({ error: "unauthorized" }, 401);
@@ -7531,6 +7550,20 @@ app.route("/api/debate", debateRouter);
 app.route("/api/debates", debatesRouter);
 app.route("/api/modes", modesRouter);
 app.route("/api/account", accountRouter);
+app.post("/api/feedback", async (c) => {
+  if (!(await rateLimit(c.env.DB, `feedback:${clientIp(c)}`, 5, 3600))) return c.json({ error: "rate_limited", message: "rate_limited" }, 429);
+  const body = await c.req.json().catch(() => ({}));
+  const message = String(body.message ?? "").trim().slice(0, 2000);
+  if (!message) return c.json({ error: "empty" }, 400);
+  const user = await getSessionUser(c).catch(() => null);
+  const email = String(body.email ?? "").trim().toLowerCase().slice(0, 200);
+  await ensureFeedbackTable(c.env.DB);
+  await c.env.DB.prepare(
+    "INSERT INTO feedback (id, user_id, email, message, page, ua, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+  ).bind(newId(), user?.id ?? null, EMAIL_RE.test(email) ? email : null, message, String(body.page ?? "").slice(0, 300), String(body.ua ?? "").slice(0, 300), nowIso()).run();
+  console.log("[feedback]", (user?.email || email || "anon") + ":", message.slice(0, 200));
+  return c.json({ ok: true });
+});
 app.post("/api/promo/redeem", handlePromoRedeem);
 app.route("/api/speech", speechRouter);
 app.route("/api/avatar", avatarRouter);

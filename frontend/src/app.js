@@ -27715,6 +27715,26 @@ async function qu(i) {
         <button type="button" id="admin-pay-btn" class="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm">Pay $0.50</button>
         <div id="admin-pay-out" class="hidden mt-3 text-sm p-3 rounded-xl bg-red-500/15 border border-red-500/30 text-red-200"></div>`;
     e.appendChild(_adminPay);
+
+    const _adminFb = document.createElement("div");
+    _adminFb.className = "card card-lift p-6 mb-10 border border-amber-500/30 bg-amber-500/5";
+    _adminFb.innerHTML = `<h2 class="font-display text-lg text-amber-300 font-semibold mb-2">Admin: Feedback</h2><div data-list class="text-sm text-slate-400">Loading…</div>`;
+    e.appendChild(_adminFb);
+    Ut("/api/account/admin/feedback")
+      .then((r) => {
+        const list = _adminFb.querySelector("[data-list]");
+        const rows = r?.feedback || [];
+        if (!rows.length) return (list.textContent = "Nothing yet. The Feedback link in the menu and on the landing page lands here.");
+        list.innerHTML = rows
+          .map((x) => {
+            const when = new Date(x.created_at).toLocaleString();
+            const who = x.email ? `<a class="link" href="mailto:${Lt(x.email)}">${Lt(x.email)}</a>` : "anonymous";
+            const ua = /iPhone|iPad/.test(x.ua || "") ? "iPhone" : /Android/.test(x.ua || "") ? "Android" : /Brave/.test(x.ua || "") ? "Brave" : /Edg\//.test(x.ua || "") ? "Edge" : /Chrome/.test(x.ua || "") ? "Chrome" : /Safari/.test(x.ua || "") ? "Safari" : /Firefox/.test(x.ua || "") ? "Firefox" : "";
+            return `<div class="py-3 border-b border-ink-700 last:border-0"><div class="text-xs text-slate-500 mb-1">${when} · ${who}${x.page ? ` · <code>${Lt(x.page)}</code>` : ""}${ua ? ` · ${ua}` : ""}</div><div class="text-slate-200 whitespace-pre-wrap">${Lt(x.message)}</div></div>`;
+          })
+          .join("");
+      })
+      .catch(() => (_adminFb.querySelector("[data-list]").textContent = "Couldn’t load feedback."));
     _adminPay.querySelector("#admin-pay-btn").addEventListener("click", async (ev) => {
       const btn = ev.currentTarget;
       const out = _adminPay.querySelector("#admin-pay-out");
@@ -28554,6 +28574,7 @@ function fx(i) {
         <a href="#/arena" class="px-3 py-1.5 rounded-lg hover:bg-ink-800 text-slate-300 hover:text-white font-medium flex items-center gap-1"><span class="text-amber-400">🔥</span> Arena</a>
         <a href="#/history" class="px-3 py-1.5 rounded-lg hover:bg-ink-800 text-slate-300 hover:text-white">History</a>
         <a href="#/account" class="px-3 py-1.5 rounded-lg hover:bg-ink-800 text-slate-300 hover:text-white">Account</a>
+        <a href="#" data-feedback class="px-3 py-1.5 rounded-lg hover:bg-ink-800 text-slate-300 hover:text-white">Feedback</a>
         <span id="theme-toggle-slot" class="ml-1"></span><span id="admin-mode-slot" class="ml-1.5"></span>
         <button id="logout-btn" class="ml-1 px-3 py-1.5 rounded-lg border border-ink-700 text-slate-400 hover:text-white hover:border-slate-500">Log out</button>
       </nav>
@@ -28569,6 +28590,7 @@ function fx(i) {
       <a href="#/arena" class="block px-3 py-2.5 rounded-lg text-slate-300 hover:text-white hover:bg-ink-800 font-medium">🔥 Community Arena</a>
       <a href="#/history" class="block px-3 py-2.5 rounded-lg text-slate-300 hover:text-white hover:bg-ink-800">History</a>
       <a href="#/account" class="block px-3 py-2.5 rounded-lg text-slate-300 hover:text-white hover:bg-ink-800">Account</a>
+      <a href="#" data-feedback class="block px-3 py-2.5 rounded-lg text-slate-300 hover:text-white hover:bg-ink-800">Feedback · report a problem</a>
       <div id="admin-mode-slot-mobile" class="mt-1"></div><button id="logout-btn-mobile" class="mt-1 w-full text-left px-3 py-2.5 rounded-lg border border-ink-700 text-slate-400 hover:text-white hover:border-slate-500">Log out</button>
     </div>`),
     e.querySelector("#theme-toggle-slot").appendChild(vr()),
