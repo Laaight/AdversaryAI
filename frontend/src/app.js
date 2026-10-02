@@ -27625,7 +27625,12 @@ async function qu(i) {
       const k = "aai_purchase_" + (a?.stripe_subscription_id || a?.tier || "pack") + "_" + new Date().toISOString().slice(0, 10);
       if (!sessionStorage.getItem(k)) {
         sessionStorage.setItem(k, "1");
-        track("purchase", { plan: a?.tier || "pack", attribution: window.adversaryAttribution?.() || null });
+        let co = null;
+        try {
+          co = JSON.parse(sessionStorage.getItem("aai_checkout") || "null");
+          sessionStorage.removeItem("aai_checkout");
+        } catch {}
+        track("purchase", { plan: a?.tier || "pack", value: co?.value || 0, currency: "USD", transaction_id: `${co?.item || "pack"}-${Date.now()}`, attribution: window.adversaryAttribution?.() || null });
       }
     } catch {}
   } else if (qs.get("checkout") === "cancelled") {
@@ -28095,7 +28100,14 @@ async function qu(i) {
     const A = T.textContent;
     T.innerHTML = '<span class="spinner" aria-hidden="true"></span><span>Redirecting…</span>';
     try {
-      track("begin_checkout", { kind: x, item: R, ...extra });
+      // What the sale will be worth, so the ad networks can learn from it when the user comes back.
+      let value = 0;
+      try {
+        const tier = (n?.tiers || []).find((q) => q.id === R), pack = (n?.packs || []).find((q) => q.id === R), vp = (n?.videoPacks || []).find((q) => q.id === R);
+        value = (x === "subscription" ? (extra.interval === "year" ? tier?.annualPrice : tier?.price) : x === "video" ? vp?.price : pack?.price) || 0;
+        sessionStorage.setItem("aai_checkout", JSON.stringify({ kind: x, item: R, value: value / 100, at: Date.now() }));
+      } catch {}
+      track("begin_checkout", { kind: x, item: R, value: value / 100, currency: "USD", ...extra });
       const { url: L } = await zt("/api/billing/checkout", { kind: x, item: R, ...extra });
       window.location.href = L;
     } catch (err) {
