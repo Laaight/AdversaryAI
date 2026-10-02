@@ -4252,6 +4252,12 @@ Your real job is to decide whether to hire this person. Listen for evidence, and
         ]
       },
       {
+        key: "scenarioCustom",
+        label: "Or describe the encounter yourself",
+        type: "textarea",
+        placeholder: "e.g. I'm 17, pulled over in my mom's car with a friend, and the officer says he smells weed (overrides the pick above)"
+      },
+      {
         key: "officerStyle",
         label: "The officer",
         type: "select",
@@ -4293,7 +4299,7 @@ Your real job is to decide whether to hire this person. Listen for evidence, and
         normal: "DIFFICULTY: NORMAL. Push each request about twice in different words before accepting a clear answer. Mix lawful orders in with requests so the user has to tell them apart.",
         hard: "DIFFICULTY: HARD. Press every opening: vague answers, nervous over-explaining, a half-yes, an admission. Stack a lawful order right after a refused request to see if they conflate them. Only a clear, calm, repeated position stops you."
       };
-      return `You are roleplaying a police officer so the user can practice handling a police encounter calmly while knowing their rights. ${SCENE[setup.scenario] || SCENE.traffic}${setup.state ? ` This takes place in ${setup.state}.` : ""}${setup.situation ? ` About the user's situation (use it realistically; for example a declared legal firearm gets careful, specific instructions): ${setup.situation}` : ""}
+      return `You are roleplaying a police officer so the user can practice handling a police encounter calmly while knowing their rights. ${String(setup.scenarioCustom || "").trim() ? `The encounter, as the user describes it: ${String(setup.scenarioCustom).trim()}. Open the encounter realistically from the officer's side.` : SCENE[setup.scenario] || SCENE.traffic}${setup.state ? ` This takes place in ${setup.state}.` : ""}${setup.situation ? ` About the user's situation (use it realistically; for example a declared legal firearm gets careful, specific instructions): ${setup.situation}` : ""}
 
 ${STYLE[setup.officerStyle] || STYLE.book}
 
@@ -4323,6 +4329,12 @@ HOW A REAL STOP WORKS. Ask for license, registration and insurance; ask \u201Cdo
           { value: "complaint", label: "A business called: someone filming from the public sidewalk" },
           { value: "scene", label: "Filming close to your active scene" }
         ]
+      },
+      {
+        key: "scenarioCustom",
+        label: "Or describe the situation yourself",
+        type: "textarea",
+        placeholder: "e.g. two auditors filming through the window of the records office, one of them has a prior with our department (overrides the pick above)"
       },
       {
         key: "auditorStyle",
@@ -4366,7 +4378,7 @@ HOW A REAL STOP WORKS. Ask for license, registration and insurance; ask \u201Cdo
         normal: "DIFFICULTY: NORMAL. Press each point about twice. Test the basics: a request for ID without suspicion, a demand to stop filming, a vague 'you need to leave', and a 'back up' with no distance. Reward specific, lawful answers by backing off that line.",
         hard: "DIFFICULTY: HARD. Exploit every slip. If they ask for ID without stating a crime, hammer it. If they say 'you can't film here', quote the law. If they touch the camera or threaten arrest for filming, announce it to the viewers as the lawsuit moment. Only a precise, calm, lawful officer stops you."
       };
-      return `You are roleplaying a First Amendment auditor, a person who films police and public buildings to test whether officers respect the right to record, so that the user, a POLICE OFFICER, can practice handling it lawfully and calmly. ${SCENE[setup.scenario] || SCENE.lobby}${setup.agency ? ` The user is with ${setup.agency}.` : ""}${setup.situation ? ` About the situation: ${setup.situation}` : ""}
+      return `You are roleplaying a First Amendment auditor, a person who films police and public buildings to test whether officers respect the right to record, so that the user, a POLICE OFFICER, can practice handling it lawfully and calmly. ${String(setup.scenarioCustom || "").trim() ? `The situation, as set by the officer's trainer: ${String(setup.scenarioCustom).trim()}. Play the auditor in that situation.` : SCENE[setup.scenario] || SCENE.lobby}${setup.agency ? ` The user is with ${setup.agency}.` : ""}${setup.situation ? ` About the situation: ${setup.situation}` : ""}
 
 ${STYLE[setup.auditorStyle] || STYLE.polite}
 
@@ -4398,6 +4410,12 @@ WHAT YOU ARE TESTING. Whether the officer: states a specific lawful basis before
         ]
       },
       {
+        key: "driverCustom",
+        label: "Or describe the driver yourself",
+        type: "textarea",
+        placeholder: "e.g. a teenager with three friends in the car, music blasting, who keeps looking at the passenger; or an elderly man who seems confused about where he is (overrides the pick above)"
+      },
+      {
         key: "reason",
         label: "Why you stopped them",
         type: "text",
@@ -4424,13 +4442,14 @@ WHAT YOU ARE TESTING. Whether the officer: states a specific lawful basis before
         normal: "DIFFICULTY: NORMAL. Push each point twice. Create one safety moment (a reach, a door opening, a passenger getting out) to see how the officer handles it.",
         hard: "DIFFICULTY: HARD. Exploit every slip: a vague instruction, an unexplained order, sarcasm, a question left unanswered. Stack two problems at once (a reach while arguing). Only a calm, specific, lawful officer settles you."
       };
-      return `You are roleplaying the DRIVER in a traffic stop so the user, a POLICE OFFICER, can practice running a clean, lawful, calm stop. ${D[setup.driver] || D.nervous} The officer stopped you for: ${setup.reason || "speeding, 47 in a 35"}.${setup.agency ? ` The officer is with ${setup.agency}.` : ""}
+      const driver = String(setup.driverCustom || "").trim() ? `The driver, as described by the officer's trainer: ${String(setup.driverCustom).trim()}. Play that person realistically, with their own reasons for how they act, and let them calm down or escalate based on how the officer handles them.` : D[setup.driver] || D.nervous;
+      return `You are roleplaying the DRIVER in a traffic stop so the user, a POLICE OFFICER, can practice running a clean, lawful, calm stop. ${driver} The officer stopped you for: ${setup.reason || "speeding, 47 in a 35"}.${setup.agency ? ` The officer is with ${setup.agency}.` : ""}
 
 ${DIFF[level]}
 
 The officer approaches and speaks first. React to what they actually say: whether they identify themselves and the reason for the stop, give one clear instruction at a time, keep control of your hands and movements, explain requests versus orders, and stay polite under pushback. Reward that with cooperation; punish vagueness, sarcasm, shouting, or unlawful demands by escalating the way your character would (more arguing, more nerves, stalling, filming). Never become violent. Stay in character, one or two things per turn, under 80 words, plain spoken language.`;
     }, "systemPrompt"),
-    scoringPrompt: /* @__PURE__ */ __name((setup = {}) => `You are a field training officer reviewing bodycam of a traffic stop with a ${setup.driver || "nervous"} driver. Score the officer 1-10 on Procedure & lawful basis (identified themselves and the reason, requests and orders kept distinct, nothing demanded without a basis; an unlawful demand caps this at 3), Safety (controlled hands and movements, handled the firearm or reach calmly and specifically, did not get drawn into the window), Communication (one clear instruction at a time, explained what happens next, plain language), and Composure (no sarcasm, no arguing the law, steady under pushback). Judge from what they actually said. In the notes, name the single moment that most needs fixing and quote the exact words to use. Finish the notes with: 'Training practice, not legal advice; follow your department's policy and state law.' Return strict JSON {"dimensions": {"Procedure & lawful basis": <1-10>, "Safety": <1-10>, "Communication": <1-10>, "Composure": <1-10>}, "overall": <1-10>, "notes": "<start with how the stop ended in one plain sentence, then 2-3 sentences of feedback>"}`, "scoringPrompt"),
+    scoringPrompt: /* @__PURE__ */ __name((setup = {}) => `You are a field training officer reviewing bodycam of a traffic stop with ${String(setup.driverCustom || "").trim() ? `this driver: ${String(setup.driverCustom).trim().slice(0, 200)}` : `a ${setup.driver || "nervous"} driver`}. Score the officer 1-10 on Procedure & lawful basis (identified themselves and the reason, requests and orders kept distinct, nothing demanded without a basis; an unlawful demand caps this at 3), Safety (controlled hands and movements, handled the firearm or reach calmly and specifically, did not get drawn into the window), Communication (one clear instruction at a time, explained what happens next, plain language), and Composure (no sarcasm, no arguing the law, steady under pushback). Judge from what they actually said. In the notes, name the single moment that most needs fixing and quote the exact words to use. Finish the notes with: 'Training practice, not legal advice; follow your department's policy and state law.' Return strict JSON {"dimensions": {"Procedure & lawful basis": <1-10>, "Safety": <1-10>, "Communication": <1-10>, "Composure": <1-10>}, "overall": <1-10>, "notes": "<start with how the stop ended in one plain sentence, then 2-3 sentences of feedback>"}`, "scoringPrompt"),
     scoringDimensions: ["Procedure & lawful basis", "Safety", "Communication", "Composure"],
     introCopy: "You\u2019re the officer. Walk up to the window and start the stop. Training practice, not legal advice."
   },
@@ -4452,6 +4471,12 @@ The officer approaches and speaks first. React to what they actually say: whethe
           { value: "domestic", label: "Domestic dispute \u2014 aftermath, one party screaming at you" },
           { value: "selfharm", label: "Person saying they want to end it, on an overpass" }
         ]
+      },
+      {
+        key: "callCustom",
+        label: "Or describe the call yourself",
+        type: "textarea",
+        placeholder: "e.g. a veteran in his 60s, off his meds, barricaded in his truck in a Walmart lot, says people are after him (overrides the pick above)"
       },
       {
         key: "known",
@@ -4485,13 +4510,13 @@ The officer approaches and speaks first. React to what they actually say: whethe
         normal: "DIFFICULTY: NORMAL. Come down slowly. Test them twice with a spike (a sudden shout, a step toward them, 'just shoot me then'). A single raised-voice command sets you back a notch.",
         hard: "DIFFICULTY: HARD. Nothing works fast. Reject the first two attempts at rapport. Spike unpredictably. Only sustained calm, real listening (reflecting your own words back), patience, and a concrete small step bring you down."
       };
-      return `You are roleplaying a PERSON IN CRISIS so the user, a POLICE OFFICER, can practice de-escalation. ${C[setup.call] || C.mental} ${K[setup.known] || K.none}${setup.details ? ` Also: ${setup.details}` : ""}
+      return `You are roleplaying a PERSON IN CRISIS so the user, a POLICE OFFICER, can practice de-escalation. ${String(setup.callCustom || "").trim() ? `The call, as set by the officer's trainer: ${String(setup.callCustom).trim()}. Play that person realistically: frightened, angry or confused for their own reasons, hearing tone before words. Keep everything non-graphic.` : C[setup.call] || C.mental} ${K[setup.known] || K.none}${setup.details ? ` Also: ${setup.details}` : ""}
 
 ${DIFF[level]}
 
 Track your agitation privately from 10 (peak) down. These lower it: a calm low voice, the officer saying their name and that they are there to help, open questions, reflecting your words back, acknowledging your feelings, giving you space and time, asking what you need, one small concrete offer. These raise it: shouted commands, several orders at once, threats, 'calm down', moving closer fast, hands on you, dismissing what you say, lying to you. Say what you are feeling and doing in plain spoken words (you can say 'I'm backing up' or 'I'm not going anywhere') but never anything graphic. Never attack the officer; at worst you shout, refuse, or move. Stay in character, under 80 words per turn.`;
     }, "systemPrompt"),
-    scoringPrompt: /* @__PURE__ */ __name((setup = {}) => `You are a crisis-intervention trainer reviewing bodycam of an officer on a ${setup.call || "mental-health"} call. Score the officer 1-10 on Safety (distance, time, cover, no rushing in, handled the possible weapon calmly), Tone (low, slow, calm; no shouting, no 'calm down', no threats), Listening (open questions, reflected the person's words, acknowledged feelings, did not interrupt), and Outcome (a voluntary, non-force resolution with a concrete next step; force or a stand-off caps this at 4). Judge from what they actually said. In the notes, name the one thing that most raised or lowered the person's agitation, and quote the exact words to use instead where needed. Finish the notes with: 'Training practice; follow your department's policy and crisis-intervention protocols.' Return strict JSON {"dimensions": {"Safety": <1-10>, "Tone": <1-10>, "Listening": <1-10>, "Outcome": <1-10>}, "overall": <1-10>, "notes": "<start with how the call ended in one plain sentence, then 2-3 sentences of feedback>"}`, "scoringPrompt"),
+    scoringPrompt: /* @__PURE__ */ __name((setup = {}) => `You are a crisis-intervention trainer reviewing bodycam of an officer on ${String(setup.callCustom || "").trim() ? `this call: ${String(setup.callCustom).trim().slice(0, 200)}` : `a ${setup.call || "mental-health"} call`}. Score the officer 1-10 on Safety (distance, time, cover, no rushing in, handled the possible weapon calmly), Tone (low, slow, calm; no shouting, no 'calm down', no threats), Listening (open questions, reflected the person's words, acknowledged feelings, did not interrupt), and Outcome (a voluntary, non-force resolution with a concrete next step; force or a stand-off caps this at 4). Judge from what they actually said. In the notes, name the one thing that most raised or lowered the person's agitation, and quote the exact words to use instead where needed. Finish the notes with: 'Training practice; follow your department's policy and crisis-intervention protocols.' Return strict JSON {"dimensions": {"Safety": <1-10>, "Tone": <1-10>, "Listening": <1-10>, "Outcome": <1-10>}, "overall": <1-10>, "notes": "<start with how the call ended in one plain sentence, then 2-3 sentences of feedback>"}`, "scoringPrompt"),
     scoringDimensions: ["Safety", "Tone", "Listening", "Outcome"],
     introCopy: "You\u2019re the officer arriving on the call. They\u2019re already agitated and speak first. Slow it down. Training practice; follow your department\u2019s protocols."
   },
@@ -5678,9 +5703,9 @@ debateRouter.post("/start", async (c) => {
     } else if (mode.id === "witness") {
       topic = rawSetup.who ? `Sharing the gospel with ${rawSetup.who}`.trim() : "Sharing the gospel";
     } else if (mode.id === "trafficstop") {
-      topic = `Traffic stop: ${({ nervous: "nervous driver", argumentative: "argumentative driver", sovereign: "sovereign citizen", impaired: "possibly impaired driver", ccw: "driver with a firearm" })[rawSetup.driver] || "driver"}`;
+      topic = String(rawSetup.driverCustom || "").trim() ? `Traffic stop: ${String(rawSetup.driverCustom).trim().slice(0, 60)}` : `Traffic stop: ${({ nervous: "nervous driver", argumentative: "argumentative driver", sovereign: "sovereign citizen", impaired: "possibly impaired driver", ccw: "driver with a firearm" })[rawSetup.driver] || "driver"}`;
     } else if (mode.id === "deescalate") {
-      topic = ({ mental: "Crisis call: mental health", refuse: "Crisis call: refusing to leave", intox: "Crisis call: intoxicated", domestic: "Crisis call: domestic", selfharm: "Crisis call: overpass" })[rawSetup.call] || "Crisis call";
+      topic = String(rawSetup.callCustom || "").trim() ? `Crisis call: ${String(rawSetup.callCustom).trim().slice(0, 60)}` : ({ mental: "Crisis call: mental health", refuse: "Crisis call: refusing to leave", intox: "Crisis call: intoxicated", domestic: "Crisis call: domestic", selfharm: "Crisis call: overpass" })[rawSetup.call] || "Crisis call";
     } else if (mode.id === "testify") {
       topic = `Cross-examination: ${String(rawSetup.caseFacts || "the case").slice(0, 60)}`.trim();
     } else if (mode.id === "salary") {
@@ -5688,9 +5713,9 @@ debateRouter.post("/start", async (c) => {
     } else if (mode.id === "customer") {
       topic = `Angry customer: ${String(rawSetup.complaint || rawSetup.role || "complaint").slice(0, 60)}`.trim();
     } else if (mode.id === "auditor") {
-      topic = ({ lobby: "Audit: station lobby", sidewalk: "Audit: from the sidewalk", postoffice: "Audit: post office", complaint: "Audit: filming a business", scene: "Audit: near an active scene" })[rawSetup.scenario] || "First Amendment audit";
+      topic = String(rawSetup.scenarioCustom || "").trim() ? `Audit: ${String(rawSetup.scenarioCustom).trim().slice(0, 60)}` : ({ lobby: "Audit: station lobby", sidewalk: "Audit: from the sidewalk", postoffice: "Audit: post office", complaint: "Audit: filming a business", scene: "Audit: near an active scene" })[rawSetup.scenario] || "First Amendment audit";
     } else if (mode.id === "rights") {
-      topic = ({ traffic: "Traffic stop", dui: "Late-night stop", walking: "Stopped on the street", passenger: "Passenger in a stopped car", door: "Officers at the door" })[rawSetup.scenario] || "Police stop";
+      topic = String(rawSetup.scenarioCustom || "").trim() ? `Police stop: ${String(rawSetup.scenarioCustom).trim().slice(0, 60)}` : ({ traffic: "Traffic stop", dui: "Late-night stop", walking: "Stopped on the street", passenger: "Passenger in a stopped car", door: "Officers at the door" })[rawSetup.scenario] || "Police stop";
     } else if (mode.id === "rapbattle") {
       topic = rawSetup.theme ? `Rap battle: ${rawSetup.theme}`.trim() : "Open rap battle";
     } else if (mode.id === "historical" && rawSetup.figureId) {
