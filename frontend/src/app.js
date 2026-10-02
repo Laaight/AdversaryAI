@@ -25431,7 +25431,9 @@ function ix(root, debateId, t, data) {
   // Champion + opponent-opens: hold the opening line (briefly) until the video is live,
   // so the very first words come from the photoreal opponent.
   let openPhotoGate;
-  const photoGate = Promise.race([new Promise((r) => (openPhotoGate = r)), new Promise((r) => setTimeout(r, 8000))]);
+  // The opening line waits for the video to be live (or to have failed), so it isn't split between the
+  // fallback voice and the video when the connection is slow. A connection attempt gives up at 20s.
+  const photoGate = Promise.race([new Promise((r) => (openPhotoGate = r)), new Promise((r) => setTimeout(r, 25000))]);
   const photoBadge = $("#photo-badge");
   const photoDebug = $("#photo-debug");
   const setPhotoBadge = (html, cls = "") => {
