@@ -7082,6 +7082,58 @@ accountRouter.get("/admin/feedback", async (c) => {
   ).all())?.results ?? [];
   return c.json({ feedback: rows });
 });
+// Owner QA: the model plays a believable user against a mode's real prompts for a few exchanges,
+// then the real scorer grades it. Nothing is stored and no rounds are charged.
+var SELFTEST_SETUPS = {
+  rights: { scenario: "traffic", officerStyle: "pushy", state: "Arizona", difficulty: "normal", user: "a 24-year-old driver who knows their rights, stays polite, declines a search and asks if they are free to go" },
+  auditor: { scenario: "lobby", auditorStyle: "baiting", agency: "Mesa PD, Arizona", difficulty: "normal", user: "a patrol officer who stays calm, states the lawful basis for anything they ask, and ends the contact cleanly" },
+  trafficstop: { driver: "sovereign", reason: "47 in a 35", difficulty: "normal", user: "a patrol officer running a by-the-book stop: identifies themselves, gives the reason, one clear instruction at a time, polite under pushback" },
+  deescalate: { call: "mental", known: "maybe", difficulty: "normal", user: "an officer trained in crisis intervention: low slow voice, gives their name, asks the person's name, keeps distance, reflects feelings, offers one small next step" },
+  testify: { caseFacts: "Stopped a sedan for no brake light at 11pm; smelled marijuana; driver consented to a search; found a bag in the console; arrested for possession.", attorney: "methodical", difficulty: "normal", user: "an officer on the stand who answers only the question asked, says 'I don't recall' instead of guessing, and stays courteous" },
+  customer: { role: "front desk at a hotel", complaint: "their room wasn't ready at check-in and they waited an hour with two kids", customerStyle: "furious", canOffer: "a free breakfast or up to $50 off", difficulty: "normal", user: "a front-desk agent who lets the guest finish, apologizes specifically, owns it, and offers a concrete fix within policy" },
+  salary: { kind: "offer", role: "Senior accountant at a 200-person company", current: "offer is $85k base + 5% bonus", target: "$95k base and a $5k signing bonus", leverage: "market data says $90-100k; I have another offer at $92k", counterpart: "hardball", difficulty: "normal", user: "a candidate who anchors at a specific number with evidence, stays warm, and is comfortable with silence" },
+  speaking: { talkType: "presentation", topic: "Why our team should move to a four-day week: pilot data showed output up 4% and sick days down 30%; risks are client coverage; asking for a 6-month trial", audience: "the CFO and two VPs", questioner: "executive", difficulty: "normal", user: "a speaker who delivers a 150-word talk in one message, says 'that's my proposal, happy to take questions', then answers each question in two sentences" },
+  interview: { jobTitle: "Warehouse associate", seniority: "entry", difficulty: "normal", user: "a nervous first-time job seeker who gives short, honest answers" }
+};
+accountRouter.post("/admin/selftest", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  if (!isOwnerEmail(user.email, c.env)) return c.json({ error: "forbidden" }, 403);
+  const body = await c.req.json().catch(() => ({}));
+  const modeId = String(body.mode || "");
+  const mode = getMode(modeId);
+  const preset = SELFTEST_SETUPS[modeId];
+  if (!mode || !preset) return c.json({ error: "unknown mode" }, 400);
+  const { user: userPersona, ...setupIn } = preset;
+  const exchanges = Math.min(8, Math.max(2, parseInt(body.exchanges ?? "5", 10) || 5));
+  const setup = { ...setupIn, targetRounds: String(exchanges) };
+  const debate = { mode: modeId, topic: `${mode.name} self-test`, setup_json: JSON.stringify(setup) };
+  const systemPrompt = mode.systemPrompt({ ...setup, topic: debate.topic }) + roleLock(debate, mode, setup);
+  const r = turnRoles(debate, mode, setup);
+  const turns = [];
+  const transcriptText = () => turns.map((t) => `${t.role === "user" ? `USER (${r.human})` : `YOU (${r.ai})`}: ${t.text}`).join("\n\n");
+  const userSystem = `You are simulating a HUMAN using a practice app, for a quality test. Play ${userPersona}. Reply with only what that person would say next, in plain spoken words, under 90 words (a speech or talk may be longer). Never add labels, notes or explanations. Stay consistent with everything you already said.`;
+  const first = MODE_RULES[modeId]?.fixedFirst || "user";
+  const t0 = Date.now();
+  try {
+    for (let i = 0; i < exchanges; i++) {
+      if (!(first === "opponent" && i === 0)) {
+        const u = await modelText(c.env, userSystem, `The practice mode: ${mode.name}. Setup: ${JSON.stringify(setupIn)}.\n\nConversation so far:\n${turns.length ? turns.map((t) => `${t.role === "user" ? "YOU" : r.ai}: ${t.text}`).join("\n\n") : "(nothing yet: you speak first)"}\n\nYour next line:`, 600, { premium: false });
+        turns.push({ role: "user", text: String(u || "").trim() });
+      }
+      const curRound = i + 1;
+      const prompt = turns.length ? buildTurnPrompt(debate, mode, setup, transcriptText(), false, curRound, exchanges) : buildTurnPrompt(debate, mode, setup, "", true, 1, exchanges);
+      const a = await modelText(c.env, systemPrompt, prompt, 700, { premium: !!body.premium });
+      turns.push({ role: "assistant", text: String(a || "").trim() });
+    }
+    const humanText = turns.filter((t) => t.role === "user").map((t) => t.text).join("\n");
+    const raw = await modelText(c.env, mode.scoringPrompt(setup) + SCORE_HUMAN_ONLY + COACH_ADDENDUM, `Session topic: ${debate.topic}\nThe HUMAN played: ${r.human}.\n\n${turns.map((t) => `${t.role === "user" ? "HUMAN" : `AI OPPONENT (${r.ai})`}: ${t.text}`).join("\n\n")}`, 4e3, { premium: false });
+    const scores = parseScores(raw, mode.scoringDimensions, humanText);
+    return c.json({ mode: modeId, name: mode.name, roles: r, setup: setupIn, turns, scores, ms: Date.now() - t0 });
+  } catch (e) {
+    return c.json({ mode: modeId, name: mode.name, roles: r, turns, error: String(e?.message || e).slice(0, 400), ms: Date.now() - t0 }, 502);
+  }
+});
 accountRouter.post("/admin/reset-password", async (c) => {
   const user = await getSessionUser(c);
   if (!user) return c.json({ error: "unauthorized" }, 401);

@@ -27783,6 +27783,42 @@ async function qu(i) {
         <div id="admin-pay-out" class="hidden mt-3 text-sm p-3 rounded-xl bg-red-500/15 border border-red-500/30 text-red-200"></div>`;
     e.appendChild(_adminPay);
 
+    // Run every new mode with the model on both sides and read the transcripts in one place.
+    const _adminQa = document.createElement("div");
+    _adminQa.className = "card card-lift p-6 mb-10 border border-amber-500/30 bg-amber-500/5";
+    _adminQa.innerHTML = `<h2 class="font-display text-lg text-amber-300 font-semibold mb-2">Admin: Self-test the modes</h2>
+      <p class="text-slate-300 text-body-sm mb-4">The AI plays a believable user against each mode's real prompts for 5 exchanges, then the real scorer grades it. Nothing is stored and no rounds are charged. Takes a few minutes.</p>
+      <div class="flex flex-wrap gap-2 mb-3">
+        <button type="button" data-run="all" class="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm">Run all new modes</button>
+        ${["rights", "auditor", "trafficstop", "deescalate", "testify", "customer", "salary", "speaking", "interview"].map((m) => `<button type="button" data-run="${m}" class="btn-ghost px-3 py-2 text-xs">${m}</button>`).join("")}
+      </div>
+      <div data-out class="space-y-4 text-sm"></div>`;
+    e.appendChild(_adminQa);
+    _adminQa.addEventListener("click", async (ev) => {
+      const b = ev.target.closest("[data-run]");
+      if (!b) return;
+      const out = _adminQa.querySelector("[data-out]");
+      const list = b.dataset.run === "all" ? ["rights", "auditor", "trafficstop", "deescalate", "testify", "customer", "salary", "speaking"] : [b.dataset.run];
+      _adminQa.querySelectorAll("[data-run]").forEach((x) => (x.disabled = true));
+      for (const m of list) {
+        const box = document.createElement("div");
+        box.className = "rounded-xl border border-ink-700 bg-ink-900 p-4";
+        box.innerHTML = `<div class="font-semibold text-white">${m} <span class="text-slate-500 font-normal">running…</span></div>`;
+        out.prepend(box);
+        try {
+          const res = await zt("/api/account/admin/selftest", { mode: m, exchanges: 5 });
+          const sc = res.scores || {};
+          const dims = sc.dimensions ? Object.entries(sc.dimensions).map(([k, v]) => `${Lt(k)} ${v}`).join(" · ") : "";
+          box.innerHTML = `<div class="font-semibold text-white">${Lt(res.name)} <span class="text-slate-500 font-normal">${Math.round(res.ms / 1000)}s · AI = ${Lt(res.roles.ai)} · user = ${Lt(res.roles.human)}</span></div>
+            <div class="mt-2 space-y-2">${res.turns.map((t) => `<div class="${t.role === "user" ? "text-accent-200" : "text-slate-200"}"><b>${t.role === "user" ? "USER" : "AI"}:</b> ${Lt(t.text)}</div>`).join("")}</div>
+            <div class="mt-3 pt-3 border-t border-ink-700 text-slate-300"><b>Scorecard:</b> ${sc.overall != null ? `${sc.overall}/10 · ` : ""}${dims}<div class="mt-1 text-slate-400">${Lt(sc.notes || sc.headline || "")}</div></div>`;
+        } catch (err) {
+          box.innerHTML = `<div class="font-semibold text-white">${m}</div><div class="text-red-300 mt-1">${Lt(err?.body?.error || err?.message || "failed")}</div>${err?.body?.turns ? `<div class="mt-2 space-y-2">${err.body.turns.map((t) => `<div><b>${t.role === "user" ? "USER" : "AI"}:</b> ${Lt(t.text)}</div>`).join("")}</div>` : ""}`;
+        }
+      }
+      _adminQa.querySelectorAll("[data-run]").forEach((x) => (x.disabled = false));
+    });
+
     const _adminFb = document.createElement("div");
     _adminFb.className = "card card-lift p-6 mb-10 border border-amber-500/30 bg-amber-500/5";
     _adminFb.innerHTML = `<h2 class="font-display text-lg text-amber-300 font-semibold mb-2">Admin: Feedback</h2><div data-list class="text-sm text-slate-400">Loading…</div>`;
