@@ -776,7 +776,8 @@
 .photoreal-live.photoreal-keyed .photoreal-key {
   opacity: 1;
 }
-.photoreal-live.photoreal-keyed video.photoreal-video {
+.photoreal-live.photoreal-keyed video.photoreal-video,
+.photoreal-live:not(.photoreal-checked) video.photoreal-video {
   opacity: 0;
 }
 .photoreal-live #avatar-loading {

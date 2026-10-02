@@ -434,9 +434,27 @@ async function ld(i) {
       return;
     }
     i.innerHTML = "";
-    const ORDER = ["interview", "salary", "debate", "historical", "sales", "negotiation", "difficult", "customer", "rights", "auditor", "trafficstop", "deescalate", "testify", "thesis", "expert", "acting", "rapbattle", "witness"];
-    const rank = (id) => (ORDER.indexOf(id) < 0 ? 99 : ORDER.indexOf(id));
-    for (const t of [...e].sort((a, b) => rank(a.id) - rank(b.id))) {
+    // Modes are shown in groups, so a cop and a job-seeker each find their own shelf.
+    const GROUPS = [
+      { title: "Career", blurb: "Interviews, raises and the conversations that decide them.", ids: ["interview", "salary", "difficult"] },
+      { title: "Business & sales", blurb: "Buyers, customers and the deal.", ids: ["sales", "customer", "negotiation"] },
+      { title: "Police training", blurb: "For officers: the encounters that end up on bodycam and in court.", ids: ["trafficstop", "deescalate", "auditor", "testify"] },
+      { title: "Know your rights", blurb: "For everyone else: handle a police encounter calmly.", ids: ["rights"] },
+      { title: "Debate & argument", blurb: "Hold a position under fire.", ids: ["debate", "historical", "thesis", "expert"] },
+      { title: "Performance & faith", blurb: "Scenes, bars and the hardest conversations of all.", ids: ["acting", "rapbattle", "witness"] }
+    ];
+    const byId = Object.fromEntries(e.map((m) => [m.id, m]));
+    const placed = new Set(GROUPS.flatMap((g) => g.ids));
+    const extra = e.filter((m) => !placed.has(m.id));
+    if (extra.length) GROUPS.push({ title: "More", blurb: "", ids: extra.map((m) => m.id) });
+    for (const g of GROUPS) {
+      const modes = g.ids.map((id) => byId[id]).filter(Boolean);
+      if (!modes.length) continue;
+      const h = document.createElement("div");
+      h.className = "col-span-full pt-4 first:pt-0";
+      h.innerHTML = `<h2 class="font-display text-xl font-bold text-white">${Ca(g.title)}</h2>${g.blurb ? `<p class="mt-0.5 text-sm text-slate-400">${Ca(g.blurb)}</p>` : ""}`;
+      i.appendChild(h);
+      for (const t of modes) {
       const n = document.createElement("a");
       n.href = `#/setup/${encodeURIComponent(t.id)}`;
       // Phones get a compact row (icon, name, tagline) so 11 modes fit in ~2 screens; sm+ keeps the tall card.
@@ -451,6 +469,7 @@ async function ld(i) {
         <span aria-hidden="true" class="shrink-0 text-xl leading-none text-accent-400 sm:hidden">›</span>
         <div class="mt-auto hidden pt-4 text-sm font-semibold text-accent-400 sm:block">Set up <span aria-hidden="true" class="inline-block transition-transform group-hover:translate-x-0.5">→</span></div>`;
       i.appendChild(n);
+      }
     }
   } catch {
     ((i.innerHTML = `

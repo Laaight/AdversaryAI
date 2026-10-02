@@ -325,20 +325,21 @@ export class PhotorealAvatar {
     const check = () => {
       if (this.disposed || !this.ready) return;
       const g = isGreen();
-      if (g === null || (g === false && ++checks < 5)) return void (this.keyT = setTimeout(check, 700));
+      if (g === null || (g === false && ++checks < 5)) return void (this.keyT = setTimeout(check, 250));
       decided = true;
       if (g && setup()) {
         this.stage.classList.add("photoreal-keyed");
         draw();
       }
+      this.stage.classList.add("photoreal-checked");
     };
-    this.keyT = setTimeout(check, 400);
+    this.keyT = setTimeout(check, 50);
   }
 
   _stopKeying() {
     clearTimeout(this.keyT);
     cancelAnimationFrame(this.keyRaf);
-    this.stage.classList.remove("photoreal-keyed");
+    this.stage.classList.remove("photoreal-keyed", "photoreal-checked");
   }
 
   _onEvent(m) {
