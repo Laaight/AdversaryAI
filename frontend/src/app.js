@@ -372,6 +372,8 @@ const ch = {
   expert: it.target,
   rapbattle: Dt('<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>', 28),
   witness: Dt('<path d="M12 2v20M5 8h14"/>', 28),
+  rights: Dt('<path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5l8-3z"/>', 28),
+  auditor: Dt('<rect x="3" y="7" width="13" height="10" rx="2"/><path d="M16 11l5-3v8l-5-3z"/>', 28),
 };
 let zs = null;
 async function fa(i = !1) {
@@ -427,7 +429,7 @@ async function ld(i) {
       return;
     }
     i.innerHTML = "";
-    const ORDER = ["interview", "debate", "historical", "sales", "negotiation", "difficult", "thesis", "expert", "acting", "rapbattle", "witness"];
+    const ORDER = ["interview", "debate", "historical", "sales", "negotiation", "difficult", "rights", "auditor", "thesis", "expert", "acting", "rapbattle", "witness"];
     const rank = (id) => (ORDER.indexOf(id) < 0 ? 99 : ORDER.indexOf(id));
     for (const t of [...e].sort((a, b) => rank(a.id) - rank(b.id))) {
       const n = document.createElement("a");
@@ -541,6 +543,8 @@ const mh = {
     thesis: "older-man",
     rapbattle: "man-casual",
     witness: "man-casual",
+    rights: "man-pro",
+    auditor: "man-casual",
     expert: "man-pro",
   },
   gh = {
@@ -699,6 +703,8 @@ const MODE_UI = {
   difficult: { unit: "exchange", def: 8, first: [{ v: "user", t: "You bring it up", s: "Start the talk" }, { v: "opponent", t: "They bring it up", s: "Caught off guard" }], defFirst: "user" },
   acting: { unit: "exchange", def: 8, first: [{ v: "user", t: "You have the first line", s: "" }, { v: "opponent", t: "Partner starts", s: "" }], defFirst: "user" },
   witness: { unit: "exchange", def: 8, first: [{ v: "user", t: "You start", s: "Open the conversation" }, { v: "opponent", t: "They start", s: "They ask you first" }], defFirst: "user" },
+  rights: { unit: "exchange", def: 8, fixedFirst: "opponent", fixedNote: "The officer walks up and speaks first." },
+  auditor: { unit: "exchange", def: 8, fixedFirst: "opponent", fixedNote: "The auditor is already filming and speaks first." },
   rapbattle: { unit: "bars", def: 3, first: [COIN, { v: "user", t: "You drop first", s: "Set the tone" }, { v: "opponent", t: "MC drops first", s: "Answer back" }], defFirst: "cointoss", judge: true },
 };
 const DEFAULT_UI = { unit: "exchange", def: 8, first: [{ v: "user", t: "You start", s: "" }, { v: "opponent", t: "They start", s: "" }], defFirst: "user" };
@@ -859,6 +865,10 @@ function deriveTopic(s, T, figure) {
       return cut(T.theme ? `Rap battle: ${T.theme}` : "Open rap battle");
     case "witness":
       return cut(T.who ? `Sharing the gospel with ${T.who}` : "Sharing the gospel");
+    case "auditor":
+      return cut({ lobby: "Audit: station lobby", sidewalk: "Audit: from the sidewalk", postoffice: "Audit: post office", complaint: "Audit: filming a business", scene: "Audit: near an active scene" }[T.scenario] || "First Amendment audit");
+    case "rights":
+      return cut({ traffic: "Traffic stop", dui: "Late-night stop", walking: "Stopped on the street", passenger: "Passenger in a stopped car", door: "Officers at the door" }[T.scenario] || "Police stop");
     case "expert":
       return cut(T.profession ? `Expert: ${T.profession}` : "Domain expert");
     default:
@@ -1207,6 +1217,8 @@ async function Mh(i, e) {
     else if (isDifficult) label = `Your ${(vs.find((r) => r.id === state.rel)?.label || "partner").toLowerCase()}`;
     else if (s.id === "rapbattle") label = String(T.mcName || "").trim() || "Verse Vice";
     else if (s.id === "witness") label = String(T.who || "").trim() || s.name;
+    else if (s.id === "rights") label = "Officer";
+    else if (s.id === "auditor") label = "Auditor";
     else if (s.id === "interview") label = "Hiring manager";
     else if (s.id === "thesis") label = "Thesis committee";
     else if (s.id === "negotiation") label = String(T.counterpartRole || "").trim() || "Counterpart";
@@ -27940,7 +27952,7 @@ async function qu(i) {
   const curTier = a && /active|trialing/.test(a.status || "") ? a.tier : null;
   const photoLine = photorealLive ? "Photoreal video opponents — 60 min/month" : "Photoreal video opponents (rolling out)";
   const TIER_FEATURES = {
-    debater: ["300 rounds / month", "All 11 practice modes", "Voiced 3D opponents with real lip-sync", "Scorecards + impartial judge verdicts", "Unused rounds roll over"],
+    debater: ["300 rounds / month", "All 13 practice modes", "Voiced 3D opponents with real lip-sync", "Scorecards + impartial judge verdicts", "Unused rounds roll over"],
     coach: ["750 rounds / month — 2.5× Debater", "Everything in Debater", "Best for daily practice, interview season & debate teams", "Unused rounds roll over"],
     champion: ["500 premium rounds / month", photoLine, "Strongest reasoning model — sharper opponents, deeper judge feedback", "Everything in Debater, plus the Pro coach"],
     elite: ["1,000 premium rounds / month", photorealLive ? "Photoreal video opponents — 2 hours/month" : "Photoreal video opponents (rolling out)", "Strongest reasoning model on every round", "Everything in Champion, for daily practice"],
@@ -28931,7 +28943,7 @@ async function renderPublicWatch(container, debateId) {
         <div>
           <span class="text-xs font-bold uppercase tracking-wider text-accent-400">Step Into The Arena</span>
           <h2 class="text-xl sm:text-2xl font-bold text-white mt-1">Think you have better arguments?</h2>
-          <p class="text-sm text-slate-300 mt-1 max-w-lg">Spar directly against ${Vi(personaName)} or any of our 11 practice modes. Real-time 3D voice lip-sync and instant coaching scores.</p>
+          <p class="text-sm text-slate-300 mt-1 max-w-lg">Spar directly against ${Vi(personaName)} or any of our 13 practice modes. Real-time 3D voice lip-sync and instant coaching scores.</p>
         </div>
         <div class="flex flex-col sm:flex-row items-center gap-3 shrink-0 w-full sm:w-auto">
           <a href="#/setup/${encodeURIComponent(debate.mode || "debate")}" class="btn-primary w-full py-3 text-sm sm:w-auto">

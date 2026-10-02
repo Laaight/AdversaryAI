@@ -13,7 +13,7 @@ const PRICING = {
     cta: 'Start free',
     features: [
       '15 rounds on us',
-      'All 11 practice modes',
+      'All 13 practice modes',
       'Voice or text sessions',
       'No credit card to start'
     ]
@@ -27,7 +27,7 @@ const PRICING = {
       cta: 'Start free, upgrade in-app',
       features: [
         '300 sparring rounds per month',
-        'All 11 practice modes',
+        'All 13 practice modes',
         'Voiced 3D opponents with real lip-sync',
         'Scorecards + impartial judge verdicts',
         'Unused rounds roll over'
@@ -116,7 +116,7 @@ function adaptLivePrices(data) {
       cta: 'Start free',
       features: [
         getRounds(trial, 15) + ' sparring rounds on us',
-        'All 11 practice modes',
+        'All 13 practice modes',
         'Voice or text sessions',
         'No credit card to start'
       ]
@@ -130,7 +130,7 @@ function adaptLivePrices(data) {
       cta: 'Start free, upgrade in-app',
       features: [
         getRounds(debater, 300).toLocaleString() + ' sparring rounds per month',
-        'All 11 practice modes',
+        'All 13 practice modes',
         'Voiced 3D opponents with real lip-sync',
         'Scorecards + impartial judge verdicts',
         'Unused rounds roll over'
@@ -206,6 +206,8 @@ const MODES_FALLBACK = [
   { id: 'negotiation', name: 'Negotiation', icon: '🤝', blurb: 'Hone your deal-making against a counterpart who plays hardball.' },
   { id: 'sales', name: 'Sales Roleplay', icon: '📈', blurb: 'Handle every objection — price, timing, competition — until they melt away.' },
   { id: 'difficult', name: 'Difficult Conversations', icon: '💬', blurb: 'Rehearse the hard talks: feedback, conflict, bad news — safely.' },
+  { id: 'rights', name: 'Know Your Rights', icon: '🛡️', blurb: 'Rehearse a traffic stop with a realistic officer — stay calm, follow lawful orders, decline the rest.' },
+  { id: 'auditor', name: 'First Amendment Audit', icon: '📹', blurb: 'For officers: a First Amendment auditor is filming and baiting you. Stay lawful, stay calm, end it clean.' },
   { id: 'rapbattle', name: 'Rap Battle', icon: '🎤', blurb: 'Trade bars against a battle MC with flow, wordplay, and rebuttals.' },
   { id: 'witness', name: 'Evangelism Training', icon: '✝️', blurb: 'Rehearse sharing the gospel with a realistic counterpart — curious, skeptical, or hurting.' },
   { id: 'thesis', name: 'Thesis Defense', icon: '🎓', blurb: 'Defend your thesis against a committee that probes every weakness.' },

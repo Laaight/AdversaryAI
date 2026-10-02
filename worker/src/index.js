@@ -71,7 +71,7 @@ var init_config = __esm({
     "use strict";
     TIERS = {
       trial: { name: "Trial", debates: 15, rounds: 15, lifetime: true, price: 0 },
-      debater: { name: "Debater", priceMonthly: 12, priceAnnual: 129, debatesPerMonth: 300, roundsPerMonth: 300, blurb: "All 11 practice modes, voiced 3D opponents with lip-sync, coaching scorecards, and credit rollover." },
+      debater: { name: "Debater", priceMonthly: 12, priceAnnual: 129, debatesPerMonth: 300, roundsPerMonth: 300, blurb: "All 13 practice modes, voiced 3D opponents with lip-sync, coaching scorecards, and credit rollover." },
       coach: { name: "Coach", priceMonthly: 29, priceAnnual: 315, debatesPerMonth: 750, roundsPerMonth: 750, analytics: true, blurb: "Detailed coaching analytics, scorecard rubrics, and judge feedback. Unused credits roll over." },
       champion: { name: "Champion", priceMonthly: 49, priceAnnual: 529, debatesPerMonth: 500, roundsPerMonth: 500, premiumModel: true, photorealMinutes: 60, blurb: "Photoreal video opponents that look you in the eye, our strongest reasoning model for sharper arguments and deeper judge feedback, and priority speed." },
       elite: { name: "Elite", priceMonthly: 100, debatesPerMonth: 1e3, roundsPerMonth: 1e3, premiumModel: true, photorealMinutes: 120, blurb: "Two hours a month of photoreal video opponents, 1,000 rounds on our strongest reasoning model, for people who practice every day." }
@@ -4232,6 +4232,152 @@ Your real job is to decide whether to hire this person. Listen for evidence, and
     scoringDimensions: ["Empathy", "Clarity", "Composure", "Ownership & next step"],
     introCopy: "Describe the conversation you\u2019re dreading. Let\u2019s rehearse it until it feels manageable."
   },
+  rights: {
+    id: "rights",
+    name: "Know Your Rights",
+    tagline: "Practice a police stop, calmly",
+    description: "Rehearse a traffic stop or street encounter with a realistic officer \u2014 stay calm, do what you must, and decline what you can.",
+    icon: "\u{1F6E1}\uFE0F",
+    setupFields: [
+      {
+        key: "scenario",
+        label: "The encounter",
+        type: "select",
+        options: [
+          { value: "traffic", label: "Traffic stop \u2014 speeding or a broken light" },
+          { value: "dui", label: "Late-night stop \u2014 officer suspects drinking" },
+          { value: "walking", label: "Stopped while walking \u2014 \u201Cyou match a description\u201D" },
+          { value: "passenger", label: "You\u2019re the passenger in a stopped car" },
+          { value: "door", label: "Officers knock at your door" }
+        ]
+      },
+      {
+        key: "officerStyle",
+        label: "The officer",
+        type: "select",
+        options: [
+          { value: "book", label: "By the book \u2014 professional and brisk" },
+          { value: "friendly", label: "Friendly but fishing \u2014 chatty, keeps asking" },
+          { value: "pushy", label: "Pushy \u2014 pressures you to consent and talk" }
+        ]
+      },
+      {
+        key: "state",
+        label: "Your state",
+        type: "text",
+        placeholder: "e.g. Arizona (optional \u2014 some rules differ by state)"
+      },
+      {
+        key: "situation",
+        label: "Anything about your situation",
+        type: "textarea",
+        placeholder: "e.g. I legally carry a firearm in the car; my registration is expired; I had one beer at dinner (optional)"
+      }
+    ],
+    systemPrompt: /* @__PURE__ */ __name((setup) => {
+      const SCENE = {
+        traffic: "You have pulled the user over at night for going 11 over the limit (or a brake light out). Start at the window with your opening line.",
+        dui: "It is 1 a.m. and you have stopped the user for drifting over the line. You suspect drinking and will look for signs of it, then ask them to do field sobriety tests and a portable breath test.",
+        walking: "You have stopped the user on the sidewalk because they loosely match a description of someone from a nearby call. You want ID, where they are coming from, and to pat them down.",
+        passenger: "You have pulled over a car; the user is the front passenger. You deal with the driver first, then turn to the user for ID, questions, and whether they will step out.",
+        door: "You and a partner have knocked on the user's front door about a complaint from a neighbor. You would like to come in and look around, and ask who else is home."
+      };
+      const STYLE = {
+        book: "You are professional, brisk and correct. You make lawful orders clearly, ask for consent once, accept a clear refusal without drama, and move on.",
+        friendly: "You are warm and chatty, and you use that: small talk that fishes for admissions (\u201Cwhere are you coming from tonight?\u201D, \u201Chow much have you had?\u201D), repeated casual requests to \u201Ctake a quick look\u201D, and \u201Cyou don\u2019t mind, right?\u201D phrasing that invites a yes.",
+        pushy: "You lean on people. You repeat requests for consent in different words, imply refusing looks guilty (\u201Cif you\u2019ve got nothing to hide\u2026\u201D), bluff about what you can do (\u201CI can just get a dog out here\u201D), and raise your tone when questioned. You never use force, and a calm, clear, repeated refusal eventually stops you, but you make them work for it."
+      };
+      const level = ["easy", "hard"].includes(setup.difficulty) ? setup.difficulty : "normal";
+      const DIFF = {
+        easy: "DIFFICULTY: EASY. One request or question per turn, plainly worded. Accept a clear refusal the first time. End the stop quickly once the user has handled the basics.",
+        normal: "DIFFICULTY: NORMAL. Push each request about twice in different words before accepting a clear answer. Mix lawful orders in with requests so the user has to tell them apart.",
+        hard: "DIFFICULTY: HARD. Press every opening: vague answers, nervous over-explaining, a half-yes, an admission. Stack a lawful order right after a refused request to see if they conflate them. Only a clear, calm, repeated position stops you."
+      };
+      return `You are roleplaying a police officer so the user can practice handling a police encounter calmly while knowing their rights. ${SCENE[setup.scenario] || SCENE.traffic}${setup.state ? ` This takes place in ${setup.state}.` : ""}${setup.situation ? ` About the user's situation (use it realistically; for example a declared legal firearm gets careful, specific instructions): ${setup.situation}` : ""}
+
+${STYLE[setup.officerStyle] || STYLE.book}
+
+${DIFF[level]}
+
+HOW A REAL STOP WORKS. Ask for license, registration and insurance; ask \u201Cdo you know why I stopped you?\u201D and where they are headed; ask about drinking or anything in the car. Make lawful orders the user must follow: keep hands visible, stay in or step out of the vehicle, hand over documents, and, in a stop with reasonable suspicion, give their name where the state requires it. Make requests the user may decline: consent to search the car, bag, phone or home; answering questions beyond identification; field sobriety tests (declinable in most states, with license consequences for refusing a breath test after arrest). React to how the user actually behaves: calm, polite, brief answers plus a clear \u201CI don\u2019t consent to searches\u201D, \u201CI\u2019m going to remain silent\u201D, or \u201CAm I being detained, or am I free to go?\u201D get a realistic, lawful response (answer whether they are detained; without probable cause, finish the stop with a ticket or warning). Arguing, lecturing you about the law, refusing lawful orders, sudden movements, or reaching for things escalate you realistically: firmer orders, a longer stop, or being asked to step out. Consenting gets the search. If you are given probable cause (an admission, the smell of alcohol, contraband in view), use it. Never claim a power you do not have as a fact (you may bluff only in the pushy style, and you back down from a bluff when calmly challenged). Stay in character, one or two things per turn, under 80 words, spoken plainly like a real officer. Never depict violence; if the user talks about fleeing or fighting, warn them in character that it would turn a ticket into an arrest.`;
+    }, "systemPrompt"),
+    scoringPrompt: /* @__PURE__ */ __name((setup = {}) => `You are a criminal-defense attorney reviewing a practice police encounter (${setup.scenario || "traffic stop"}). Score the user 1-10 on Composure (calm, polite, hands visible, no arguing or over-explaining), Lawful orders followed (documents handed over, stepped out or stayed put when ordered, no resisting; refusing a lawful order caps this at 3), Rights used (clearly declined consent, invoked silence or asked if they were free to go when it mattered, without lecturing; consenting to a search or volunteering admissions caps this at 4), and Clarity (short, unambiguous wording the officer could not twist). Tie the score to how the stop actually ended. In the notes, name the single most important thing they should say differently next time, and quote the exact words to use. Finish the notes with: 'General information for practice, not legal advice; rules differ by state.' Return strict JSON {"dimensions": {"Composure": <1-10>, "Lawful orders followed": <1-10>, "Rights used": <1-10>, "Clarity": <1-10>}, "overall": <1-10>, "notes": "<start with how the stop ended in one plain sentence, then 2-3 sentences of feedback>"}`, "scoringPrompt"),
+    scoringDimensions: ["Composure", "Lawful orders followed", "Rights used", "Clarity"],
+    introCopy: "Pick the encounter. The officer speaks first. Stay calm, follow lawful orders, and decline the rest clearly. General information for practice, not legal advice."
+  },
+  auditor: {
+    id: "auditor",
+    name: "First Amendment Audit",
+    tagline: "For officers: handle a camera without a lawsuit",
+    description: "You\u2019re the officer. A First Amendment auditor is filming and baiting you \u2014 stay lawful, stay calm, and end it clean.",
+    icon: "\u{1F4F9}",
+    setupFields: [
+      {
+        key: "scenario",
+        label: "The call",
+        type: "select",
+        options: [
+          { value: "lobby", label: "Filming in the police station lobby" },
+          { value: "sidewalk", label: "Filming the station or a traffic stop from the sidewalk" },
+          { value: "postoffice", label: "Filming inside a post office or city hall" },
+          { value: "complaint", label: "A business called: someone filming from the public sidewalk" },
+          { value: "scene", label: "Filming close to your active scene" }
+        ]
+      },
+      {
+        key: "auditorStyle",
+        label: "The auditor",
+        type: "select",
+        options: [
+          { value: "polite", label: "Polite and firm \u2014 knows the law cold" },
+          { value: "baiting", label: "Baiting \u2014 insults, keeps asking for your name and badge" },
+          { value: "loud", label: "Loud and theatrical \u2014 playing to the camera" }
+        ]
+      },
+      {
+        key: "agency",
+        label: "Your department and state",
+        type: "text",
+        placeholder: "e.g. Mesa PD, Arizona (optional)"
+      },
+      {
+        key: "situation",
+        label: "Anything about the situation",
+        type: "textarea",
+        placeholder: "e.g. my sergeant told me to get them to leave; the lobby has a 'no filming' sign (optional)"
+      }
+    ],
+    systemPrompt: /* @__PURE__ */ __name((setup) => {
+      const SCENE = {
+        lobby: "You are filming in the public lobby of the police station: the counter, the posted notices, the officers who come out. The lobby is open to the public during business hours.",
+        sidewalk: "You are on the public sidewalk filming the front of the station (or a traffic stop across the street) from a clear distance, not interfering with anything.",
+        postoffice: "You are filming inside the public area of a post office or city hall. Staff got nervous and called the police; you have not been asked to leave by anyone with authority yet.",
+        complaint: "A business owner called the police because you are filming their storefront from the public sidewalk. You never left the sidewalk.",
+        scene: "You are filming an active scene from about 30 feet away, outside any tape, and you will test how close you can get and whether the officer gives a lawful, specific order or just 'back up because I said so'."
+      };
+      const STYLE = {
+        polite: "You are calm, polite and precise. You never raise your voice. You ask clean questions (\u201CAm I being detained?\u201D, \u201CWhat crime do you suspect me of?\u201D, \u201CIs this a lawful order or a request?\u201D) and you quote the law accurately: filming police in public is protected, ID is only required with reasonable suspicion of a crime (in a stop-and-identify state), a sign is not a law, and a request is not an order.",
+        baiting: "You are rude and provoking: you call the officer a tyrant, mock their uniform, keep demanding their name and badge number, and ask if they have read the Constitution. You want them to lose their temper, grab the camera, or make an unlawful demand on video. Everything you say is lawful speech; you never touch them or anyone else.",
+        loud: "You narrate everything to your viewers in a loud showman voice (\u201CLook at this, folks\u201D), repeat the officer's words back dramatically, and ask leading questions. You are more performance than malice, but you push every line."
+      };
+      const level = ["easy", "hard"].includes(setup.difficulty) ? setup.difficulty : "normal";
+      const DIFF = {
+        easy: "DIFFICULTY: EASY. One question or jab per turn. If the officer gives a correct, calm answer, accept it and move on. Wrap up on your own once they have shown they will not take the bait.",
+        normal: "DIFFICULTY: NORMAL. Press each point about twice. Test the basics: a request for ID without suspicion, a demand to stop filming, a vague 'you need to leave', and a 'back up' with no distance. Reward specific, lawful answers by backing off that line.",
+        hard: "DIFFICULTY: HARD. Exploit every slip. If they ask for ID without stating a crime, hammer it. If they say 'you can't film here', quote the law. If they touch the camera or threaten arrest for filming, announce it to the viewers as the lawsuit moment. Only a precise, calm, lawful officer stops you."
+      };
+      return `You are roleplaying a First Amendment auditor, a person who films police and public buildings to test whether officers respect the right to record, so that the user, a POLICE OFFICER, can practice handling it lawfully and calmly. ${SCENE[setup.scenario] || SCENE.lobby}${setup.agency ? ` The user is with ${setup.agency}.` : ""}${setup.situation ? ` About the situation: ${setup.situation}` : ""}
+
+${STYLE[setup.auditorStyle] || STYLE.polite}
+
+${DIFF[level]}
+
+WHAT YOU ARE TESTING. Whether the officer: states a specific lawful basis before demanding ID or ordering you to move; treats a request as a request (\u201Cwould you mind\u2026\u201D) and an order as an order with a reason and a distance; knows that filming in public and in public lobbies is protected and that a posted sign does not make it a crime; never touches the camera, blocks the lens, or threatens arrest for filming; stays polite under insult; knows when the right answer is simply \u201CYou're free to film here. Have a good day\u201D and walks away; and, when there IS a real basis (you cross tape, block a doorway, enter a non-public area, or a property owner trespasses you), gives a clear, specific, lawful instruction. React honestly: a correct, calm, specific answer makes you lose interest in that line; a slip (unlawful demand, a hand on the camera, a threat, a lie about the law, an insult back) gets called out to the camera at once. Stay in character, one thing per turn, under 80 words, spoken plainly. Never touch anyone or anything, never threaten, and never cross a lawful line yourself unless the scenario says you test it.`;
+    }, "systemPrompt"),
+    scoringPrompt: /* @__PURE__ */ __name((setup = {}) => `You are a police legal advisor reviewing bodycam of an officer handling a First Amendment auditor (${setup.scenario || "station lobby"}). Score the officer 1-10 on Lawful basis (every demand for ID, to move, or to stop had a stated, valid legal basis; an ID demand without reasonable suspicion, or 'you can't film here' in a public place, caps this at 3), Composure (polite under provocation, no insults back, no raised voice, no touching the camera; touching the camera or threatening arrest for filming caps this at 2), Clarity (orders stated as orders with a reason and specifics, requests stated as requests, no bluffing), and Resolution (ended the contact quickly and cleanly, or escalated only on real grounds). Judge from what they actually said. In the notes, name the single moment most likely to appear in a lawsuit or a viral video, and quote the exact words they should have used instead. Finish the notes with: 'Training practice, not legal advice; follow your department's policy and state law.' Return strict JSON {"dimensions": {"Lawful basis": <1-10>, "Composure": <1-10>, "Clarity": <1-10>, "Resolution": <1-10>}, "overall": <1-10>, "notes": "<start with how the contact ended in one plain sentence, then 2-3 sentences of feedback>"}`, "scoringPrompt"),
+    scoringDimensions: ["Lawful basis", "Composure", "Clarity", "Resolution"],
+    introCopy: "You\u2019re the officer. The auditor is already filming and speaks first. Stay lawful, stay calm, and end it clean. Training practice, not legal advice."
+  },
   rapbattle: {
     id: "rapbattle",
     name: "Rap Battle",
@@ -4653,6 +4799,10 @@ function turnRoles(debate, mode, setup) {
       return { ai: clip(setup.otherParty, "the other person"), human: "the person starting this conversation" };
     case "witness":
       return { ai: clip(setup.who, "the person being spoken to"), human: "the person sharing their faith" };
+    case "auditor":
+      return { ai: "the AUDITOR (filming)", human: "the OFFICER" };
+    case "rights":
+      return { ai: "the OFFICER", human: setup.scenario === "passenger" ? "the PASSENGER" : setup.scenario === "door" ? "the RESIDENT" : "the person stopped" };
     case "rapbattle":
       return { ai: clip(setup.mcName, "Verse Vice"), human: "the rival MC" };
     case "acting":
@@ -4953,13 +5103,15 @@ var FINAL_BY_MODE = {
   sales: "THE CALL IS ENDING. Decide honestly from what the salesperson actually said. Either commit (agree to the specific next step or to buy), give a conditional next step that names the one thing still missing, or end with a clear no and the real reason. Say it in one to three sentences and do not ask new questions.",
   negotiation: "TIME IS UP. State your FINAL position as a concrete term-by-term offer and say plainly 'deal' or 'no deal' and what it hinges on. Never accept anything below your walk-away. Do not open new issues.",
   difficult: "THE CONVERSATION IS REACHING ITS NATURAL END. Close as a real person would given how you were treated. If the user was respectful, clear and owned their part, soften and name one concrete next step or one thing you now understand. If not, stay guarded but civil and say what you would need. Do not resolve everything.",
+  auditor: "THE ENCOUNTER IS ENDING. Say to the camera, in character, how it went: whether the officer gave you anything usable (name the exact moment), or whether they handled it correctly and you are moving on. One to three sentences, no new questions.",
+  rights: "THE STOP IS ENDING. Decide from what actually happened and say it as the officer would: a warning, a citation, 'you're free to go', or, only if the user gave probable cause or consented to a search that found something, what happens next (a search, a tow, or 'step out, you're being detained'). One to three sentences. No new questions.",
   witness: "THE CONVERSATION IS WINDING DOWN. Say honestly where you land: what resonated, what you are still unsure about, and whether you would talk again or read something. Stay in character and do not force a conversion.",
   expert: "THE SESSION IS OVER. Briefly answer their last point, then say in character what you now understand, what is still unclear, and your decision: an executive says whether you would fund or approve it, a client whether you would sign, a skeptic whether you were persuaded and what would still change your mind, a beginner restates the idea in your own words. Name the one point that landed and the one that did not. No new question.",
   thesis: "THE DEFENSE IS OVER. Briefly respond to their last answer. As the chair, state the committee outcome plainly: Pass, Pass with minor revisions, Major revisions, or Not passed. Name the strongest part of the defense and the main gap, tied to what they said. No new question.",
   acting: "THE SCENE IS ENDING. Land it: reach one decisive beat (a choice, a reveal, a door closing) in one or two short lines, then stop. Do not summarize or explain.",
   rapbattle: "THIS IS THE FINAL ROUND. Deliver your closing bars, escalating from your last verse and ending on a mic-drop tag line, then one gracious line of respect to your rival. Keep it completely clean."
 };
-var PACING_MODES = /* @__PURE__ */ new Set(["sales", "negotiation", "difficult", "witness"]);
+var PACING_MODES = /* @__PURE__ */ new Set(["sales", "negotiation", "difficult", "witness", "rights", "auditor"]);
 function buildTurnPrompt(debate, mode, setup, transcript, isOpening, curRound, targetRounds, forceClosing = false) {
   const debateStyle = setup.debateStyle || "oxford";
   const isDebateMode = debate.mode === "debate" || debate.mode === "historical";
@@ -5086,6 +5238,8 @@ var MODE_RULES = {
   difficult: { first: ["user", "opponent"] },
   acting: { first: ["user", "opponent"] },
   witness: { first: ["user", "opponent"] },
+  rights: { fixedFirst: "opponent" },
+  auditor: { fixedFirst: "opponent" },
   interview: { fixedFirst: "opponent" },
   thesis: { fixedFirst: "opponent" },
   expert: { fixedFirst: "opponent" }
@@ -5187,6 +5341,10 @@ debateRouter.post("/start", async (c) => {
       topic = String(rawSetup.situation || (rawSetup.otherParty ? `Conversation with ${rawSetup.otherParty}` : "Difficult conversation")).trim();
     } else if (mode.id === "witness") {
       topic = rawSetup.who ? `Sharing the gospel with ${rawSetup.who}`.trim() : "Sharing the gospel";
+    } else if (mode.id === "auditor") {
+      topic = ({ lobby: "Audit: station lobby", sidewalk: "Audit: from the sidewalk", postoffice: "Audit: post office", complaint: "Audit: filming a business", scene: "Audit: near an active scene" })[rawSetup.scenario] || "First Amendment audit";
+    } else if (mode.id === "rights") {
+      topic = ({ traffic: "Traffic stop", dui: "Late-night stop", walking: "Stopped on the street", passenger: "Passenger in a stopped car", door: "Officers at the door" })[rawSetup.scenario] || "Police stop";
     } else if (mode.id === "rapbattle") {
       topic = rawSetup.theme ? `Rap battle: ${rawSetup.theme}`.trim() : "Open rap battle";
     } else if (mode.id === "historical" && rawSetup.figureId) {
@@ -5311,7 +5469,7 @@ debateRouter.post("/turn-stream", async (c) => {
   const mode = getMode(debate.mode);
   const setup = parseSetup(debate.setup_json);
   const targetRounds = parseInt(setup.targetRounds ?? "0", 10) || 0;
-  const systemPrompt = mode.systemPrompt({ ...setup, topic: debate.topic }) + (["acting", "rapbattle", "thesis", "expert"].includes(debate.mode) ? "" : difficultyRules(debate.mode, debate.mode === "interview" && interviewLevel(setup) === "entry" && setup.difficulty === "hard" ? "normal" : setup.difficulty || "normal")) + roleLock(debate, mode, setup);
+  const systemPrompt = mode.systemPrompt({ ...setup, topic: debate.topic }) + (["acting", "rapbattle", "thesis", "expert", "rights", "auditor"].includes(debate.mode) ? "" : difficultyRules(debate.mode, debate.mode === "interview" && interviewLevel(setup) === "entry" && setup.difficulty === "hard" ? "normal" : setup.difficulty || "normal")) + roleLock(debate, mode, setup);
   const premium = await isPremium(c, user.id, user.email);
   const forceClosing = body.phase === "closing";
   // When the browser synthesizes speech itself (Azure SDK + visemes), don't pay for a
@@ -6590,14 +6748,14 @@ accountRouter.post("/admin/setup-stripe", async (c) => {
   };
 
   const ITEMS = [
-    { key: "debater", name: "AdversaryAI Debater", description: "300 sparring rounds per month across all 11 practice modes", type: "recurring", amount: 1200, interval: "month" },
+    { key: "debater", name: "AdversaryAI Debater", description: "300 sparring rounds per month across all 13 practice modes", type: "recurring", amount: 1200, interval: "month" },
     { key: "coach", name: "AdversaryAI Coach", description: "750 sparring rounds per month plus coaching analytics and rubrics", type: "recurring", amount: 2900, interval: "month" },
     { key: "champion", name: "AdversaryAI Champion", description: "500 premium rounds per month on the Pro model, with 60 minutes of photoreal video opponents", type: "recurring", amount: 4900, interval: "month" },
     { key: "elite", name: "AdversaryAI Elite", description: "1,000 premium rounds per month on the Pro model, with 2 hours of photoreal video opponents", type: "recurring", amount: 10000, interval: "month" },
     { key: "pack10", name: "100 Sparring Rounds Pack", description: "100 round one-time credit top-up. Credits never expire.", type: "one_time", amount: 900 },
     { key: "pack25", name: "250 Sparring Rounds Pack", description: "250 round one-time credit top-up. Credits never expire.", type: "one_time", amount: 1900 },
     { key: "pack60", name: "600 Sparring Rounds Pack", description: "600 round one-time credit top-up. Credits never expire.", type: "one_time", amount: 3900 },
-    { key: "debater_annual", productKey: "debater", name: "AdversaryAI Debater", description: "300 sparring rounds per month across all 11 practice modes", type: "recurring", amount: 12900, interval: "year" },
+    { key: "debater_annual", productKey: "debater", name: "AdversaryAI Debater", description: "300 sparring rounds per month across all 13 practice modes", type: "recurring", amount: 12900, interval: "year" },
     { key: "coach_annual", productKey: "coach", name: "AdversaryAI Coach", description: "750 sparring rounds per month plus coaching analytics and rubrics", type: "recurring", amount: 31500, interval: "year" },
     { key: "champion_annual", productKey: "champion", name: "AdversaryAI Champion", description: "500 premium rounds per month on the Pro model, with 60 minutes of photoreal video opponents", type: "recurring", amount: 52900, interval: "year" },
     { key: "video30", productKey: "video", name: "Photoreal Video Minutes", description: "Extra minutes of photoreal video opponents for Champion members. Never expire.", type: "one_time", amount: 1500 },
