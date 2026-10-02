@@ -2444,7 +2444,9 @@ async function getSubscription(db, userId) {
 __name(getSubscription, "getSubscription");
 var ACTIVE_STATUSES = /* @__PURE__ */ new Set(["active", "trialing", "past_due"]);
 function isSubscriptionActive(sub) {
-  return !!sub && sub.tier !== "none" && ACTIVE_STATUSES.has(sub.status);
+  if (!sub || sub.tier === "none" || !ACTIVE_STATUSES.has(sub.status)) return false;
+  if (sub.status === "past_due" && Number(sub.current_period_end) > 0 && Date.now() > Number(sub.current_period_end) * 1e3 + 3 * 864e5) return false;
+  return true;
 }
 __name(isSubscriptionActive, "isSubscriptionActive");
 function resolvePlan(sub) {
@@ -2495,6 +2497,13 @@ async function stripePost(env, path, params) {
   return data;
 }
 __name(stripePost, "stripePost");
+async function stripeGet(env, path) {
+  const res = await fetch(`${STRIPE_API}${path}`, { headers: { Authorization: `Basic ${btoa(`${env.STRIPE_SECRET_KEY}:`)}` } });
+  const data = await res.json();
+  if (!res.ok) throw new Error(`Stripe API ${path} failed (${res.status}): ${JSON.stringify(data)}`);
+  return data;
+}
+__name(stripeGet, "stripeGet");
 async function requireUser(c) {
   return await getSessionUser(c);
 }
@@ -3027,7 +3036,17 @@ orgsRouter.post("/:id/portal", async (c) => {
 var SESSION_COOKIE = "adversaryai_session";
 var SESSION_MAX_AGE = 60 * 60 * 24 * 30;
 var SALT_BYTES = 16;
-var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// One hash per person: lower-case, and Gmail's dots/plus-tags collapsed.
+async function emailHash(email) {
+  let e = String(email || "").trim().toLowerCase();
+  const [local, domain] = e.split("@");
+  if (domain === "gmail.com" || domain === "googlemail.com") e = `${local.split("+")[0].replace(/\./g, "")}@gmail.com`;
+  else if (local && domain) e = `${local.split("+")[0]}@${domain}`;
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(e));
+  return Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+__name(emailHash, "emailHash");
+var EMAIL_RE = /^[^\s@"'<>`\\]+@[^\s@"'<>`\\]+\.[^\s@"'<>`\\]+$/;
 // Legacy (v0) hash: one SHA-256. Kept only to verify old accounts, which are re-hashed on login.
 async function hashPasswordLegacy(password, saltHex) {
   return sha256Hex(`${saltHex}:${password}`);
@@ -3137,9 +3156,25 @@ authRouter.post("/signup", async (c) => {
   const salt = newId(SALT_BYTES);
   const passwordHash = await hashPassword(password, salt);
   const id = newId();
+  // A returning email picks up the trial where it left off (see delete-account).
+  let priorTrial = 0, priorBalance = 0;
+  try {
+    const prior = await c.env.DB.prepare("SELECT trial_used, credit_balance FROM retired_trials WHERE email_hash = ?").bind(await emailHash(email)).first();
+    if (prior) {
+      priorTrial = Number(prior.trial_used || 0);
+      priorBalance = Number(prior.credit_balance || 0);
+    }
+  } catch {
+  }
   await c.env.DB.prepare(
-    "INSERT INTO users (id, email, password_hash, salt, created_at) VALUES (?, ?, ?, ?, ?)"
-  ).bind(id, email, passwordHash, salt, nowIso()).run();
+    "INSERT INTO users (id, email, password_hash, salt, created_at, trial_debates_used) VALUES (?, ?, ?, ?, ?, ?)"
+  ).bind(id, email, passwordHash, salt, nowIso(), priorTrial).run();
+  if (priorBalance < 0) {
+    try {
+      await c.env.DB.prepare("INSERT INTO credit_ledger (user_id, delta, reason, created_at) VALUES (?, ?, 'carried_refund', ?)").bind(id, priorBalance, nowIso()).run();
+    } catch {
+    }
+  }
   if (invite) {
     await c.env.DB.prepare(
       "INSERT INTO org_members (org_id, user_id, role, joined_at) VALUES (?, ?, ?, ?)"
@@ -3180,7 +3215,7 @@ authRouter.post("/delete-account", async (c) => {
   const user = await getSessionUser(c);
   if (!user) return c.json({ error: "unauthorized" }, 401);
   // Password guesses against a stolen session are throttled like logins.
-  if (!(await rateLimit(c.env.DB, `delete:${user.id}`, 5, 3600))) return c.json({ error: "rate_limited", message: "Too many attempts — try again in an hour." }, 429);
+  if (!(await rateLimit(c.env.DB, `delete:${user.id}`, 5, 3600)) || !(await rateLimit(c.env.DB, `delete:${clientIp(c)}`, 5, 3600))) return c.json({ error: "rate_limited", message: "Too many attempts — try again in an hour." }, 429);
   const body = await c.req.json().catch(() => ({}));
   // getSessionUser returns only id + email; the hash and salt live on the full row.
   const full = await getUserById(c.env.DB, user.id);
@@ -3204,6 +3239,16 @@ authRouter.post("/delete-account", async (c) => {
       console.error("cancel on delete", e?.message || e);
       return c.json({ error: "billing_cancel_failed", message: "We couldn't cancel your subscription just now, so your account was not deleted. Please try again in a minute." }, 502);
     }
+  }
+  // The free trial belongs to the email, not the account row: deleting and re-registering does not
+  // reset it, and a refunded pack's negative balance follows the person.
+  try {
+    const trialRow = await db.prepare("SELECT trial_debates_used FROM users WHERE id = ?").bind(user.id).first();
+    const bal = await creditBalance(db, user.id);
+    await db.prepare("CREATE TABLE IF NOT EXISTS retired_trials (email_hash TEXT PRIMARY KEY, trial_used INTEGER NOT NULL DEFAULT 0, credit_balance INTEGER NOT NULL DEFAULT 0, deleted_at TEXT NOT NULL)").run();
+    await db.prepare("INSERT OR REPLACE INTO retired_trials (email_hash, trial_used, credit_balance, deleted_at) VALUES (?, ?, ?, ?)").bind(await emailHash(user.email), Number(trialRow?.trial_debates_used || 0), Math.min(0, bal), nowIso()).run();
+  } catch (e) {
+    console.error("retire trial", e?.message || e);
   }
   const debates = await db.prepare("SELECT id FROM debates WHERE user_id = ?").bind(user.id).all();
   const ids = (debates.results ?? []).map((r) => r.id);
@@ -3249,7 +3294,13 @@ authRouter.get("/me", async (c) => {
   const orgs = await getUserOrgs(c.env.DB, user.id);
   const org = orgs[0] ? { id: orgs[0].org.id, name: orgs[0].org.name, role: orgs[0].role } : null;
   const champion = await isPremium(c, user.id, user.email);
-  return c.json({ id: user.id, email: user.email, plan: resolvePlan(sub), org, isOwner, adminMode, champion, photoreal: !!c.env.LIVEAVATAR_API_KEY });
+  let remainingRounds = null;
+  try {
+    const avail = await checkRoundsAvailable(c, user.id, user.email);
+    remainingRounds = Number.isFinite(avail?.remaining) ? avail.remaining : null;
+  } catch {
+  }
+  return c.json({ id: user.id, email: user.email, plan: resolvePlan(sub), org, isOwner, adminMode, champion, remainingRounds, photoreal: !!c.env.LIVEAVATAR_API_KEY });
 });
 
 // worker/src/model.ts
@@ -4137,8 +4188,8 @@ Your real job is to decide whether to hire this person. Listen for evidence, and
         help: "Who sits across the table from you?"
       }
     ],
-    systemPrompt: /* @__PURE__ */ __name((setup) => `You are the ${setup.counterpartRole || "counterpart"} in this negotiation: ${setup.scenario || "a business deal"}${setup.stakes ? ` (stakes: ${setup.stakes})` : ""}. The user's goal is: ${setup.yourGoal || "to get the best deal possible"}. Privately fix your own numbers before your first reply: an opening anchor well above what you would accept, a realistic target, and a walk-away you never reveal. Negotiate like a professional: anchor first and high, concede in small shrinking steps and always trade ("I can move on X if you move on Y"), cite constraints such as budget, approvals or policy, use short silences ("Hmm. That is a stretch."), ask questions that uncover their real interests, and reward a well-reasoned trade. Never fold to a bare demand; move only when they give a reason or a concession.${setup.yourWalkAway ? ` Their walk-away is ${setup.yourWalkAway}; do not reveal that you know it.` : ""} Keep each message under 90 words.`, "systemPrompt"),
-    scoringPrompt: /* @__PURE__ */ __name((setup = {}) => `You are a negotiation coach reviewing a mock negotiation${setup.scenario ? ` (${setup.scenario})` : ""}. The user's goal was: ${setup.yourGoal || "the best deal possible"}.${setup.yourWalkAway ? ` Their walk-away was: ${setup.yourWalkAway}.` : ""} Score the user 1-10 on Preparation & anchoring (did they open with a confident, justified anchor and know their numbers), Value creation (did they find trades and interests rather than only haggling), Outcome (how the final terms compare to their goal and walk-away; no deal caps this at 4), and Rapport (firm but constructive). Firmness alone is not a virtue: refusing every trade is a failure of value creation. Return strict JSON {"dimensions": {"Preparation & anchoring": <1-10>, "Value creation": <1-10>, "Outcome": <1-10>, "Rapport": <1-10>}, "overall": <1-10>, "notes": "<start with the outcome in one plain sentence, e.g. They settled at $98k with a signing bonus, then 2-3 sentences of feedback>"}`, "scoringPrompt"),
+    systemPrompt: /* @__PURE__ */ __name((setup) => `You are the ${setup.counterpartRole || "counterpart"} in this negotiation: ${setup.scenario || "a business deal"}${setup.stakes ? ` (stakes: ${setup.stakes})` : ""}. The user's goal is: ${setup.yourGoal || "to get the best deal possible"}. Privately fix your own numbers before your first reply: an opening anchor well above what you would accept, a realistic target, and a walk-away you never reveal. Negotiate like a professional: anchor first and high, concede in small shrinking steps and always trade ("I can move on X if you move on Y"), cite constraints such as budget, approvals or policy, use short silences ("Hmm. That is a stretch."), ask questions that uncover their real interests, and reward a well-reasoned trade. Never fold to a bare demand; move only when they give a reason or a concession.${setup.yourWalkAway ? ` They have a walk-away point you do not know; find it the way a real negotiator would.` : ""} Keep each message under 90 words.`, "systemPrompt"),
+    scoringPrompt: /* @__PURE__ */ __name((setup = {}) => `You are a negotiation coach reviewing a mock negotiation${setup.scenario ? ` (${setup.scenario})` : ""}. The user's goal was: ${setup.yourGoal || "the best deal possible"}.${setup.yourWalkAway ? ` Their walk-away was: ${setup.yourWalkAway}.` : ""} Score the user 1-10 on Preparation & anchoring (did they open with a confident, justified anchor and know their numbers), Value creation (did they find trades and interests rather than only haggling), Outcome (how the final terms compare to their goal and walk-away; no deal caps this at 4, unless the counterpart's final offer was worse than the user's stated walk-away, in which case walking away was correct and scores 7 or higher), and Rapport (firm but constructive). Firmness alone is not a virtue: refusing every trade is a failure of value creation. Return strict JSON {"dimensions": {"Preparation & anchoring": <1-10>, "Value creation": <1-10>, "Outcome": <1-10>, "Rapport": <1-10>}, "overall": <1-10>, "notes": "<start with the outcome in one plain sentence, e.g. They settled at $98k with a signing bonus, then 2-3 sentences of feedback>"}`, "scoringPrompt"),
     scoringDimensions: ["Preparation & anchoring", "Value creation", "Outcome", "Rapport"],
     introCopy: "Set the scene and your goal. Your counterpart is already at the table."
   },
@@ -4625,7 +4676,7 @@ What you are testing: whether the officer answers only the question asked, in pl
         normal: "DIFFICULTY: NORMAL. Make them earn it: reject the first offer if it came before an apology, bring up a second grievance mid-way, and test whether they promise something they can't deliver.",
         hard: "DIFFICULTY: HARD. Interrupt, repeat yourself, change demands, push for more than policy allows, and pounce on any excuse, blame, or 'that's our policy'. Only genuine acknowledgment, ownership, a clear specific fix, and calm boundaries get you there."
       };
-      return `You are roleplaying an ANGRY CUSTOMER so the user, who works as ${setup.role || "a customer service rep"}, can practice handling it. What happened: ${setup.complaint || "an order went wrong"}. ${S[setup.customerStyle] || S.furious}${setup.canOffer ? ` (The user is allowed to offer: ${setup.canOffer}. You do not know this.)` : ""}
+      return `You are roleplaying an ANGRY CUSTOMER so the user, who works as ${setup.role || "a customer service rep"}, can practice handling it. What happened: ${setup.complaint || "an order went wrong"}. ${S[setup.customerStyle] || S.furious}
 
 ${DIFF[level]}
 
@@ -4713,7 +4764,7 @@ Track your anger privately from 10 down. Lower it: being allowed to finish, a sp
 
 ${DIFF[level]}
 
-Keep a private budget: you can go to roughly 12 percent above what is on the table on base, plus one or two non-salary items (signing bonus, extra PTO, a title, remote days, an earlier review), and you never say your ceiling out loud. The user wants: ${setup.target || "more"} (you do not know this).${setup.leverage ? ` If the user brings up their leverage or evidence (${setup.leverage}), take it seriously and move; if they never mention it, don't.` : ""} React realistically: a specific number with a reason moves you; 'whatever you think is fair' gets nothing; a range gets its bottom; an ultimatum without a real alternative makes you cooler; a calm, warm user who makes it easy to say yes gets the most. Speak in short natural lines, under 80 words. Stay in character.`;
+Keep a private budget: you can go to roughly 12 percent above what is on the table on base, plus one or two non-salary items (signing bonus, extra PTO, a title, remote days, an earlier review), and you never say your ceiling out loud. You do not know what the user is hoping for; they have to tell you.${setup.leverage ? ` If the user brings up their leverage or evidence (${setup.leverage}), take it seriously and move; if they never mention it, don't.` : ""} React realistically: a specific number with a reason moves you; 'whatever you think is fair' gets nothing; a range gets its bottom; an ultimatum without a real alternative makes you cooler; a calm, warm user who makes it easy to say yes gets the most. Speak in short natural lines, under 80 words. Stay in character.`;
     }, "systemPrompt"),
     scoringPrompt: /* @__PURE__ */ __name((setup = {}) => `You are a compensation coach reviewing a practice pay negotiation (${setup.kind || "job offer"}, ${setup.role || "role"}). Starting point: ${setup.current || "unknown"}. The user wanted: ${setup.target || "more"}. Score 1-10 on Anchoring (named a specific, justified number first instead of a range or 'what can you do'; naming a range or letting the other side set the number caps this at 4), Evidence (used market data, impact and alternatives; vague 'I deserve it' caps this at 4), Outcome (how close to their target, counting the whole package, and whether they accepted too early or pushed past the point of damage), and Poise (calm, warm, comfortable with silence, no apologizing or over-explaining). In the notes, name the moment that cost them the most money and quote the exact line to use instead. Return strict JSON {"dimensions": {"Anchoring": <1-10>, "Evidence": <1-10>, "Outcome": <1-10>, "Poise": <1-10>}, "overall": <1-10>, "notes": "<start with the final package in one plain sentence, then 2-3 sentences of feedback>"}`, "scoringPrompt"),
     scoringDimensions: ["Anchoring", "Evidence", "Outcome", "Poise"],
@@ -5028,6 +5079,19 @@ __name(getTierQuotas, "getTierQuotas");
 // "Unused rounds roll over": at the first check in a new month, a subscriber's unused rounds
 // from the previous month are credited to their wallet (capped at one month's quota).
 // The usage_monthly row doubles as the "was subscribed that month" marker.
+// The plan's rounds for a calendar month. The month the subscription starts in is prorated by the
+// days it actually covers, so a late-month signup can't collect a whole month for a few days.
+function monthQuota(quota, sub, month) {
+  const start = Number(sub?.current_period_start || 0);
+  if (!start || !quota) return quota;
+  const d = new Date(start * 1e3);
+  if (d.toISOString().slice(0, 7) !== month) return quota;
+  const [y, mo] = month.split("-").map(Number);
+  const days = new Date(Date.UTC(y, mo, 0)).getUTCDate();
+  const covered = days - d.getUTCDate() + 1;
+  return Math.max(Math.ceil(quota * 0.1), Math.ceil(quota * covered / days));
+}
+__name(monthQuota, "monthQuota");
 function prevMonth(m) {
   const [y, mo] = m.split("-").map(Number);
   const d = new Date(Date.UTC(y, mo - 2, 1));
@@ -5037,11 +5101,15 @@ __name(prevMonth, "prevMonth");
 async function settleRollover(db, userId, sub, quotas, month) {
   try {
     await db.prepare("INSERT OR IGNORE INTO usage_monthly (user_id, month, debates_used) VALUES (?, ?, 0)").bind(userId, month).run();
+    if (sub.status === "past_due") return;
     const pm = prevMonth(month);
     const row = await db.prepare("SELECT debates_used FROM usage_monthly WHERE user_id = ? AND month = ?").bind(userId, pm).first();
     if (!row) return;
-    const quota = quotas[sub.tier] ?? 0;
-    const unused = Math.max(0, Math.min(quota, quota - Number(row.debates_used || 0)));
+    // A subscription that only started late last month earned a prorated quota, not a full one.
+    const quota = monthQuota(quotas[sub.tier] ?? 0, sub, pm);
+    // Up to a third of a month rolls over: enough that an idle month isn't wasted, not enough to
+    // bank a second month and run the plan at a loss.
+    const unused = Math.max(0, Math.min(Math.floor(quota / 3), quota - Number(row.debates_used || 0)));
     if (unused <= 0) return;
     await ensureLedgerIndexes(db);
     await db.prepare(
@@ -5098,7 +5166,7 @@ async function consumeRound(c, userId, email) {
   const sub = await getSubscription(db, userId);
   if (isSubscriptionActive(sub)) {
     await settleRollover(db, userId, sub, quotas, month);
-    const quota = quotas[sub.tier] ?? 0;
+    const quota = monthQuota(quotas[sub.tier] ?? 0, sub, month);
     const used = await getMonthlyUsage(db, userId, month);
     if (used < quota) {
       await incrementMonthlyUsage(db, userId, month);
@@ -5240,7 +5308,7 @@ function roleTranscript(turns, debate, mode, setup) {
 }
 __name(roleTranscript, "roleTranscript");
 var VOICE_RULE = "\n\nSPOKEN DELIVERY: your reply is read aloud by a voice, so write plain spoken sentences only. No markdown, bullet points, numbered lists, headings, emoji, stage directions or text in parentheses. Say numbers and years the way you would speak them, and never write out web addresses or citations. Stop when your point is made.";
-var SAFETY_RULE = "\n\nSAFETY: this is a practice tool. If the USER (not the character) says they want to hurt themselves or someone else, or describes abuse or a crisis they are living through, drop the role at once, say in one or two warm sentences that you are an AI practice partner and this sounds important, encourage them to reach a trusted person or a crisis line (in the US, call or text 988), and offer to continue afterwards. Never argue with or judge that. Never produce sexual content involving minors, threats against real people, or harassment of a named private individual.";
+var SAFETY_RULE = "\n\nSAFETY: this is a practice tool, and the user is rehearsing a hard situation on purpose. Lines spoken in role, and descriptions of the situation being practiced (a crisis call, a breakup, abuse they are preparing to confront), are part of the rehearsal: stay in role. Only if the user clearly steps outside the scene in their own voice and says they intend to hurt themselves or someone else right now, drop the role, say in one or two warm sentences that you are an AI practice partner and this sounds important, encourage them to reach a trusted person or a crisis line (in the US, call or text 988), and offer to continue afterwards. Never argue with or judge that. Never produce sexual content involving minors, threats against real people, or harassment of a named private individual.";
 function roleLock(debate, mode, setup) {
   const r = turnRoles(debate, mode, setup);
   return `\n\nROLE LOCK: You are ${r.ai}. The user is ${r.human}. Write ONLY your own next line as ${r.ai} \u2014 never write the user's lines, never switch sides or roles, and never add speaker labels.` + VOICE_RULE + SAFETY_RULE;
@@ -5320,7 +5388,7 @@ function parseScores(raw2, dimensions, humanText = "") {
     const got = dims.filter((d) => d.score != null).map((d) => d.score);
     if (got.length >= 2) {
       const mean = got.reduce((a, b) => a + b, 0) / got.length;
-      if (overall == null || Math.abs(overall - mean) > 1) overall = Math.min(10, Math.max(1, Math.round(mean)));
+      if (overall == null || overall > mean + 1) overall = Math.min(10, Math.max(1, Math.round(mean)));
     }
     if (dims.length && got.length * 2 < dims.length) return { ...fallback(), failed: true };
     return {
@@ -5362,19 +5430,40 @@ CALIBRATION: 1-2 = barely engaged; 3-4 = beginner with major gaps; 5 = competent
 
 COACHING FIELDS: in the SAME JSON object, also include "headline" (at most 10 words, your verdict on THIS session), "topPriority" ({"skill": "<one of the scored dimensions>", "why": "<one sentence>"}), "strength" (the one thing to keep doing), "nextDrill" (one concrete five-minute exercise for the next session, e.g. answer every objection in two sentences and then ask a question), and "moments": exactly 1 strength and 2 misses, each {"type": "strength" or "miss", "quote": "<copied word for word from a HUMAN turn, 25 words or fewer>", "what": "<what happened, one sentence>", "insteadSay": "<for a miss: a better line they could have said>"}. Quotes MUST be copied exactly from the transcript; never invent one. Never write generic praise such as "good job"; cite something specific or say nothing. Keep "notes" as two or three plain sentences.`;
 // Deterministic backstop: a handful of words can't earn a good grade, whatever the model says.
-function capLowEffortScores(scores, turnRows) {
-  const words = turnRows
-    .filter((t) => t.role === "user")
-    .reduce((n, t) => n + String(t.text || "").trim().split(/\s+/).filter(Boolean).length, 0);
+// Not for the modes that teach short answers (the witness stand, a police stop).
+var SHORT_ANSWER_MODES = /* @__PURE__ */ new Set(["testify", "rights", "trafficstop"]);
+function capLowEffortScores(scores, turnRows, modeId) {
+  if (SHORT_ANSWER_MODES.has(modeId)) return scores;
+  const users = turnRows.filter((t) => t.role === "user");
+  const words = users.reduce((n, t) => n + String(t.text || "").trim().split(/\s+/).filter(Boolean).length, 0);
   if (words >= 25 || scores.overall == null) return scores;
   const cap = words < 10 ? 2 : 3;
   return {
     ...scores,
     overall: Math.min(scores.overall, cap),
     dimensions: scores.dimensions.map((d) => ({ ...d, score: d.score == null ? null : Math.min(d.score, cap) })),
-    notes: `${scores.notes ? scores.notes + " " : ""}(You spoke only ${words} word${words === 1 ? "" : "s"} in total, so the score is capped — make full arguments to earn a higher grade.)`.trim()
+    notes: `${scores.notes ? scores.notes + " " : ""}(You said only ${words} word${words === 1 ? "" : "s"} in total, so the score is capped — give full answers to earn a higher grade.)`.trim()
   };
 }
+// The prompts promise that the number agrees with the outcome ("not hired" can't be an 8/10);
+// the model doesn't always keep that promise, so the outcome in the notes wins.
+var VERDICT_CAPS = {
+  interview: [[/\b(not (be )?(hired|offered|advanc)|no offer|would not hire|wouldn.t hire|declin|pass on (you|them|the candidate)|not moving forward|unsuccessful)/i, 5]],
+  thesis: [[/\bnot passed\b/i, 3], [/\bmajor revisions\b/i, 5], [/\bminor revisions\b/i, 6]],
+  sales: [[/\b(no next step|did not (agree|commit|buy)|declined|no sale|not (buying|interested)|walked away)/i, 6]],
+  salary: [[/\b(no (deal|agreement|change)|rejected|withdrew|offer stands|nothing changed)/i, 6]],
+  pitch: [[/\b(pass(ed)?|not investing|no term sheet)\b/i, 5]]
+};
+function clampToVerdict(scores, modeId) {
+  const rules = VERDICT_CAPS[modeId];
+  if (!rules || scores.overall == null) return scores;
+  const head = String(scores.notes || "").slice(0, 220);
+  for (const [re, cap] of rules) {
+    if (re.test(head) && scores.overall > cap) return { ...scores, overall: cap };
+  }
+  return scores;
+}
+__name(clampToVerdict, "clampToVerdict");
 __name(capLowEffortScores, "capLowEffortScores");
 function emptyScores(dimensions, notes) {
   return {
@@ -5499,6 +5588,12 @@ __name(isActingScript, "isActingScript");
 // win at any level is a real win. The honesty rule (no invented evidence) applies at every level.
 var DIFFICULTY_LEVELS = ["easy", "normal", "hard"];
 var HONEST_EVIDENCE_RULE = " Never invent statistics, studies, quotes, or sources; argue from reasoning and widely known facts, and say “I don’t know” rather than making something up.";
+// An interviewer has no side to hold and nothing to concede; difficulty is how hard they probe.
+var INTERVIEW_DIFF = {
+  easy: "\n\nDIFFICULTY: EASY. Ask one clear, common question at a time and accept a reasonable answer without follow-ups. Be warm. A decent candidate gets an offer." + HONEST_EVIDENCE_RULE,
+  normal: "\n\nDIFFICULTY: NORMAL. Follow up once when an answer is vague or generic (\u201cCan you give me a specific example?\u201d). Keep the bar where a real hiring manager for this role would set it." + HONEST_EVIDENCE_RULE,
+  hard: "\n\nDIFFICULTY: HARD. Follow up twice on anything vague, probe numbers and contradictions, ask what they would do differently, and hold a high bar: an offer only for a clearly strong candidate. Stay professional; this is a tough interviewer, not a hostile one." + HONEST_EVIDENCE_RULE
+};
 function difficultyRules(modeId, level) {
   const agree = modeId === "sales" ? "agree to buy (or to a clear next step)" : modeId === "negotiation" ? "accept a reasonable deal" : modeId === "difficult" ? "soften and agree to a concrete next step" : modeId === "witness" ? "open the door to another conversation" : null;
   const LEN_OVERRIDE = " (This length limit overrides any other length mentioned.)";
@@ -5714,8 +5809,8 @@ async function hasPaid(c, userId, email) {
   const sub = await getSubscription(c.env.DB, userId);
   if (sub && isSubscriptionActive(sub)) return true;
   try {
-    const row = await c.env.DB.prepare("SELECT 1 AS x FROM credit_ledger WHERE user_id = ? AND reason = 'pack_purchase' LIMIT 1").bind(userId).first();
-    return !!row;
+    const row = await c.env.DB.prepare("SELECT COALESCE(SUM(delta), 0) AS net FROM credit_ledger WHERE user_id = ? AND reason IN ('pack_purchase', 'refund')").bind(userId).first();
+    return Number(row?.net || 0) > 0;
   } catch {
     return false;
   }
@@ -5904,8 +5999,8 @@ debateRouter.post("/turn-stream", async (c) => {
   const text = String(body.text ?? "").trim();
   const isOpening = body.action === "open";
   if (!debateId || (!text && !isOpening)) return c.json({ error: "debateId_and_text_required" }, 400);
-  if (text.length > 4e3) return c.json({ error: "text_too_long" }, 400);
   const debate = await getOwnedDebate(c, debateId, user.id);
+  if (text.length > (debate?.mode === "speaking" ? 12e3 : 4e3)) return c.json({ error: "text_too_long" }, 400);
   if (!debate) return c.json({ error: "debate_not_found" }, 404);
   if (debate.ended_at) return c.json({ error: "debate_ended" }, 400);
   if (isOpening) {
@@ -5915,7 +6010,7 @@ debateRouter.post("/turn-stream", async (c) => {
   const mode = getMode(debate.mode);
   const setup = parseSetup(debate.setup_json);
   const targetRounds = parseInt(setup.targetRounds ?? "0", 10) || 0;
-  const systemPrompt = mode.systemPrompt({ ...setup, topic: debate.topic }) + (["acting", "rapbattle", "thesis", "expert", "rights", "auditor", "trafficstop", "deescalate", "testify", "customer", "salary", "speaking"].includes(debate.mode) ? "" : difficultyRules(debate.mode, debate.mode === "interview" && interviewLevel(setup) === "entry" && setup.difficulty === "hard" ? "normal" : setup.difficulty || "normal")) + roleLock(debate, mode, setup);
+  const systemPrompt = mode.systemPrompt({ ...setup, topic: debate.topic }) + (["acting", "rapbattle", "thesis", "expert", "rights", "auditor", "trafficstop", "deescalate", "testify", "customer", "salary", "speaking"].includes(debate.mode) ? "" : debate.mode === "interview" ? INTERVIEW_DIFF[interviewLevel(setup) === "entry" && setup.difficulty === "hard" ? "normal" : ["easy", "hard"].includes(setup.difficulty) ? setup.difficulty : "normal"] : difficultyRules(debate.mode, setup.difficulty || "normal")) + roleLock(debate, mode, setup);
   const premium = await isPremium(c, user.id, user.email);
   const forceClosing = body.phase === "closing";
   // When the browser synthesizes speech itself (Azure SDK + visemes), don't pay for a
@@ -5994,10 +6089,12 @@ debateRouter.post("/turn-stream", async (c) => {
     const ping = setInterval(() => send({ t: "ping" }), 8e3);
     try {
       let hdVoice = null;
-      if (clientTts && premium && voiceInfo?.voice && HD_VOICE_MAP[voiceInfo.voice] && hdSpeechConfigured(c.env) && c.env.LIVEAVATAR_API_KEY) {
+      // The HD voice (twice the price) is for the video actor's lips; the 3D opponent uses the
+      // standard voice, which also carries the viseme events it needs.
+      if (clientTts && premium && body.photoreal === true && voiceInfo?.voice && HD_VOICE_MAP[voiceInfo.voice] && hdSpeechConfigured(c.env) && c.env.LIVEAVATAR_API_KEY) {
         try {
-          const map = await resolveAvatarMap(c.env, c.env.DB);
-          if (avatarIdFor(map, avatarKeyForDebate(debate))) hdVoice = HD_VOICE_MAP[voiceInfo.voice];
+          const liveVideo = await c.env.DB.prepare("SELECT 1 AS x FROM avatar_sessions WHERE user_id = ? AND debate_id = ? AND ended_at IS NULL AND last_beat_at > ? LIMIT 1").bind(user.id, debate.id, new Date(Date.now() - 120e3).toISOString()).first();
+          if (liveVideo) hdVoice = HD_VOICE_MAP[voiceInfo.voice];
         } catch {
         }
       }
@@ -6157,7 +6254,7 @@ The HUMAN played: ${humanRole}.
 
 ${transcript}`,
           4e3,
-          { premium }
+          { premium: false }
         );
         scores = parseScores(raw2, mode.scoringDimensions, humanText);
         if (!scores.failed) break;
@@ -6168,9 +6265,10 @@ ${transcript}`,
       // Don't close the debate on a scoring outage: the user can press End & grade again.
       return c.json({ error: "scoring_unavailable", message: "Scoring is briefly unavailable \u2014 try End & grade again in a moment." }, 502);
     }
-    if (!scriptMode) scores = capLowEffortScores(scores, turnRows);
+    if (!scriptMode) scores = capLowEffortScores(scores, turnRows, debate.mode);
     else if (accuracyNote) scores = { ...scores, notes: `${scores.notes ? scores.notes + " " : ""}${accuracyNote}` };
   }
+  scores = clampToVerdict(scores, debate.mode);
   await ensureScorecardTable(c.env.DB);
   // Only the first concurrent /end wins; a second one returns the stored scorecard.
   const [upd] = await c.env.DB.batch([
@@ -6310,7 +6408,7 @@ debateRouter.post("/judge", async (c) => {
 
 ${transcript}`,
       1500,
-      { premium: await isPremium(c, user.id, user.email) }
+      { premium: false }
     );
     verdict = parseVerdict(raw2, competitive);
   } catch {
@@ -7389,6 +7487,9 @@ async function handleCheckoutSessionCompleted(env, session) {
   const db = env.DB;
   const metadata = session.metadata ?? {};
   const kind = metadata.kind;
+  // Bank debits and similar complete the session before the money is in; those come back as
+  // checkout.session.async_payment_succeeded and are credited then.
+  if ((kind === "video" || kind === "pack") && session.payment_status && session.payment_status !== "paid" && session.payment_status !== "no_payment_required") return;
   if (kind === "video") {
     const userId = metadata.userId;
     const seconds = parseInt(metadata.seconds ?? "0", 10);
@@ -7464,8 +7565,8 @@ async function handleSubscriptionUpdated(env, sub) {
     sub.current_period_end ?? null,
     sub.id
   ).run();
-  const eduPriceId = priceIds.eduSeat;
-  if (eduPriceId && priceId === eduPriceId) {
+  // Any org on this subscription (school, team or department) follows it; a no-op for individuals.
+  {
     const quantity = Number(sub.items?.data?.[0]?.quantity ?? sub.quantity ?? NaN);
     await env.DB.prepare(
       `UPDATE orgs
@@ -7532,6 +7633,22 @@ async function handleChargeRefunded(env, charge) {
       await env.DB.prepare(
         "INSERT OR IGNORE INTO video_credits (user_id, seconds, reason, stripe_payment_id, created_at) VALUES (?, ?, 'refund', ?, ?)"
       ).bind(v.user_id, -Number(v.seconds), `${pi}:refund`, nowIso()).run();
+      return;
+    }
+    // A refunded or disputed subscription invoice ends the plan here too: Stripe does not cancel it.
+    const invoiceId = typeof charge.invoice === "string" ? charge.invoice : charge.invoice?.id ?? null;
+    if (invoiceId) {
+      try {
+        const inv = await stripeGet(env, `/invoices/${invoiceId}`);
+        const subId = typeof inv.subscription === "string" ? inv.subscription : inv.subscription?.id ?? null;
+        if (subId) {
+          await env.DB.prepare("UPDATE subscriptions SET status = 'canceled', tier = 'none' WHERE stripe_subscription_id = ?").bind(subId).run();
+          await env.DB.prepare("UPDATE orgs SET status = 'canceled' WHERE stripe_subscription_id = ?").bind(subId).run();
+          console.log("[stripe] subscription ended after refund/dispute", subId);
+        }
+      } catch (e) {
+        console.error("refund invoice lookup", e?.message || e);
+      }
     }
     return;
   }
@@ -7548,6 +7665,7 @@ async function handleEvent(env, event) {
     case "charge.dispute.created":
       await handleChargeRefunded(env, data.object === "dispute" ? { payment_intent: data.payment_intent } : data);
       break;
+    case "checkout.session.async_payment_succeeded":
     case "checkout.session.completed":
       await handleCheckoutSessionCompleted(env, data);
       break;
@@ -7693,10 +7811,13 @@ speechRouter.post("/token", async (c) => {
     // Only for a session that is actually live: open, and started or spoken in within 30 minutes.
     // Without this a script could mint tokens just to use the speech key. (A refused token falls back
     // to server-side audio, so a real session never goes silent.)
-    const recent = new Date(Date.now() - 30 * 60 * 1e3).toISOString();
+    // "Live" means started in the last 3 minutes or spoken in within the last 10: a token is good for
+    // 10 minutes, so an idle session can't be used to keep minting them.
+    const justStarted = new Date(Date.now() - 3 * 60 * 1e3).toISOString();
+    const recent = new Date(Date.now() - 10 * 60 * 1e3).toISOString();
     const live = await c.env.DB.prepare(
-      "SELECT 1 AS x FROM debates d WHERE d.user_id = ? AND d.ended_at IS NULL AND (d.created_at > ? OR EXISTS (SELECT 1 FROM turns t WHERE t.debate_id = d.id AND t.created_at > ?)) LIMIT 1"
-    ).bind(user.id, recent, recent).first();
+      "SELECT 1 AS x FROM debates d WHERE d.user_id = ? AND d.ended_at IS NULL AND (d.created_at > ? OR EXISTS (SELECT 1 FROM turns t WHERE t.debate_id = d.id AND t.role = 'user' AND t.created_at > ?)) LIMIT 1"
+    ).bind(user.id, justStarted, recent).first();
     if (!live) return c.json({ error: "no_live_session" }, 403);
     try {
       await c.env.DB.prepare("CREATE TABLE IF NOT EXISTS speech_token_mints (user_id TEXT NOT NULL, minted_at TEXT NOT NULL)").run();
@@ -7705,6 +7826,9 @@ speechRouter.post("/token", async (c) => {
       // A token lasts ten minutes: 10 an hour covers a full session; paying users get a little more slack.
       const perHour = await hasPaid(c, user.id, user.email) ? 15 : 10;
       if (Number(row?.n ?? 0) >= perHour) return c.json({ error: "rate_limited" }, 429);
+      // Tokens track rounds: two per round actually spoken in the last hour, plus two to get started.
+      const spoken = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM turns t JOIN debates d ON d.id = t.debate_id WHERE d.user_id = ? AND t.role = 'user' AND t.created_at > ?").bind(user.id, since).first();
+      if (Number(row?.n ?? 0) >= 2 + 2 * Number(spoken?.n ?? 0)) return c.json({ error: "rate_limited" }, 429);
       await c.env.DB.prepare("INSERT INTO speech_token_mints (user_id, minted_at) VALUES (?, ?)").bind(user.id, nowIso()).run();
       if (Math.random() < 0.02) await c.env.DB.prepare("DELETE FROM speech_token_mints WHERE minted_at < ?").bind(new Date(Date.now() - 24 * 60 * 60 * 1e3).toISOString()).run();
     } catch (err) {
@@ -7898,8 +8022,12 @@ async function ensureAvatarTables(db) {
   await db.batch([
     db.prepare("CREATE TABLE IF NOT EXISTS avatar_usage (user_id TEXT NOT NULL, month TEXT NOT NULL, seconds INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user_id, month))"),
     db.prepare("CREATE TABLE IF NOT EXISTS video_credits (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, seconds INTEGER NOT NULL, reason TEXT NOT NULL, stripe_payment_id TEXT UNIQUE, created_at TEXT NOT NULL)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS avatar_sessions (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, debate_id TEXT, started_at TEXT NOT NULL, last_beat_at TEXT NOT NULL, ended_at TEXT, max_seconds INTEGER)")
+    db.prepare("CREATE TABLE IF NOT EXISTS avatar_sessions (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, debate_id TEXT, started_at TEXT NOT NULL, last_beat_at TEXT NOT NULL, ended_at TEXT, max_seconds INTEGER, token TEXT)")
   ]);
+  try {
+    await db.prepare("ALTER TABLE avatar_sessions ADD COLUMN token TEXT").run();
+  } catch {
+  }
   try {
     await db.prepare("ALTER TABLE avatar_sessions ADD COLUMN max_seconds INTEGER").run();
   } catch {
@@ -8107,14 +8235,27 @@ avatarRouter.post("/session", async (c) => {
   const open = await c.env.DB.prepare("SELECT id FROM avatar_sessions WHERE user_id = ? AND ended_at IS NULL").bind(user.id).all();
   for (const row of open.results ?? []) await meterAvatarSession(c, user, row.id, true);
   await c.env.DB.batch([
-    c.env.DB.prepare("INSERT OR REPLACE INTO avatar_sessions (id, user_id, debate_id, started_at, last_beat_at, max_seconds) VALUES (?, ?, ?, ?, ?, ?)").bind(String(sessionId || newId()), user.id, debate.id, now, now, maxSeconds),
+    c.env.DB.prepare("INSERT OR REPLACE INTO avatar_sessions (id, user_id, debate_id, started_at, last_beat_at, max_seconds, token) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(String(sessionId || newId()), user.id, debate.id, now, now, maxSeconds, String(token)),
     c.env.DB.prepare("INSERT INTO avatar_usage (user_id, month, seconds) VALUES (?, ?, ?) ON CONFLICT(user_id, month) DO UPDATE SET seconds = seconds + excluded.seconds").bind(user.id, currentMonth(), maxSeconds)
   ]);
   return c.json({ sessionToken: token, sessionId, apiUrl: avatarApiUrl(c.env), maxSeconds, remainingSeconds: Math.max(0, st.remainingSeconds - maxSeconds), start });
 });
+// The video stream is closed on LiveAvatar's side, not just in our books: otherwise a client could
+// "end" a session for a refund and keep watching (and billing the owner) for the full duration.
+async function stopLiveAvatarSession(env, token) {
+  if (!token) return false;
+  try {
+    const r = await fetch(`${avatarApiUrl(env)}/v1/sessions/stop`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: "{}" });
+    // Already-closed sessions answer 4xx; that still means it is not streaming.
+    return r.ok || r.status === 400 || r.status === 404 || r.status === 409 || r.status === 410;
+  } catch {
+    return false;
+  }
+}
+__name(stopLiveAvatarSession, "stopLiveAvatarSession");
 async function meterAvatarSession(c, user, sessionId, end) {
   await ensureAvatarTables(c.env.DB);
-  const row = await c.env.DB.prepare("SELECT started_at, last_beat_at, ended_at, max_seconds FROM avatar_sessions WHERE id = ? AND user_id = ?").bind(sessionId, user.id).first();
+  const row = await c.env.DB.prepare("SELECT started_at, last_beat_at, ended_at, max_seconds, token FROM avatar_sessions WHERE id = ? AND user_id = ?").bind(sessionId, user.id).first();
   if (!row || row.ended_at) return 0;
   const now = Date.now();
   const iso = new Date(now).toISOString();
@@ -8124,8 +8265,14 @@ async function meterAvatarSession(c, user, sessionId, end) {
       await c.env.DB.prepare("UPDATE avatar_sessions SET last_beat_at = ? WHERE id = ?").bind(iso, sessionId).run();
       return 0;
     }
-    const elapsed = Math.max(0, Math.min(Number(row.max_seconds), Math.round((now - Date.parse(row.started_at)) / 1e3)));
-    const refund = Math.max(0, Number(row.max_seconds) - elapsed);
+    const stopped = await stopLiveAvatarSession(c.env, row.token);
+    // Heartbeats arrive every 30s while the stream is open: a session nobody has heard from in
+    // over 45s stopped then (phone locked, tab gone), so that is where its clock stops too.
+    const sinceBeat = Math.round((Date.parse(row.last_beat_at) + 45e3 - Date.parse(row.started_at)) / 1e3);
+    const wall = Math.round((now - Date.parse(row.started_at)) / 1e3);
+    const elapsed = Math.max(0, Math.min(Number(row.max_seconds), Math.min(wall, Math.max(0, sinceBeat))));
+    // If LiveAvatar could not be told to stop, assume it kept streaming: no refund.
+    const refund = stopped ? Math.max(0, Number(row.max_seconds) - elapsed) : 0;
     await c.env.DB.batch([
       c.env.DB.prepare("UPDATE avatar_sessions SET last_beat_at = ?, ended_at = ? WHERE id = ?").bind(iso, iso, sessionId),
       c.env.DB.prepare("INSERT INTO avatar_usage (user_id, month, seconds) VALUES (?, ?, 0) ON CONFLICT(user_id, month) DO UPDATE SET seconds = MAX(0, seconds - ?)").bind(user.id, currentMonth(), refund)

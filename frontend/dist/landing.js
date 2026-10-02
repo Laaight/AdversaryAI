@@ -145,7 +145,7 @@ function adaptLivePrices(data) {
       badge: 'Most popular',
       cta: 'Start free, upgrade in-app',
       features: [
-        getRounds(coach, 1000).toLocaleString() + ' sparring rounds per month — 3× Debater',
+        getRounds(coach, 1000).toLocaleString() + ' sparring rounds per month — ' + (Math.round(getRounds(coach, 1000) / getRounds(debater, 300) * 10) / 10) + '× Debater',
         'Everything in Debater',
         'Built for daily practice, interview season & debate teams',
         'Unused rounds roll over'
@@ -907,3 +907,34 @@ document.addEventListener('DOMContentLoaded', function () {
 
 /* Register the service worker (PWA installability + offline resilience). */
 /* Service worker registration lives in /js/pwa-helper.js. */
+
+
+/* ================= AUDIENCE HERO + CTA TRACKING ================= */
+(function () {
+  var HERO = {
+    interview: { kicker: 'AI mock interviews by voice', h1: 'Mock interviews that <span class="accent">push back.</span>', sub: 'An AI hiring manager for your exact role and level asks the hard follow-ups, then scores every answer and tells you what to say instead. 15 rounds free.', cta: 'Start a mock interview — free', next: '/setup/interview' },
+    salary: { kicker: 'Salary negotiation practice', h1: 'Rehearse the raise <span class="accent">before you ask.</span>', sub: 'Negotiate an offer or a raise against a manager with a real budget. Find their bottom line, then see where you left money on the table.', cta: 'Practice the negotiation — free', next: '/setup/salary' },
+    police: { kicker: 'Scenario training for officers', h1: 'Traffic stops, crisis calls and cross-examination — <span class="accent">without the consequences.</span>', sub: 'Officers run First Amendment audits, sovereign-citizen stops, de-escalation and courtroom testimony against a realistic AI, by voice. Supervisors see scores, never transcripts. $15 per officer a month.', cta: 'Run a traffic stop — free', next: '/setup/trafficstop' },
+    sales: { kicker: 'Sales roleplay training', h1: 'Your reps lose the deal at the objection. <span class="accent">Fix that before the call.</span>', sub: 'AI prospects that stall, haggle and ghost. Run 50 objections a week; managers see who is improving and on what.', cta: 'Run a sales call — free', next: '/setup/sales' },
+    debate: { kicker: 'Debate practice', h1: 'Argue with someone who <span class="accent">never lets you off easy.</span>', sub: 'Pick a motion, pick a side, and spar with an opponent that cross-examines you. A judge scores every round.', cta: 'Start a debate — free', next: '/setup/debate' },
+    speaking: { kicker: 'Public speaking practice', h1: 'Give the talk. <span class="accent">Survive the Q&amp;A.</span>', sub: 'Deliver your presentation out loud, then take questions from an audience member who was not convinced. Scored on structure, clarity and how you handled them.', cta: 'Practice your talk — free', next: '/setup/speaking' }
+  };
+  function go() {
+    var a = new URLSearchParams(location.search).get('a');
+    var v = a && HERO[a];
+    if (v) {
+      var set = function (k, html) { var el = document.querySelector('[data-hero="' + k + '"]'); if (el) el.innerHTML = html; };
+      set('kicker', v.kicker); set('h1', v.h1); set('sub', v.sub);
+      var cta = document.querySelector('[data-hero="cta"]');
+      if (cta) { cta.textContent = v.cta; cta.href = '/app/#/signup?next=' + encodeURIComponent(v.next); }
+    }
+    if (window.adversaryTrack) window.adversaryTrack('view_landing', { audience: a || 'default' });
+    document.querySelectorAll('a[href^="/app/#/signup"]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var sec = el.closest('section,header,footer');
+        if (window.adversaryTrack) window.adversaryTrack('cta_click', { placement: (sec && sec.id) || (sec && sec.tagName.toLowerCase()) || 'page', audience: a || 'default' });
+      });
+    });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go();
+})();

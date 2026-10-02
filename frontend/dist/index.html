@@ -29,7 +29,7 @@
 <meta name="twitter:title" content="AdversaryAI — Practice against anyone">
 <meta name="twitter:description" content="An AI sparring partner for debates, interviews, negotiations and more — with coaching scores after every session. 15 rounds free.">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-<link rel="stylesheet" href="landing.css?v=20261001a">
+<link rel="stylesheet" href="landing.css?v=20261002e">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"SoftwareApplication","name":"AdversaryAI","url":"https://getadversaryai.com/","applicationCategory":"EducationalApplication","operatingSystem":"Web","description":"An AI sparring partner for debates, job interviews, sales calls and negotiations. Practice by voice, get a coaching scorecard after every session.","offers":[{"@type":"Offer","price":"0","priceCurrency":"USD","name":"Free trial — 15 rounds"},{"@type":"Offer","price":"12","priceCurrency":"USD","name":"Debater"},{"@type":"Offer","price":"29","priceCurrency":"USD","name":"Coach"},{"@type":"Offer","price":"49","priceCurrency":"USD","name":"Champion"}]}
 </script>
@@ -84,18 +84,19 @@
   <section class="hero">
     <div class="wrap hero-grid">
       <div class="hero-copy">
-        <p class="kicker">AI practice partner</p>
-        <h1>Practice against<br><span class="accent">anyone.</span></h1>
-        <p class="sub">
-          Rehearse the interview, the sales call, the negotiation or the debate out loud. Your
-          opponent pushes back in real time, and you get a coach's scorecard that shows exactly
-          where you slipped and what to say instead.
+        <p class="kicker" data-hero="kicker">Voice AI mock interviews, negotiations and debates</p>
+        <h1 data-hero="h1">Practice the conversation <span class="accent">out loud.</span><br>Get scored like a coach.</h1>
+        <p class="sub" data-hero="sub">
+          Pick a mode — job interview, salary talk, sales call, traffic stop, debate — and talk to an
+          AI opponent that pushes back. When you stop, you get a scorecard that quotes the moment
+          you lost them and the line that would have landed.
         </p>
         <div class="hero-ctas">
-          <a class="btn btn-primary" href="/app/#/signup">Start free — 15 rounds</a>
+          <a class="btn btn-primary" data-hero="cta" href="/app/#/signup?next=%2Fsetup%2Finterview">Start a free mock interview</a>
           <a class="btn btn-ghost hide-mobile" href="#modes">Explore practice modes</a>
         </div>
         <p class="hero-note">15 rounds free (a round is one exchange with your opponent). No credit card to start.</p>
+        <ul class="trust"><li>No credit card to start</li><li>7-day full refund on your first plan</li><li>Audio is never stored — only your transcript, for you</li><li>Cancel in one click</li></ul>
       </div>
 
       <div class="hero-avatar">
@@ -141,7 +142,7 @@
       <div class="usecases">
         <a class="usecase" href="/app/#/signup?next=%2Fsetup%2Finterview"><strong>Ace an interview</strong><span>An AI hiring manager for your role and level</span></a>
         <a class="usecase" href="/app/#/signup?next=%2Fsetup%2Fsales"><strong>Win the deal</strong><span>A buyer with real objections and a real budget</span></a>
-        <a class="usecase" href="/app/#/signup?next=%2Fsetup%2Fnegotiation"><strong>Negotiate the raise</strong><span>A counterpart with a bottom line you have to find</span></a>
+        <a class="usecase" href="/app/#/signup?next=%2Fsetup%2Fsalary"><strong>Negotiate the raise</strong><span>A manager with a budget and a number they won't say first</span></a>
       </div>
       <div class="sample" aria-label="Sample scorecard">
         <div class="sample-tag">Sample scorecard</div>
@@ -238,7 +239,7 @@
     <div class="wrap">
       <p class="kicker">Pricing</p>
       <h2>Pay for rounds, not promises</h2>
-      <p class="section-lede">Start free. Upgrade when you're hooked. Unused plan rounds roll over, and pack credits never expire.</p>
+      <p class="section-lede">Start free. Upgrade when you're hooked. Up to a third of unused plan rounds rolls over, and pack credits never expire. Not for you? Email us within 7 days of your first charge for a full refund.</p>
       <!-- Placeholder cards hold the space until live prices arrive, so the FAQ below doesn't jump. -->
       <div class="plans" id="plans">
         <div class="plan plan-sk" aria-hidden="true"><span class="sk sk-h"></span><span class="sk sk-line"></span><span class="sk sk-price"></span><span class="sk sk-list"></span><span class="sk sk-btn"></span></div>
@@ -287,15 +288,15 @@
       </details>
       <details class="faq">
         <summary>Is there a free trial?</summary>
-        <p>Yes — your first 15 sparring rounds are free, with full access to every practice mode and voice or text. No credit card required to start.</p>
+        <p>Yes — your first 15 rounds are free in every practice mode, voice or text, no card. The free scorecard shows your score, the dimension bars, your #1 priority and your biggest missed moment; any plan or pack unlocks every missed moment, the better lines and your next drill.</p>
       </details>
       <details class="faq">
         <summary>What does it cost after the trial?</summary>
-        <p><strong>Debater</strong> is $12/month for 300 rounds, <strong>Coach</strong> is $29/month for 750 rounds, <strong>Champion</strong> is $49/month for 500 premium rounds plus 60 minutes of photoreal video opponents and our strongest reasoning model, and <strong>Elite</strong> is $100/month for 1,000 premium rounds and 2 hours of photoreal video. Prefer one-off? Round packs cost $9 for 100, $19 for 250, or $39 for 600 rounds — and credits roll over and never expire. School and team licenses are $6 per seat per month (150 shared rounds per seat).</p>
+        <p><strong>Debater</strong> is $12/month for 300 rounds, <strong>Coach</strong> is $29/month for 750 rounds, <strong>Champion</strong> is $49/month for 500 premium rounds plus 60 minutes of photoreal video opponents and our strongest reasoning model, and <strong>Elite</strong> is $100/month for 1,000 premium rounds and 2 hours of photoreal video. Prefer one-off? Round packs cost $9 for 100, $19 for 250, or $39 for 600 rounds — and credits roll over and never expire. Teams and police departments pay $15 per seat a month (300 rounds per seat, 3-seat minimum, manager dashboard). Schools pay $6 per seat (150 rounds, teacher dashboard). Annual plans save about two months: Debater $129, Coach $315, Champion $529 a year.</p>
       </details>
       <details class="faq">
         <summary>Can I cancel anytime?</summary>
-        <p>Yes. Monthly plans cancel in one click and you keep access until the end of your billing period. Any unused rounds in your wallet stay on your account — they never expire.</p>
+        <p>Yes. Cancel in one click and keep access until the end of your billing period. Round-pack credits and any rounds that already rolled over stay in your wallet and never expire; the current month's plan rounds end with the plan.</p>
       </details>
     </div>
   </section>
@@ -342,7 +343,7 @@
 
 <script src="/js/tracking.js?v=20261002b"></script>
 <script src="/js/feedback.js" defer></script>
-<script src="landing.js?v=20261002d"></script>
+<script src="landing.js?v=20261002e"></script>
 <script src="/js/pwa-helper.js"></script>
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"8fdd31aebec840deb57089bace298fb9","r":1,"spa":2}' crossorigin="anonymous"></script>
 </body>

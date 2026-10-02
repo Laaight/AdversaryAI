@@ -213,6 +213,11 @@ function id(i, e) {
     t
   );
 }
+// Where to send someone back to after they buy: the session or setup they were on.
+function retTo() {
+  const h = location.hash.slice(1);
+  return /^\/(session|setup)\//.test(h) ? `&next=${encodeURIComponent(h)}` : "";
+}
 function sd(inSession) {
   const i = document.createElement("div");
   const copy = inSession
@@ -227,10 +232,10 @@ function sd(inSession) {
     <p class="quota-body text-body-sm text-slate-400 mb-7">${copy.body}</p>
     <div class="quota-actions flex flex-col sm:flex-row gap-3 justify-center">
       ${inSession ? `<button type="button" data-get-score class="btn-primary">See my scorecard</button>
-      <a href="#/account?plans=1" class="btn-ghost">Keep sparring — plans</a>` : `<a href="#/account?plans=1" class="btn-primary">View plans</a>
-      <a href="#/account?plans=1&packs=1" class="btn-ghost">Buy a pack</a>`}
+      <a href="#/account?plans=1${retTo()}" class="btn-ghost">Keep sparring — plans</a>` : `<a href="#/account?plans=1${retTo()}" class="btn-primary">View plans</a>
+      <a href="#/account?packs=1${retTo()}" class="btn-ghost">Buy a pack</a>`}
     </div>
-    ${inSession ? `<p class="mt-4 text-xs text-slate-500"><a href="#/account?plans=1&packs=1" class="link">Or buy a round pack</a></p>` : ""}`),
+    ${inSession ? `<p class="mt-4 text-xs text-slate-500"><a href="#/account?packs=1${retTo()}" class="link">Or buy a round pack</a></p>` : ""}`),
     i
   );
 }
@@ -417,11 +422,26 @@ async function lh(i) {
       <p class="text-slate-400 mt-2 max-w-xl mx-auto text-sm sm:text-base">Pick an arena. A live AI opponent meets you there — with voice, pushback, and a scorecard when you’re done.</p>
     </div>
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4" id="mode-grid">
-      ${cd(11)}
+      ${cd(19)}
     </div>
   </div>`;
   const e = i.querySelector("#mode-grid");
-  await ld(e);
+  await Promise.all([ld(e), continueCard(i.querySelector("#modes-root"))]);
+}
+// A session left mid-way already cost rounds: offer to pick it up or grade it, instead of hiding
+// it in History while a fresh one starts.
+async function continueCard(root) {
+  try {
+    const list = await Ut("/api/debates");
+    const open = (Array.isArray(list) ? list : list?.debates || list?.items || []).filter((d) => d && !d.ended_at).slice(0, 2);
+    if (!open.length || !root) return;
+    const box = document.createElement("div");
+    box.className = "mb-6 grid gap-3 sm:grid-cols-2";
+    box.innerHTML = open
+      .map((d) => `<a href="#/session/${encodeURIComponent(d.id)}" class="card card-lift flex items-center justify-between gap-3 border-amber-500/30 bg-amber-500/5 p-4"><div class="min-w-0"><div class="text-xs font-semibold uppercase tracking-wide text-amber-300">Continue where you left off</div><div class="truncate text-sm font-semibold text-white">${xt(d.topic || "Session")}</div></div><span class="shrink-0 text-amber-300">Resume →</span></a>`)
+      .join("");
+    root.insertBefore(box, root.querySelector("#mode-grid"));
+  } catch {}
 }
 async function ld(i) {
   try {
@@ -1053,7 +1073,7 @@ async function Mh(i, e) {
 
     ${s.id !== "acting" ? `<section class="setup-section"><h2 class="section-title">Difficulty</h2><div class="opt-grid grid-cols-1 sm:grid-cols-3">${optChips("difficulty", DIFFICULTY_OPTS, "normal")}</div></section>` : ""}
 
-    <section class="setup-section" id="len-sec"><h2 class="section-title">Length</h2><p class="section-sub">Each ${ui.unit === "bars" ? "round" : ui.unit} uses one credit.</p><div class="opt-grid grid-cols-2 sm:grid-cols-4">${optChips("rounds", lenOpts, state.rounds)}</div></section>
+    <section class="setup-section" id="len-sec"><h2 class="section-title">Length</h2><p class="section-sub">Each ${ui.unit === "bars" ? "round" : ui.unit} is one round.<span data-balance></span></p><div class="opt-grid grid-cols-2 sm:grid-cols-4">${optChips("rounds", lenOpts, state.rounds)}</div></section>
 
     ${ui.first ? `<section class="setup-section" id="first-sec"><h2 class="section-title">Who speaks first?</h2><div class="opt-grid ${ui.first.length === 3 ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-2"}">${optChips("first", ui.first, state.first)}</div></section>` : `<p class="setup-section flex items-center gap-2 text-sm text-slate-400"><span class="text-accent-400">●</span>${dt(ui.fixedNote)}</p>`}
 
@@ -25445,7 +25465,7 @@ function ix(root, debateId, t, data) {
         ${t.actingScript ? `<div id="cue-box" class="mb-1 hidden shrink-0 rounded-xl border border-accent-500/25 bg-accent-500/5 px-3.5 py-2.5 text-sm leading-relaxed text-slate-200"></div>` : ""}
         <div class="session-composer shrink-0 pt-1.5 sm:pt-2">
           <div class="flex items-end gap-2 rounded-2xl border border-ink-700 bg-ink-900 p-1.5 focus-within:border-accent-500/70 sm:p-2">
-            <textarea id="msg-input" rows="1" maxlength="4000" class="max-h-40 min-h-[2.75rem] flex-1 resize-none bg-transparent px-2 py-2.5 text-[15px] leading-snug text-white placeholder:text-slate-500 focus:outline-none" placeholder=""></textarea>
+            <textarea id="msg-input" aria-label="Your reply" rows="1" maxlength="4000" class="max-h-40 min-h-[2.75rem] flex-1 resize-none bg-transparent px-2 py-2.5 text-[15px] leading-snug text-white placeholder:text-slate-500 focus:outline-none" placeholder=""></textarea>
             <button id="mic-btn" type="button" class="icon-btn hidden h-11 w-11 [&>svg]:h-5 [&>svg]:w-5" aria-label="Speak your reply" title="Speak your reply">${it.mic}</button>
             <button id="send-btn" type="button" class="btn-primary h-11 shrink-0 px-4" aria-label="Send">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg><span class="hidden sm:inline">Send</span></button>
@@ -25663,6 +25683,8 @@ function ix(root, debateId, t, data) {
   let turnGen = 0;
   let rec = null;
   let listening = false;
+  let manualStop = false; // the mic button was tapped to stop: don't auto-send
+  let endT = null; // pending hands-free send after recognition ended
   let silencedGen = 0; // turn whose audio the user silenced (Stop / mic barge-in)
   let awaitingOpen = false; // the opponent speaks first and hasn't yet: the user can't go first
   let tapToOpen = false; // …and the browser needs a tap before it will play that opening
@@ -26026,6 +26048,7 @@ function ix(root, debateId, t, data) {
   }
   input.addEventListener("input", () => {
     autosize();
+    clearTimeout(endT); // typing after the mic stopped: the person is editing, not done
     photo?.touch();
     // maxlength silently drops the rest of a long paste — say so.
     if (input.value.length >= 4000 && !listening) {
@@ -26149,7 +26172,8 @@ function ix(root, debateId, t, data) {
     const text = input.value.trim();
     if (busy || ended || quotaOut || finishing || recovering || (!open && (!text || awaitingOpen))) return;
     // Dictation isn't bound by the textarea's maxlength; check before anything is torn down.
-    if (!open && text.length > 4000) return void errNote(`That’s ${text.length.toLocaleString()} characters — keep it under 4,000 and send again.`);
+    const maxChars = t.modeId === "speaking" ? 12000 : 4000;
+    if (!open && text.length > maxChars) return void errNote(`That’s ${text.length.toLocaleString()} characters — keep it under ${maxChars.toLocaleString()} and send again.`);
     voice.unlock();
     abortListening();
     photo?.touch();
@@ -26399,7 +26423,7 @@ function ix(root, debateId, t, data) {
         credentials: "include",
         signal: ctl.signal,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ debateId, text: open ? "" : text, action: open ? "open" : void 0, phase: (closing || closingRequested) && !open ? "closing" : void 0, clientTts }),
+        body: JSON.stringify({ debateId, text: open ? "" : text, action: open ? "open" : void 0, phase: (closing || closingRequested) && !open ? "closing" : void 0, clientTts, photoreal: !!photo?.ready }),
       });
       gotByte = true;
       lastStreamAt = performance.now();
@@ -26709,7 +26733,7 @@ function ix(root, debateId, t, data) {
     // Only new speech counts — text already in the box (say, a failed message handed back)
     // is never resent on its own.
     const autoSend = () => {
-      if (!handsFree || busy || !alive || ended || quotaOut || micHeld() || !heard()) return;
+      if (!handsFree || busy || !alive || ended || quotaOut || micHeld() || !heard() || document.hidden) return;
       if (soundsLikeOpponent(heard())) {
         input.value = base.trim();
         autosize();
@@ -26734,7 +26758,8 @@ function ix(root, debateId, t, data) {
       autosize();
       if (handsFree) {
         clearTimeout(pauseT);
-        if (input.value.trim()) pauseT = setTimeout(() => listening && autoSend(), 3500);
+        // A talk has long pauses on purpose: don't chop it into rounds.
+        if (input.value.trim()) pauseT = setTimeout(() => listening && autoSend(), t.modeId === "speaking" ? 12000 : 3500);
       }
     };
     let closed = false,
@@ -26760,7 +26785,10 @@ function ix(root, debateId, t, data) {
       // Phones (Android Chrome, iOS Safari) end recognition by themselves when you stop
       // talking, which cancels the pause timer — so in hands-free, ending = send.
       done();
-      if (!failed) setTimeout(() => !listening && autoSend(), 1500); // phones end on the first pause — leave room to keep thinking
+      const manual = manualStop;
+      manualStop = false;
+      // A tap on the mic means "let me fix this", not "send it".
+      if (!failed && !manual) endT = setTimeout(() => !listening && autoSend(), 1500); // phones end on the first pause — leave room to keep thinking
     };
     rec.onerror = (e) => {
       const c = e?.error || "";
@@ -26836,6 +26864,7 @@ function ix(root, debateId, t, data) {
     micBtn.addEventListener("click", () => {
       if (listening) {
         clearTimeout(pauseT);
+        manualStop = true;
         return stopListening();
       }
       // First time anyone uses the mic, turn hands-free on (they can switch it off below).
@@ -27113,7 +27142,7 @@ function coachCards(r, t) {
   }
   if (r?.locked) {
     const n = r.locked.moments || 0;
-    cards.push(`<div class="card mb-4 border-accent-500/30 p-5 sm:p-6"><div class="eyebrow mb-1 !text-accent-400">Your full coaching plan</div><p class="text-sm leading-relaxed text-slate-200">${n ? `${n} more moment${n === 1 ? "" : "s"} from your session` : "More from your session"}${r.locked.drill ? " and your personal next drill" : ""} ${n || r.locked.drill ? "are" : "is"} ready.</p><div class="mt-3 space-y-2 select-none" aria-hidden="true" style="filter:blur(5px)"><div class="h-3 w-11/12 rounded bg-ink-600"></div><div class="h-3 w-9/12 rounded bg-ink-600"></div><div class="h-3 w-10/12 rounded bg-ink-600"></div></div><a href="#/account?plans=1" class="btn-primary mt-4 inline-flex px-5 py-2.5 text-sm">Unlock with any plan or pack</a><p class="mt-2 text-xs text-slate-500">Unlocks instantly, including this session.</p></div>`);
+    cards.push(`<div class="card mb-4 border-accent-500/30 p-5 sm:p-6"><div class="eyebrow mb-1 !text-accent-400">Your full coaching plan</div><p class="text-sm leading-relaxed text-slate-200">${n ? `${n} more moment${n === 1 ? "" : "s"} from your session` : "More from your session"}${r.locked.drill ? " and your personal next drill" : ""} ${n || r.locked.drill ? "are" : "is"} ready.</p><div class="mt-3 space-y-2 select-none" aria-hidden="true" style="filter:blur(5px)"><div class="h-3 w-11/12 rounded bg-ink-600"></div><div class="h-3 w-9/12 rounded bg-ink-600"></div><div class="h-3 w-10/12 rounded bg-ink-600"></div></div><a href="#/account?plans=1${retTo()}" class="btn-primary mt-4 inline-flex px-5 py-2.5 text-sm">Unlock with any plan or pack</a><p class="mt-2 text-xs text-slate-500">Unlocks instantly, including this session.</p></div>`);
   }
   if (r?.nextDrill) {
     cards.push(`<div class="card mb-4 p-5 sm:p-6"><div class="eyebrow mb-1 !text-accent-400">Your next drill</div><p class="text-sm leading-relaxed text-slate-200">${xt(r.nextDrill)}</p>${t?.modeId ? `<a href="#/setup/${encodeURIComponent(t.modeId)}" class="btn-primary mt-4 inline-flex px-5 py-2.5 text-sm">Start this drill</a>` : ""}</div>`);
@@ -27161,16 +27190,16 @@ function sx(i, e, t, n, s, r) {
         <p class="whitespace-pre-wrap text-sm leading-relaxed text-slate-300">${xt(r?.notes || "No notes this time.")}</p>
         <div id="judge-notes"></div>
       </div>
-      <div class="card mb-6 p-5 sm:p-6">
+      ${t.judgeEnabled ? `<div class="card mb-6 p-5 sm:p-6">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div><div class="font-semibold text-white">Share to the Community Arena</div><p class="text-sm text-slate-400">Let others read the transcript and vote on who won.</p></div>
           <button type="button" id="arena-toggle-btn" class="btn-ghost btn-sm shrink-0">Publish to Arena</button>
         </div>
         <div id="arena-share-tray" class="mt-4 hidden">
-          <div class="flex gap-2"><input id="arena-share-link" class="field text-sm" readonly /><button type="button" id="arena-copy-btn" class="btn-ghost btn-sm shrink-0">Copy</button></div>
+          <div class="flex gap-2"><input id="arena-share-link" class="field text-sm" readonly aria-label="Share link" /><button type="button" id="arena-copy-btn" class="btn-ghost btn-sm shrink-0">Copy</button></div>
           <div class="mt-3 flex flex-wrap gap-2"><a id="arena-share-x" target="_blank" rel="noopener" class="btn-ghost btn-sm min-h-[44px]">Share on X</a><a id="arena-share-reddit" target="_blank" rel="noopener" class="btn-ghost btn-sm min-h-[44px]">Share on Reddit</a></div>
         </div>
-      </div>
+      </div>` : ""}
       <div class="flex flex-col gap-3 sm:flex-row">
         <a href="#/setup/${encodeURIComponent(t.modeId)}" class="btn-primary flex-1 py-3">Practice again</a>
         <button type="button" id="share-score-btn" class="btn-ghost flex-1 py-3">Share my score</button>
@@ -27335,7 +27364,7 @@ const lx = {
   jordan_peterson: "The Archetypal Psychologist",
 };
 function Vi(i) {
-  return i.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return xt(i);
 }
 // Transcript bubbles on History and the Arena replay: 16px on phones, 15px from sm.
 const replayBubbleCls = (you) =>
@@ -27489,7 +27518,7 @@ async function dx(i) {
   render();
 }
 function Lt(i) {
-  return i.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return xt(i);
 }
 function xs(i) {
   return i.replace(/\bdebates\b/gi, (e) => (e[0] === e[0].toUpperCase() ? "Sessions" : "sessions"));
@@ -27622,6 +27651,17 @@ async function qu(i) {
     ok.textContent = "✓ Payment received — your account is updated. Thank you!";
     e.appendChild(ok);
     try {
+      const back = sessionStorage.getItem("aai_return");
+      if (back && /^\/(session|setup)\//.test(back)) {
+        sessionStorage.removeItem("aai_return");
+        const go = document.createElement("a");
+        go.href = `#${back}`;
+        go.className = "btn-primary mb-6 inline-flex";
+        go.textContent = back.startsWith("/session/") ? "Continue your session →" : "Back to your setup →";
+        e.appendChild(go);
+      }
+    } catch {}
+    try {
       const k = "aai_purchase_" + (a?.stripe_subscription_id || a?.tier || "pack") + "_" + new Date().toISOString().slice(0, 10);
       if (!sessionStorage.getItem(k)) {
         sessionStorage.setItem(k, "1");
@@ -27638,6 +27678,16 @@ async function qu(i) {
     nb.className = "mb-6 rounded-2xl border border-ink-700 bg-ink-800/60 p-4 text-sm text-slate-300";
     nb.textContent = "Checkout cancelled — nothing was charged.";
     e.appendChild(nb);
+    try {
+      const back = sessionStorage.getItem("aai_return");
+      if (back && /^\/(session|setup)\//.test(back)) {
+        const go = document.createElement("a");
+        go.href = `#${back}`;
+        go.className = "btn-ghost mb-6 inline-flex";
+        go.textContent = back.startsWith("/session/") ? "Back to your session" : "Back to your setup";
+        e.appendChild(go);
+      }
+    } catch {}
   }
   const o = document.createElement("div");
   ((o.className = "mb-8"),
@@ -28084,7 +28134,7 @@ async function qu(i) {
           <tr><td class="py-2.5 pr-4 text-slate-400">Opponent on screen</td><td>3D, lip-synced</td><td>3D, lip-synced</td><td class="font-semibold text-white">Photoreal video${photorealLive ? " (60 min)" : " (rolling out)"}</td><td class="font-semibold text-white">Photoreal video${photorealLive ? " (2 hours)" : " (rolling out)"}</td></tr>
           <tr><td class="py-2.5 pr-4 text-slate-400">Reasoning model</td><td>Standard</td><td>Standard</td><td class="font-semibold text-white">Pro</td><td class="font-semibold text-white">Pro</td></tr>
           <tr><td class="py-2.5 pr-4 text-slate-400">Judge & coach feedback</td><td>✓</td><td>✓</td><td class="font-semibold text-white">✓ Pro-level detail</td><td class="font-semibold text-white">✓ Pro-level detail</td></tr>
-          <tr><td class="py-2.5 pr-4 text-slate-400">All 11 modes · unused rounds roll over</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+          <tr><td class="py-2.5 pr-4 text-slate-400">All 19 modes · unused rounds roll over</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
         </tbody></table></div>
     </details>`;
   e.appendChild(p);
@@ -28107,6 +28157,8 @@ async function qu(i) {
         const tier = (n?.tiers || []).find((q) => q.id === R), pack = (n?.packs || []).find((q) => q.id === R), vp = (n?.videoPacks || []).find((q) => q.id === R);
         value = (x === "subscription" ? (extra.interval === "year" ? tier?.annualPrice : tier?.price) : x === "video" ? vp?.price : pack?.price) || 0;
         sessionStorage.setItem("aai_checkout", JSON.stringify({ kind: x, item: R, value: value / 100, at: Date.now() }));
+        const back = new URLSearchParams(location.hash.split("?")[1] ?? "").get("next");
+        if (back) sessionStorage.setItem("aai_return", back);
       } catch {}
       track("begin_checkout", { kind: x, item: R, value: value / 100, currency: "USD", ...extra });
       const { url: L } = await zt("/api/billing/checkout", { kind: x, item: R, ...extra });
@@ -28151,7 +28203,10 @@ async function qu(i) {
     }
     _.appendChild(T);
   }
-  if (/plans=1/.test(location.hash)) setTimeout(() => p.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" }), 150);
+  {
+    const want = /packs=1/.test(location.hash) ? g : /plans=1/.test(location.hash) ? p : null;
+    if (want) setTimeout(() => want.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" }), 150);
+  }
   n.tiers.length === 0 &&
     (_.innerHTML =
       '<p class="text-body-sm text-slate-500 col-span-full">No subscription tiers are available right now.</p>');
@@ -28691,6 +28746,7 @@ function fx(i) {
         <a href="#/history" class="px-3 py-1.5 rounded-lg hover:bg-ink-800 text-slate-300 hover:text-white">History</a>
         <a href="#/account" class="px-3 py-1.5 rounded-lg hover:bg-ink-800 text-slate-300 hover:text-white">Account</a>
         <a href="#" data-feedback class="px-3 py-1.5 rounded-lg hover:bg-ink-800 text-slate-300 hover:text-white">Feedback</a>
+        ${typeof i?.remainingRounds === "number" && i.remainingRounds < 1e5 ? `<a href="#/account?plans=1" title="Rounds left" class="ml-1 badge ${i.remainingRounds <= 3 ? "border-accent-500/50 bg-accent-500/15 text-accent-200" : "border-ink-700 bg-ink-800 text-slate-300"}">${i.remainingRounds} round${i.remainingRounds === 1 ? "" : "s"}</a>` : ""}
         <span id="theme-toggle-slot" class="ml-1"></span><span id="admin-mode-slot" class="ml-1.5"></span>
         <button id="logout-btn" class="ml-1 px-3 py-1.5 rounded-lg border border-ink-700 text-slate-400 hover:text-white hover:border-slate-500">Log out</button>
       </nav>

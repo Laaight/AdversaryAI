@@ -93,6 +93,10 @@ export class PhotorealAvatar {
       this.hiddenT = setTimeout(check, 60000);
     };
     document.addEventListener("visibilitychange", this.onVis);
+    // Closing the tab, reloading or navigating away must hang up, or the stream (and the bill)
+    // runs on for the full session cap with nobody watching.
+    this.onHide = () => this._teardown(true);
+    window.addEventListener("pagehide", this.onHide);
   }
 
   // Near the session cap, and a fresh session could actually run longer (when it's the user's
@@ -517,6 +521,7 @@ export class PhotorealAvatar {
     clearInterval(this.idleTimer);
     clearTimeout(this.hiddenT);
     document.removeEventListener("visibilitychange", this.onVis);
+    window.removeEventListener("pagehide", this.onHide);
     this._teardown(true);
     this.video.remove();
     this.key.remove();

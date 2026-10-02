@@ -690,7 +690,8 @@ a.mode:hover .mode-arr { transform: translateX(4px); }
   .modes { grid-template-columns: 1fr; gap: 16px; }
   .nav-links { display: none; }
   .nav-toggle { display: flex; }
-  .nav-actions .btn { display: none; }
+  .nav-actions .nav-login { display: none; }
+  .nav-actions .btn { padding: 8px 12px; font-size: .85rem; }
   .hero-ctas .btn { width: 100%; }
   .pack { flex-direction: column; align-items: stretch; text-align: center; }
   .pack .btn, .pack-sk .sk-btn { width: 100%; }
@@ -777,3 +778,7 @@ a.mode:hover .mode-arr { transform: translateX(4px); }
 .teams-band b { color: var(--text); }
 .teams-band .btn { flex-shrink: 0; }
 @media (max-width: 760px) { .teams-band { flex-direction: column; align-items: stretch; padding: 22px 18px; } }
+
+/* trust strip under the hero */
+.trust { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .82rem; color: var(--muted, #9aa3b5); }
+.trust li::before { content: "✓ "; color: #3ddc84; }
