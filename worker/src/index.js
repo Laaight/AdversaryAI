@@ -6431,6 +6431,27 @@ accountRouter.post("/admin-mode", async (c) => {
 });
 accountRouter.post("/promo/redeem", handlePromoRedeem);
 accountRouter.post("/admin/grant-vip", handleAdminGrantVip);
+// Until there's a self-serve reset (needs an email sender): the owner sets a temporary password for
+// someone who wrote to support, signs them out everywhere, and emails it to them.
+accountRouter.post("/admin/reset-password", async (c) => {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  if (!isOwnerEmail(user.email, c.env)) return c.json({ error: "forbidden" }, 403);
+  const body = await c.req.json().catch(() => ({}));
+  const email = String(body.email ?? "").trim().toLowerCase();
+  if (!EMAIL_RE.test(email)) return c.json({ error: "Enter a valid email." }, 400);
+  const target = await getUserByEmail(c.env.DB, email);
+  if (!target) return c.json({ error: `No account uses ${email}.` }, 404);
+  const alphabet = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+  const temp = Array.from(crypto.getRandomValues(new Uint8Array(14)), (b) => alphabet[b % alphabet.length]).join("");
+  const salt = newId(SALT_BYTES);
+  const hash = await hashPassword(temp, salt);
+  await c.env.DB.batch([
+    c.env.DB.prepare("UPDATE users SET password_hash = ?, salt = ? WHERE id = ?").bind(hash, salt, target.id),
+    c.env.DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(target.id)
+  ]);
+  return c.json({ ok: true, email: target.email, tempPassword: temp });
+});
 accountRouter.get("/admin/promo-list", async (c) => {
   const user = await getSessionUser(c);
   if (!user) return c.json({ error: "unauthorized" }, 401);
@@ -6957,11 +6978,21 @@ speechRouter.post("/token", async (c) => {
   const avail = await checkRoundsAvailable(c, user.id, user.email);
   if (!avail.ok) return c.json({ error: "quota_exhausted" }, 402);
   if (!isOwnerEmail(user.email, c.env)) {
+    // Only for a session that is actually live: open, and started or spoken in within 30 minutes.
+    // Without this a script could mint tokens just to use the speech key. (A refused token falls back
+    // to server-side audio, so a real session never goes silent.)
+    const recent = new Date(Date.now() - 30 * 60 * 1e3).toISOString();
+    const live = await c.env.DB.prepare(
+      "SELECT 1 AS x FROM debates d WHERE d.user_id = ? AND d.ended_at IS NULL AND (d.created_at > ? OR EXISTS (SELECT 1 FROM turns t WHERE t.debate_id = d.id AND t.created_at > ?)) LIMIT 1"
+    ).bind(user.id, recent, recent).first();
+    if (!live) return c.json({ error: "no_live_session" }, 403);
     try {
       await c.env.DB.prepare("CREATE TABLE IF NOT EXISTS speech_token_mints (user_id TEXT NOT NULL, minted_at TEXT NOT NULL)").run();
       const since = new Date(Date.now() - 60 * 60 * 1e3).toISOString();
       const row = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM speech_token_mints WHERE user_id = ? AND minted_at > ?").bind(user.id, since).first();
-      if (Number(row?.n ?? 0) >= 15) return c.json({ error: "rate_limited" }, 429);
+      // A token lasts ten minutes: 10 an hour covers a full session; paying users get a little more slack.
+      const perHour = await hasPaid(c, user.id, user.email) ? 15 : 10;
+      if (Number(row?.n ?? 0) >= perHour) return c.json({ error: "rate_limited" }, 429);
       await c.env.DB.prepare("INSERT INTO speech_token_mints (user_id, minted_at) VALUES (?, ?)").bind(user.id, nowIso()).run();
       if (Math.random() < 0.02) await c.env.DB.prepare("DELETE FROM speech_token_mints WHERE minted_at < ?").bind(new Date(Date.now() - 24 * 60 * 60 * 1e3).toISOString()).run();
     } catch (err) {

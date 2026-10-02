@@ -259,7 +259,7 @@ function rd(i, e, t, n) {
         <button type="submit" class="btn-primary w-full py-3">
           ${i}
         </button>
-        ${isSignup ? `<p class="mt-4 text-center text-xs leading-relaxed text-slate-500">By creating an account you agree to our <a href="/terms.html" target="_blank" rel="noopener" class="link">Terms</a> and <a href="/privacy.html" target="_blank" rel="noopener" class="link">Privacy Policy</a>, and confirm you are 13 or older (or a school-enrolled student). Your practice sessions are recorded as text so you can review them; audio isn’t stored.</p>` : ""}
+        ${isSignup ? `<p class="mt-4 text-center text-xs leading-relaxed text-slate-500">By creating an account you agree to our <a href="/terms.html" target="_blank" rel="noopener" class="link">Terms</a> and <a href="/privacy.html" target="_blank" rel="noopener" class="link">Privacy Policy</a>, and confirm you are 13 or older. Under 13? Join through your school’s invite link instead. Your practice sessions are recorded as text so you can review them; audio isn’t stored.</p>` : ""}
       </form>
     </div>
     <p class="text-center text-body-sm text-slate-500 mt-6">
@@ -27678,6 +27678,38 @@ async function qu(i) {
         </form>
         <div id="admin-grant-feedback" class="hidden mt-3 text-sm p-3 rounded-xl"></div>`;
     e.appendChild(_adminVip);
+
+    // Password reset for people who email support (there's no self-serve reset yet).
+    const _adminPw = document.createElement("div");
+    _adminPw.className = "card card-lift p-6 mb-10 border border-amber-500/30 bg-amber-500/5";
+    _adminPw.innerHTML = `
+        <h2 class="font-display text-lg text-amber-300 font-semibold mb-2">Admin: Reset a password</h2>
+        <p class="text-slate-300 text-body-sm mb-4">For someone who emailed support. Sets a temporary password and signs them out everywhere. Email it to them and ask them to change it after logging in.</p>
+        <form id="admin-pw-form" class="flex flex-wrap gap-2 max-w-md">
+          <input type="email" id="admin-pw-email" placeholder="their@email.com" class="field flex-1 text-sm px-4 py-2.5 rounded-xl" required />
+          <button type="submit" id="admin-pw-btn" class="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm">Reset</button>
+        </form>
+        <div id="admin-pw-out" class="hidden mt-3 text-sm p-3 rounded-xl"></div>`;
+    e.appendChild(_adminPw);
+    _adminPw.querySelector("#admin-pw-form").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const em = _adminPw.querySelector("#admin-pw-email").value.trim();
+      const out = _adminPw.querySelector("#admin-pw-out");
+      const btn = _adminPw.querySelector("#admin-pw-btn");
+      if (!em) return;
+      btn.disabled = true;
+      try {
+        const res = await zt("/api/account/admin/reset-password", { email: em });
+        out.className = "mt-3 text-sm p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-100 block";
+        out.innerHTML = `Temporary password for <b>${Lt(res.email)}</b>: <code class="select-all font-mono text-white">${Lt(res.tempPassword)}</code> <button type="button" class="ml-2 underline" data-copy>Copy</button><br><span class="text-emerald-200/80">Shown once. They’ve been signed out everywhere.</span>`;
+        out.querySelector("[data-copy]").addEventListener("click", () => navigator.clipboard?.writeText(res.tempPassword));
+      } catch (err) {
+        out.className = "mt-3 text-sm p-3 rounded-xl bg-red-500/15 border border-red-500/30 text-red-200 block";
+        out.textContent = err?.body?.error || "Could not reset the password.";
+      } finally {
+        btn.disabled = false;
+      }
+    });
 
     setTimeout(() => {
       const _af = _adminVip.querySelector("#admin-grant-form");
