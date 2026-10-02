@@ -294,7 +294,10 @@ p { margin: 0 0 16px; }
 .demo-view button:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
 .photoreal-still,
 .photoreal-still-badge { display: none; }
+/* Some actors are cut out (transparent background): without this the 3D model shows through behind them. */
+.avatar-frame.show-photo canvas { visibility: hidden; }
 .avatar-frame.show-photo .photoreal-still {
+  background: radial-gradient(120% 90% at 50% 20%, #1a1d26, #07080b);
   display: block;
   position: absolute;
   inset: 0;

@@ -246,7 +246,7 @@ function rd(i, e, t, n) {
   ((s.className = "w-full max-w-md animate-fade-up"),
     (s.innerHTML = `
     <div class="text-center mb-8">
-      <svg width="56" height="56" viewBox="0 0 512 512" aria-hidden="true" class="mx-auto mb-5 drop-shadow-[0_8px_24px_rgba(255,46,63,0.35)]"><rect width="512" height="512" rx="112" fill="#0d0f14"/><polygon points="256,104 400,392 112,392" fill="none" stroke="#e8392e" stroke-width="34" stroke-linejoin="round"/><g fill="#e8392e"><rect x="165" y="264" width="22" height="44" rx="11"/><rect x="193" y="244" width="22" height="84" rx="11"/><rect x="221" y="226" width="22" height="120" rx="11"/><rect x="249" y="212" width="22" height="148" rx="11"/><rect x="277" y="230" width="22" height="112" rx="11"/><rect x="305" y="248" width="22" height="76" rx="11"/><rect x="333" y="266" width="22" height="40" rx="11"/></g></svg>
+      <svg width="56" height="56" viewBox="0 0 512 512" aria-hidden="true" class="mx-auto mb-5 drop-shadow-[0_8px_24px_rgba(255,46,63,0.35)]"><rect width="512" height="512" rx="112" fill="#0d0f14"/><g fill="#f2f4f8"><rect x="60" y="208" width="44" height="96" rx="22"/><rect x="128" y="176" width="44" height="160" rx="22"/><rect x="196" y="136" width="44" height="240" rx="22"/></g><g fill="#e8392e"><rect x="272" y="136" width="44" height="240" rx="22"/><rect x="340" y="176" width="44" height="160" rx="22"/><rect x="408" y="208" width="44" height="96" rx="22"/></g></svg>
       <h1 class="font-display text-display-lg text-white">${i}</h1>
       <p class="text-slate-400 mt-2 text-body-md">${e}</p>
     </div>
@@ -28828,7 +28828,7 @@ function fx(i) {
     (e.innerHTML = `
     <div class="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between gap-2">
       <a href="#/" class="flex items-center gap-2 shrink-0">
-        <svg width="28" height="28" viewBox="0 0 512 512" aria-hidden="true" class="shrink-0"><rect width="512" height="512" rx="112" fill="#0d0f14"/><polygon points="256,104 400,392 112,392" fill="none" stroke="#e8392e" stroke-width="34" stroke-linejoin="round"/><g fill="#e8392e"><rect x="165" y="264" width="22" height="44" rx="11"/><rect x="193" y="244" width="22" height="84" rx="11"/><rect x="221" y="226" width="22" height="120" rx="11"/><rect x="249" y="212" width="22" height="148" rx="11"/><rect x="277" y="230" width="22" height="112" rx="11"/><rect x="305" y="248" width="22" height="76" rx="11"/><rect x="333" y="266" width="22" height="40" rx="11"/></g></svg>
+        <svg width="28" height="28" viewBox="0 0 512 512" aria-hidden="true" class="shrink-0"><rect width="512" height="512" rx="112" fill="#0d0f14"/><g fill="#f2f4f8"><rect x="60" y="208" width="44" height="96" rx="22"/><rect x="128" y="176" width="44" height="160" rx="22"/><rect x="196" y="136" width="44" height="240" rx="22"/></g><g fill="#e8392e"><rect x="272" y="136" width="44" height="240" rx="22"/><rect x="340" y="176" width="44" height="160" rx="22"/><rect x="408" y="208" width="44" height="96" rx="22"/></g></svg>
         <span class="font-display text-lg tracking-tight">Adversary<span class="text-accent-500">AI</span></span>
       </a>
       <nav class="hidden md:flex items-center gap-1 sm:gap-2 text-sm">
@@ -28985,7 +28985,7 @@ function renderGuestNav(child) {
   e.className = "app-header border-b border-ink-700 bg-ink-900/80 backdrop-blur sticky top-0 z-20";
   e.innerHTML = `<div class="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between gap-2">
     <a href="#/" class="flex shrink-0 items-center gap-2" aria-label="AdversaryAI home">
-      <svg width="28" height="28" viewBox="0 0 512 512" aria-hidden="true" class="shrink-0"><rect width="512" height="512" rx="112" fill="#0d0f14"/><polygon points="256,104 400,392 112,392" fill="none" stroke="#e8392e" stroke-width="34" stroke-linejoin="round"/><g fill="#e8392e"><rect x="165" y="264" width="22" height="44" rx="11"/><rect x="193" y="244" width="22" height="84" rx="11"/><rect x="221" y="226" width="22" height="120" rx="11"/><rect x="249" y="212" width="22" height="148" rx="11"/><rect x="277" y="230" width="22" height="112" rx="11"/><rect x="305" y="248" width="22" height="76" rx="11"/><rect x="333" y="266" width="22" height="40" rx="11"/></g></svg>
+      <svg width="28" height="28" viewBox="0 0 512 512" aria-hidden="true" class="shrink-0"><rect width="512" height="512" rx="112" fill="#0d0f14"/><g fill="#f2f4f8"><rect x="60" y="208" width="44" height="96" rx="22"/><rect x="128" y="176" width="44" height="160" rx="22"/><rect x="196" y="136" width="44" height="240" rx="22"/></g><g fill="#e8392e"><rect x="272" y="136" width="44" height="240" rx="22"/><rect x="340" y="176" width="44" height="160" rx="22"/><rect x="408" y="208" width="44" height="96" rx="22"/></g></svg>
       <span class="font-display text-lg tracking-tight">Adversary<span class="text-accent-500">AI</span></span>
     </a>
     <nav class="flex shrink-0 items-center gap-1 text-sm sm:gap-2">

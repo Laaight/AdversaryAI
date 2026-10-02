@@ -809,7 +809,7 @@ function showPhotorealCast() {
     var on = photo && !!loaded[look];
     if (frame) frame.classList.toggle('show-photo', on);
     if (still && on) {
-      still.src = '/api/public/cast/' + look;
+      still.src = '/api/public/cast/' + look + '?v=2';
       still.alt = DEMO_PERSONAS[demoPersonaId].label + ' as a photoreal video opponent';
     }
     if (view) view.querySelectorAll('[data-demo-view]').forEach(function (b) {
@@ -826,7 +826,7 @@ function showPhotorealCast() {
       paint();
     };
     img.onerror = function () { img.remove(); };
-    img.src = '/api/public/cast/' + img.getAttribute('data-cast');
+    img.src = '/api/public/cast/' + img.getAttribute('data-cast') + '?v=2';
   });
   if (view) view.addEventListener('click', function (e) {
     var b = e.target.closest('[data-demo-view]');

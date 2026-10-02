@@ -7412,11 +7412,14 @@ publicRouter.get("/cast/:look", async (c) => {
   if (!AVATAR_VISUAL_KEYS.includes(look)) return miss("look");
   if (!c.env.LIVEAVATAR_API_KEY) return miss("off");
   const cache = typeof caches !== "undefined" ? caches.default : null;
-  const key = new Request(new URL(c.req.url).toString());
-  const hit = await cache?.match(key).catch(() => null);
-  if (hit) return hit;
+  // Which actor plays the look is part of the cache key, so changing the casting shows at once.
   const id = avatarIdFor(await getAvatarMap(c.env.DB), look);
   if (!id) return miss("unmapped");
+  const keyUrl = new URL(c.req.url);
+  keyUrl.searchParams.set("_a", String(id).slice(0, 8));
+  const key = new Request(keyUrl.toString());
+  const hit = await cache?.match(key).catch(() => null);
+  if (hit) return hit;
   const cat = await fetchAvatarCatalog(c.env, c.env.DB).catch(() => []);
   const actor = cat.find((a) => a.id === id);
   if (!actor) return miss(cat.length ? "not-in-catalog" : "no-catalog");
