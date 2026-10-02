@@ -6932,7 +6932,9 @@ debateRouter.post("/turn-stream", async (c) => {
     } catch (err) {
       console.error("turn-stream failed:", err instanceof Error ? err.message : err, { debateId, clientGone: gone });
       await undoTurn();
-      send({ t: "err", message: snag });
+      // Say what happened when the AI provider's safety filter blocked the reply (the round is refunded).
+      const blocked = /content_filter|ResponsibleAIPolicyViolation/i.test(String(err instanceof Error ? err.message : err));
+      send({ t: "err", message: blocked ? "The AI provider's safety filter blocked that reply — try rewording your message. That round wasn’t charged." : snag });
     } finally {
       clearInterval(ping);
       try {
