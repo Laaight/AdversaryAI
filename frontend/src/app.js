@@ -1086,6 +1086,13 @@ async function Mh(i, e) {
     const tf = t.querySelector('[data-key="topic"]');
     tf && (tf.value = prefill);
   }
+  // The balance, where the length is chosen: nobody should meet the paywall mid-session by surprise.
+  da(true)
+    .then((me) => {
+      const b = t.querySelector("[data-balance]");
+      if (b && typeof me?.remainingRounds === "number" && me.remainingRounds < 1e5) b.textContent = ` You have ${me.remainingRounds} round${me.remainingRounds === 1 ? "" : "s"} left.`;
+    })
+    .catch(() => {});
   const disc = t.querySelector("#mode-disclaimer");
   const updDisclaimer = () => {
     disc && (disc.textContent = s.disclaimer.replace("[Name]", state.figure ? figMap.get(state.figure)?.name : "this figure"));
