@@ -380,13 +380,13 @@ const REDUCED_MOTION = typeof window.matchMedia === 'function' &&
 const DEMO_PERSONAS = {
   prosecutor: {
     label: 'The Prosecutor',
-    model: '/models/personas/man-pro.glb?v=face67',
+    model: '/models/personas/man-pro.glb?v=face67b',
     src: '/demo-audio/teaser-prosecutor.mp3',
     caption: 'The Prosecutor cross-examines you',
   },
   contrarian: {
     label: 'The Contrarian',
-    model: '/models/personas/woman-pro.glb?v=face67',
+    model: '/models/personas/woman-pro.glb?v=face67b',
     src: '/demo-audio/teaser-contrarian.mp3',
     caption: 'The Contrarian steelmans the other side',
   },

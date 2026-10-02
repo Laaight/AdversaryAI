@@ -448,12 +448,12 @@ async function ld(i) {
   }
 }
 const Cc = {
-  "teen-boy": { id: "teen-boy", model: "/models/personas/teen-boy.glb?v=face67", label: "Teenage boy" },
-  "teen-girl": { id: "teen-girl", model: "/models/personas/teen-girl.glb?v=face67", label: "Teenage girl" },
-  "man-pro": { id: "man-pro", model: "/models/personas/man-pro.glb?v=face67", label: "Professional man" },
-  "woman-pro": { id: "woman-pro", model: "/models/personas/woman-pro.glb?v=face67", label: "Professional woman" },
-  "older-man": { id: "older-man", model: "/models/personas/older-man.glb?v=face67", label: "Older gentleman" },
-  "older-woman": { id: "older-woman", model: "/models/personas/older-woman.glb?v=face67", label: "Older woman" },
+  "teen-boy": { id: "teen-boy", model: "/models/personas/teen-boy.glb?v=face67b", label: "Teenage boy" },
+  "teen-girl": { id: "teen-girl", model: "/models/personas/teen-girl.glb?v=face67b", label: "Teenage girl" },
+  "man-pro": { id: "man-pro", model: "/models/personas/man-pro.glb?v=face67b", label: "Professional man" },
+  "woman-pro": { id: "woman-pro", model: "/models/personas/woman-pro.glb?v=face67b", label: "Professional woman" },
+  "older-man": { id: "older-man", model: "/models/personas/older-man.glb?v=face67b", label: "Older gentleman" },
+  "older-woman": { id: "older-woman", model: "/models/personas/older-woman.glb?v=face67b", label: "Older woman" },
   "man-casual": { id: "man-casual", model: "/models/adversary-masc.glb", label: "Man" },
   "woman-casual": { id: "woman-casual", model: "/models/adversary-fem.glb", label: "Woman" },
   "default-masc": { id: "default-masc", model: "/models/adversary-masc.glb", label: "Opponent" },
@@ -22761,6 +22761,8 @@ async function h0(i, e, t, n = {}) {
     o = [];
   a.traverse((se) => {
     se.isMesh && se.morphTargetDictionary && o.push(se);
+    // Hair and lashes are cut out by their texture's alpha: smooth those edges with the MSAA samples.
+    if (se.isMesh) for (const mt of [].concat(se.material)) if (mt && mt.alphaTest > 0) mt.alphaToCoverage = true;
   });
   let c = null,
     l = 0,
