@@ -3,6 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Google tag (Google Ads AW-18489049594). Consent defaults to denied for visitors in European time zones until they accept. -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=AW-18489049594"></script>
+<script>
+window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+window.__aaiGtag = 1;
+(function () {
+  var deny = false;
+  try { deny = /^Europe\//.test(Intl.DateTimeFormat().resolvedOptions().timeZone || '') && localStorage.getItem('aai_consent') !== 'yes'; } catch (e) {}
+  var v = deny ? 'denied' : 'granted';
+  gtag('consent', 'default', { ad_storage: v, analytics_storage: v, ad_user_data: v, ad_personalization: v });
+})();
+gtag('js', new Date());
+gtag('config', 'AW-18489049594');
+</script>
 <title>Voice AI Scenario Training for Officers: Traffic Stops, De-escalation, Audits, Testimony | AdversaryAI</title>
 <link rel="canonical" href="https://getadversaryai.com/police-training/">
 <meta name="description" content="Scenario training for officers by voice: traffic stops, crisis de-escalation, First Amendment audits and courtroom cross-examination. Scored, with supervisor dashboards. $15 per officer a month.">
@@ -129,7 +144,7 @@
     <p class="copyright">© 2026 Tech Shepherd LLC, doing business as AdversaryAI · <a href="mailto:support@getadversaryai.com">support@getadversaryai.com</a></p>
   </div>
 </footer>
-<script src="/js/tracking.js?v=20261002b"></script>
+<script src="/js/tracking.js?v=20261002c"></script>
 <script src="/js/feedback.js" defer></script>
 </body>
 </html>

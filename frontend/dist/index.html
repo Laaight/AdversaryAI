@@ -3,6 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Google tag (Google Ads AW-18489049594). Consent defaults to denied for visitors in European time zones until they accept. -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=AW-18489049594"></script>
+<script>
+window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+window.__aaiGtag = 1;
+(function () {
+  var deny = false;
+  try { deny = /^Europe\//.test(Intl.DateTimeFormat().resolvedOptions().timeZone || '') && localStorage.getItem('aai_consent') !== 'yes'; } catch (e) {}
+  var v = deny ? 'denied' : 'granted';
+  gtag('consent', 'default', { ad_storage: v, analytics_storage: v, ad_user_data: v, ad_personalization: v });
+})();
+gtag('js', new Date());
+gtag('config', 'AW-18489049594');
+</script>
 <title>AdversaryAI — Debate & Interview Practice by Voice, Scored Like a Coach</title>
 <link rel="canonical" href="https://getadversaryai.com/">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -345,7 +360,7 @@
   </div>
 </footer>
 
-<script src="/js/tracking.js?v=20261002b"></script>
+<script src="/js/tracking.js?v=20261002c"></script>
 <script src="/js/feedback.js" defer></script>
 <script src="landing.js?v=20261002g"></script>
 <script src="/js/pwa-helper.js"></script>

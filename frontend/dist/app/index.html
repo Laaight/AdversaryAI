@@ -3,6 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
+<!-- Google tag (Google Ads AW-18489049594). Consent defaults to denied for visitors in European time zones until they accept. -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=AW-18489049594"></script>
+<script>
+window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+window.__aaiGtag = 1;
+(function () {
+  var deny = false;
+  try { deny = /^Europe\//.test(Intl.DateTimeFormat().resolvedOptions().timeZone || '') && localStorage.getItem('aai_consent') !== 'yes'; } catch (e) {}
+  var v = deny ? 'denied' : 'granted';
+  gtag('consent', 'default', { ad_storage: v, analytics_storage: v, ad_user_data: v, ad_personalization: v });
+})();
+gtag('js', new Date());
+gtag('config', 'AW-18489049594');
+</script>
     <meta name="description" content="AdversaryAI — practice against anyone. Spar with a relentless AI opponent in debates, interviews, negotiations and more, then get coaching scores after every session." />
     <meta name="theme-color" content="#07080b" />
     <script>
@@ -36,7 +51,7 @@
   </head>
   <body>
     <div id="app"></div>
-    <script src="/js/tracking.js?v=20261002b"></script>
+    <script src="/js/tracking.js?v=20261002c"></script>
     <script src="/js/feedback.js" defer></script>
 <script src="/js/pwa-helper.js"></script>
     <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"8fdd31aebec840deb57089bace298fb9","r":1,"spa":2}' crossorigin="anonymous"></script>

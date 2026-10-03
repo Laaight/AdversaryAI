@@ -64,7 +64,7 @@
       g.src = 'https://www.googletagmanager.com/gtm.js?id=' + encodeURIComponent(CFG.GTM_ID);
       document.head.appendChild(g);
     }
-    if (CFG.GADS && CFG.GADS.id && !CFG.GTM_ID) {
+    if (CFG.GADS && CFG.GADS.id && !CFG.GTM_ID && !window.__aaiGtag) {
       var a = document.createElement('script'); a.async = true;
       a.src = 'https://www.googletagmanager.com/gtag/js?id=' + encodeURIComponent(CFG.GADS.id);
       document.head.appendChild(a);
@@ -113,7 +113,7 @@
       '<button id="aai-c-no" style="background:transparent;color:#cbd5e1;border:1px solid rgba(255,255,255,.2);border-radius:999px;padding:8px 14px;cursor:pointer">No thanks</button>' +
       '<button id="aai-c-yes" style="background:#ff2e3f;color:#fff;border:0;border-radius:999px;padding:8px 14px;font-weight:600;cursor:pointer">OK</button>';
     document.body.appendChild(bar);
-    document.getElementById('aai-c-yes').onclick = function () { try { localStorage.setItem('aai_consent', 'yes'); } catch (e) {} bar.remove(); loadPixels(); };
+    document.getElementById('aai-c-yes').onclick = function () { try { localStorage.setItem('aai_consent', 'yes'); } catch (e) {} if (window.gtag) window.gtag('consent', 'update', { ad_storage: 'granted', analytics_storage: 'granted', ad_user_data: 'granted', ad_personalization: 'granted' }); bar.remove(); loadPixels(); };
     document.getElementById('aai-c-no').onclick = function () { try { localStorage.setItem('aai_consent', 'no'); } catch (e) {} bar.remove(); };
   }
 
